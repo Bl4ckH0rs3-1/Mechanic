@@ -28,6 +28,37 @@ end
 -- Registration API
 --------------------------------------------------------------------------------
 
+-- Capabilities Interface Contract:
+-- {
+--     version = "1.0.0",
+--     getDebugBuffer = function(),
+--     clearDebugBuffer = function(),
+--     tests = {
+--         getAll = function(),        -- returns { {id, def}, ... }
+--         getCategories = function(), -- returns { "cat", ... }
+--         run = function(id),
+--         runAll = function(),
+--         getResult = function(id),   -- returns test result table
+--     },
+--     settings = { ... }
+-- }
+
+-- Test Result Contract (Phase 5):
+-- {
+--     passed = true/false/nil,
+--     message = "Summary",
+--     duration = 0.003,
+--     logs = { "line", ... },
+--     details = { -- Optional structured diagnostics
+--         {
+--             label = "API Name",
+--             value = "Result",
+--             status = "pass" | "warn" | "fail" | nil
+--         },
+--         ...
+--     }
+-- }
+
 --- Register an addon with Mechanic.
 --- See PLAN/MASTER_PLAN.md for capabilities interface.
 ---@param addonName string The addon's name

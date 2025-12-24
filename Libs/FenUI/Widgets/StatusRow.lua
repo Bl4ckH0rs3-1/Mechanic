@@ -88,17 +88,28 @@ function StatusRowMixin:UpdateLayout()
     local xOffset = 8
     local gap = self.config.gap or 12
     local internalGap = 4
+    local needsRetry = false
     
     for i, item in ipairs(self.items) do
         item.labelFS:ClearAllPoints()
         item.labelFS:SetPoint("LEFT", self, "LEFT", xOffset, 0)
         item.labelFS:Show()
-        xOffset = xOffset + item.labelFS:GetWidth() + internalGap
+        
+        local labelW = item.labelFS:GetWidth()
+        if labelW == 0 and item.labelFS:GetText() ~= "" then
+            needsRetry = true
+        end
+        xOffset = xOffset + labelW + internalGap
         
         item.valueFS:ClearAllPoints()
         item.valueFS:SetPoint("LEFT", self, "LEFT", xOffset, 0)
         item.valueFS:Show()
-        xOffset = xOffset + item.valueFS:GetWidth()
+        
+        local valueW = item.valueFS:GetWidth()
+        if valueW == 0 and item.valueFS:GetText() ~= "" then
+            needsRetry = true
+        end
+        xOffset = xOffset + valueW
         
         if item.divider then
             xOffset = xOffset + (gap / 2)
@@ -109,6 +120,14 @@ function StatusRowMixin:UpdateLayout()
         end
         
         xOffset = xOffset + gap
+    end
+
+    if needsRetry and not self.retryPending then
+        self.retryPending = true
+        C_Timer.After(0.05, function()
+            self.retryPending = false
+            self:UpdateLayout()
+        end)
     end
 end
 

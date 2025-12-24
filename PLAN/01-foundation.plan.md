@@ -247,8 +247,8 @@ ConsoleModule.filters = {
 function ConsoleModule:Initialize(parent)
     -- Create filter dropdowns
     -- Create search box
-    -- Create MultiLineEditBox
-    -- Create toolbar (Clear, Copy, Dedup All, Dedup Adjacent, Pause)
+    -- Create MultiLineEditBox (readOnly, supports direct Ctrl+A/Ctrl+C)
+    -- Create toolbar (Clear, Dedup All, Dedup Adjacent, Pause)
     -- Create line count label
 end
 
@@ -319,7 +319,9 @@ end
 - [x] Copy produces formatted text
 - [x] Line count updates
 
-### 6. Copy System
+### 6. Direct Copy System
+
+**Design**: Text displays use `MultiLineEditBox` with `readOnly = true`. Users click to focus, then use **Ctrl+A** (select all) and **Ctrl+C** to copy directly. No intermediate dialog.
 
 **Files**: `Core.lua` (helper methods)
 
@@ -386,7 +388,7 @@ end
 - [x] Environment header generated correctly
 - [x] Optional fields respect settings
 - [x] Client type detection works (Retail/PTR/Beta)
-- [x] Copy dialog opens with text selected
+- [x] Direct selection works in MultiLineEditBox (Ctrl+A / Ctrl+C)
 
 ### 7. Slash Commands
 
@@ -424,13 +426,11 @@ function Mechanic:SlashCommand(input)
             MechanicLib.Categories.PERF)
     elseif cmd == "pause" then
         self:TogglePause()
-    elseif cmd == "copy" then
-        self:CopyCurrentTab()
     elseif cmd == "clear" then
         self:ClearCurrentTab()
     else
         self:Print("Unknown command: " .. cmd)
-        self:Print("Commands: console, errors, tests, perf, reload, gc, pause, copy, clear")
+        self:Print("Commands: console, errors, tests, perf, reload, gc, pause, clear")
     end
 end
 ```

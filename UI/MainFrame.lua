@@ -59,6 +59,7 @@ function Mechanic:CreateMainFrame()
 			{ key = "console", text = "Console" },
 			{ key = "errors", text = "Errors" },
 			{ key = "tests", text = "Tests" },
+			{ key = "tools", text = "Tools" },
 			{ key = "perf", text = "Performance" },
 		},
 		onChange = function(key)
@@ -73,15 +74,15 @@ function Mechanic:CreateMainFrame()
 	contentFrame:SetPoint("TOPLEFT", tabs, "BOTTOMLEFT", 0, -4)
 	contentFrame:SetPoint("BOTTOMRIGHT", statusBar, "TOPRIGHT", 0, 4)
 
-	-- Copy button on status bar
-	local copyBtn = FenUI:CreateIconButton(statusBar, {
-		icon = "Interface\\Buttons\\UI-OptionsButton", -- Placeholder icon
-		tooltip = "Copy Current View",
+	-- Reload button on status bar
+	local reloadBtn = FenUI:CreateIconButton(statusBar, {
+		icon = "Interface\\Buttons\\UI-RefreshButton",
+		tooltip = "Reload UI (ReloadUI)",
 		onClick = function()
-			self:CopyCurrentTab()
+			ReloadUI()
 		end,
 	})
-	copyBtn:SetPoint("RIGHT", -8, 0)
+	reloadBtn:SetPoint("RIGHT", -8, 0)
 
 	-- Select initial tab
 	tabs:SelectTab(self.db.profile.activeTab or "console")
@@ -99,6 +100,10 @@ function Mechanic:OnTabChanged(key)
 	end
 	if self.Tests and self.Tests.frame then
 		self.Tests.frame:Hide()
+	end
+	if self.Tools and self.Tools.frame then
+		self.Tools.frame:Hide()
+		self.Tools:OnHide()
 	end
 	if self.Perf and self.Perf.frame then
 		self.Perf.frame:Hide()
@@ -126,6 +131,14 @@ function Mechanic:OnTabChanged(key)
 		end
 		if self.Tests and self.Tests.frame then
 			self.Tests.frame:Show()
+		end
+	elseif key == "tools" then
+		if not self.Tools or not self.Tools.frame then
+			self:InitializeTools()
+		end
+		if self.Tools and self.Tools.frame then
+			self.Tools.frame:Show()
+			self.Tools:OnShow()
 		end
 	elseif key == "perf" then
 		if not self.Perf or not self.Perf.frame then

@@ -50,14 +50,17 @@ function MultiLineEditBoxMixin:Init(config)
         self.editBox:SetWidth(width - 30)
     end)
     
-    -- Click to focus
-    self:SetScript("OnMouseDown", function()
+    -- Click to focus - ensure the editBox captures keyboard input
+    local function FocusEditBox()
         self.editBox:SetFocus()
-    end)
+    end
+    self:SetScript("OnMouseDown", FocusEditBox)
+    self.scrollFrame:SetScript("OnMouseDown", FocusEditBox)
     
-    -- Auto-scroll to bottom on text change (optional)
+    -- Auto-scroll to bottom on text change (can be disabled)
+    self.autoScroll = config.autoScroll ~= false
     self.editBox:SetScript("OnTextChanged", function(eb)
-        if not self.paused then
+        if self.autoScroll then
             self.scrollFrame:SetVerticalScroll(self.scrollFrame:GetVerticalScrollRange())
         end
     end)
@@ -90,22 +93,65 @@ function MultiLineEditBoxMixin:SelectAll()
     self.editBox:HighlightText()
 end
 
+function MultiLineEditBoxMixin:SetAutoScroll(enabled)
+    self.autoScroll = enabled
+end
+
+function MultiLineEditBoxMixin:ScrollToTop()
+    self.scrollFrame:SetVerticalScroll(0)
+end
+
+function MultiLineEditBoxMixin:ScrollToBottom()
+    self.scrollFrame:SetVerticalScroll(self.scrollFrame:GetVerticalScrollRange())
+end
+
 function MultiLineEditBoxMixin:SetReadOnly(readOnly)
-    self.editBox:SetEnabled(not readOnly)
-    -- Even when "disabled", we want it to be selectable.
-    -- Native EditBox:SetEnabled(false) makes it non-selectable.
-    -- Instead, we use a script to prevent typing.
+    -- Do NOT use SetEnabled(false) as it prevents focus and copy.
+    -- Instead, we block character input but keep the widget enabled for selection.
+    self.isReadOnly = readOnly
     if readOnly then
-        self.editBox:SetScript("OnChar", function() return end)
-        self.editBox:SetScript("OnKeyDown", function(_, key)
+        self.editBox:SetScript("OnChar", function(eb)
+            -- Block all character input; prevent fallthrough to game
+            eb:SetPropagateKeyboardInput(false)
+        end)
+        self.editBox:SetScript("OnKeyDown", function(eb, key)
+            -- Default: do not propagate to game bindings
+            eb:SetPropagateKeyboardInput(false)
+
+            -- Allow Ctrl+C (copy)
             if key == "C" and IsControlKeyDown() then
-                -- Allow Ctrl+C
+                eb:SetPropagateKeyboardInput(true)
                 return
-            elseif key == "A" and IsControlKeyDown() then
-                -- Allow Ctrl+A
+            end
+
+            -- Allow Ctrl+A (select all)
+            if key == "A" and IsControlKeyDown() then
                 self:SelectAll()
                 return
             end
+
+            -- Allow navigation keys
+            if
+                key == "UP"
+                or key == "DOWN"
+                or key == "LEFT"
+                or key == "RIGHT"
+                or key == "PAGEUP"
+                or key == "PAGEDOWN"
+                or key == "HOME"
+                or key == "END"
+            then
+                eb:SetPropagateKeyboardInput(true)
+                return
+            end
+
+            -- Allow Escape to clear focus
+            if key == "ESCAPE" then
+                eb:ClearFocus()
+                return
+            end
+
+            -- Block destructive keys silently
         end)
     else
         self.editBox:SetScript("OnChar", nil)

@@ -11,11 +11,11 @@ In-game development hub for World of Warcraft addon developers. Centralizes debu
 
 | Feature | Description |
 |---------|-------------|
-| **Console** | Aggregated debug output from all registered addons with filters, search, and dedup |
-| **Errors** | BugGrabber integration with pause/resume - finally copy errors without them scrolling away |
-| **Tests** | Unified view of test results across all addons |
-| **Performance** | Memory/CPU metrics with extended diagnostics (FPS, latency, GC) |
-| **Universal Copy** | Every piece of data is copyable with optional environment context |
+| **Console** | Aggregated debug output from all registered addons with filters, search, and dedup. Includes **semantic color highlighting** (e.g., Purple for Midnight secret values). |
+| **Errors** | BugGrabber integration with pause/resume - finally copy errors without them scrolling away. |
+| **Tests** | Unified view of test results across all addons with **structured diagnostic details** for granular check reporting. |
+| **Performance** | Memory/CPU metrics with extended diagnostics (FPS, latency, GC). |
+| **Universal Copy** | Every piece of data is copyable with optional environment context. Console exports automatically strip color codes for clean text. |
 
 ## Why Mechanic?
 
@@ -46,25 +46,29 @@ In-game development hub for World of Warcraft addon developers. Centralizes debu
 
 ### Integration via MechanicLib
 
-MechanicLib is a lightweight library (~150 lines) that lets your addon integrate with Mechanic:
+MechanicLib is a lightweight library (~150 lines) that lets your addon integrate with Mechanic. It supports rich test results and semantic logging:
 
 ```lua
 local MechanicLib = LibStub("MechanicLib-1.0", true)
 
--- Developer mode detection (replaces DevMarker.lua)
-if MechanicLib and MechanicLib:IsEnabled() then
-    -- Register with Mechanic
-    MechanicLib:Register("MyAddon", {
-        version = "1.0.0",
-        getDebugBuffer = function() return MyAddon.debugBuffer end,
-        -- Optional: expose settings, tests
-    })
-end
+-- Registration with rich test results (Phase 5)
+MechanicLib:Register("MyAddon", {
+    tests = {
+        getResult = function(id)
+            return {
+                passed = true,
+                message = "API Check Complete",
+                details = {
+                    { label = "C_Spell.GetInfo", value = "Success", status = "pass" },
+                    { label = "Secret Value", value = "Detected", status = "warn" },
+                }
+            }
+        end
+    }
+})
 
--- Logging (no-op if Mechanic isn't installed)
-if MechanicLib then
-    MechanicLib:Log("MyAddon", "Something happened", MechanicLib.Categories.TRIGGER)
-end
+-- Logging with semantic categories
+MechanicLib:Log("MyAddon", "Midnight secret detected", MechanicLib.Categories.SECRET)
 ```
 
 ### Copy Output Format

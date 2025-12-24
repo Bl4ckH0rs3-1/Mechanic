@@ -3,6 +3,12 @@
 All notable changes to !Mechanic will be documented in this file.
 
 
+
+## [1.1.0] - 2025-12-23
+
+### Changed
+- Phase 5 Complete: Enhanced console category colors (purple for [Secret]), rich test details with status-colored icons, and clean plain-text copy logic. Fixed multiple performance bottlenecks in loops.
+
 ## [1.0.0] - 2025-12-23
 
 ### Changed

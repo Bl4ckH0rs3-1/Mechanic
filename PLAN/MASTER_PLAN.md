@@ -214,13 +214,13 @@ passed, message  -- boolean/nil, string
 │  (Tab Content Area - varies by tab)                         │
 │                                                             │
 ├─────────────────────────────────────────────────────────────┤
-│ WoW 12.0.0 | Interface 120001 | Retail | 3 addons   [Copy]  │
+│ WoW 12.0.0 | Interface 120001 | Retail | 3 addons [Reload]  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 - **Size**: 800x600 default, resizable, position saved
 - **Framework**: FenUI Panel with Tabs widget
-- **Status Bar**: Environment info with copy button
+- **Status Bar**: Environment info with Reload button (calls `ReloadUI()`)
 
 ### Console Tab
 
@@ -236,10 +236,10 @@ passed, message  -- boolean/nil, string
 │ [ActionHud] [Cooldown] Spell 12345 on cooldown              │
 │ [System] /mech gc executed: 1.2MB freed                     │
 │                                                             │
-│ (MultiLineEditBox - selectable, copyable)                   │
+│ (MultiLineEditBox - selectable, directly copyable)          │
 │                                                             │
 ├─────────────────────────────────────────────────────────────┤
-│ [Clear] [Copy] [Dedup All] [Dedup Adjacent] [Pause] │ 247   │
+│ [Clear] [Dedup All] [Dedup Adjacent] [Pause]        │ 247   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -247,6 +247,7 @@ passed, message  -- boolean/nil, string
 - **Source Filter**: Dropdown with "All" + each registered addon + "System"
 - **Category Filter**: Dropdown with "All" + each category constant
 - **Search**: Live text filter
+- **Direct Copy**: Click in the display to focus, then use Ctrl+A / Ctrl+C
 - **Dedup All**: Collapse identical lines to `message (x3)`
 - **Dedup Adjacent**: Only collapse consecutive duplicates (preserves timeline)
 - **Pause**: Stop accepting new entries (buffer continues accumulating in addons)
@@ -269,10 +270,10 @@ passed, message  -- boolean/nil, string
 │   slot = 5                                                  │
 │   button = nil                                              │
 │                                                             │
-│ (Colorized, copyable)                                       │
+│ (Colorized, directly selectable and copyable)               │
 │                                                             │
 ├─────────────────────────────────────────────────────────────┤
-│ [→ Send to Console] [Copy Error] [Wipe Session]             │
+│ [→ Send to Console] [Wipe Session]                          │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -280,6 +281,7 @@ passed, message  -- boolean/nil, string
 - **Session Dropdown**: Current / Previous / All
 - **Navigation**: Prev/Next buttons with count display
 - **Pause Button**: KEY FEATURE - stops the flood so user can copy
+- **Direct Copy**: Click in the display to focus, then use Ctrl+A / Ctrl+C
 - **Colorized**: Stack traces colored like BugSack
 - **Send to Console**: Copies formatted error to Console tab
 
@@ -287,7 +289,7 @@ passed, message  -- boolean/nil, string
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ [Run Selected] [Run All Auto] [Validate] [Clear] [Copy]     │
+│ [Run Selected] [Run All Auto]         [Export] [Clear]      │
 ├─────────────────────┬───────────────────────────────────────┤
 │ ▼ WimpyAuras        │ Secret Value Handling                 │
 │   ▼ Triggers        │ Type: Auto | Category: Triggers       │
@@ -310,14 +312,15 @@ passed, message  -- boolean/nil, string
 - **Left Panel**: Tree view grouped by Addon → Category → Test
 - **Right Panel**: Selected test details
 - **Status Icons**: ✓ passed, ✗ failed, ~ pending, - not run
-- **Run Controls**: Selected, All Auto, Validate (for manual tests)
+- **Run Controls**: Selected, All Auto
+- **Export Toggle**: Replaces tree view with a copyable text report (Ctrl+A / Ctrl+C)
 - **Summary Bar**: Aggregated counts
 
 ### Performance Tab
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ [▶ Auto-Refresh] [Reset Stats] [CPU Profiling: OFF] [Copy]  │
+│ [▶ Auto-Refresh] [Reset Stats] [CPU Profiling: OFF] [Export]│
 ├─────────────────────────────────────────────────────────────┤
 │ FPS: 144 | Latency: 42ms / 68ms | Lua Memory: 45.2 MB       │
 ├─────────────────────────────────────────────────────────────┤
@@ -338,6 +341,7 @@ passed, message  -- boolean/nil, string
 - **CPU Profiling Toggle**: Enables `scriptProfile` CVar (requires reload)
 - **Extended Metrics**: FPS, Home/World latency, total Lua memory
 - **Sortable Columns**: Click headers to sort
+- **Export Toggle**: Replaces table view with a copyable text report (Ctrl+A / Ctrl+C)
 
 **APIs Used**:
 - `GetFramerate()` - FPS
@@ -350,13 +354,18 @@ passed, message  -- boolean/nil, string
 
 ## 5. Copy System Specification
 
-### Principle
+### Principle: Direct Copy
 
-Every data display has a Copy button. All copies output clean, markdown-friendly text.
+Text displays (Console, Errors) use editable `MultiLineEditBox` widgets that support direct selection and copying. Users click in the display to focus, then use **Ctrl+A** (select all) and **Ctrl+C** to copy.
 
-### UX Limitation
+For complex views (Tests tree, Performance table), an **Export** toggle button switches between the interactive UI and a copyable text view.
 
-WoW addons cannot write directly to the OS clipboard. The "Copy" function opens a dialog with text pre-selected in an EditBox. Users then press **Ctrl+C** (or Cmd+C) to copy. The dialog includes helper text: "Press Ctrl+C to copy".
+### UX Rationale
+
+The "Direct Copy" model eliminates the intermediate dialog pattern:
+- **One less click** to copy data
+- **Better focus handling** - no need to switch windows
+- **Consistent with modern terminals and IDEs**
 
 ### Environment Header
 
@@ -432,21 +441,31 @@ ActionHud          | 1,230 KB | 6.2%  | 0.23     | 2.7%
 !Mechanic          | 890 KB   | 4.5%  | 0.12     | 1.4%
 ```
 
-### Copy Implementation
+### Implementation Pattern
 
-Each module implements:
+**Simple tabs** (Console, Errors) use `MultiLineEditBox` with `readOnly = true`:
+- Users click to focus, then Ctrl+A / Ctrl+C
+- Widget blocks character input but allows selection and copy
+
+**Complex tabs** (Tests, Performance) implement Export Mode toggle:
 
 ```lua
-function Module:GetCopyText(includeHeader)
-    local lines = {}
-    if includeHeader then
-        table.insert(lines, Mechanic:GetEnvironmentHeader())
-        table.insert(lines, "---")
+function Module:ToggleExportMode()
+    self.exportMode = not self.exportMode
+    if self.exportMode then
+        -- Hide interactive UI, show export text box
+        self.treeContainer:Hide()
+        self.exportBox:SetText(self:GetCopyText(true))
+        self.exportBox:Show()
+    else
+        -- Hide export box, restore interactive UI
+        self.exportBox:Hide()
+        self.treeContainer:Show()
     end
-    -- Module-specific content
-    return table.concat(lines, "\n")
 end
 ```
+
+Each module still implements `GetCopyText(includeHeader)` for generating the export content.
 
 ---
 

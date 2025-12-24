@@ -6,6 +6,22 @@ local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
 local Console = {}
 Mechanic.Console = Console
 
+-- Category color constants per Phase 5 spec
+local CATEGORY_COLORS = {
+	["[Secret]"] = "|cffaa00ff", -- Purple - critical for Midnight
+	["[Trigger]"] = "|cff00ccff", -- Cyan - action initiation
+	["[Event]"] = "|cff88ff88", -- Light green - system events
+	["[Validation]"] = "|cffffff00", -- Yellow - test validation
+	["[Perf]"] = "|cffff8800", -- Orange - performance warnings
+	["[Core]"] = "|cff8888ff", -- Light blue - core lifecycle
+	["[Region]"] = "|cffaaaaaa", -- Grey - UI/Region updates
+	["[API]"] = "|cff00ffcc", -- Teal - API calls
+	["[Cooldown]"] = "|cffffcc00", -- Yellow-orange - Cooldowns
+	["[Load]"] = "|cffccff00", -- Lime - Load conditions
+	["[Error]"] = "|cffff4444", -- Soft red - captured errors
+}
+local DEFAULT_CATEGORY_COLOR = "|cffffffff"
+
 Console.buffer = {} -- { {source, category, message, time}, ... }
 Console.paused = false
 Console.filters = {
@@ -23,17 +39,27 @@ function Console:Initialize(parent)
 	frame:SetAllPoints()
 	self.frame = frame
 
+	-- Create split nav layout
+	local SplitNavLayout = ns.SplitNavLayout
+	self.layout = SplitNavLayout:Create(frame, {
+		navWidth = 160,
+		onSelect = function(key)
+			self:OnSourceSelected(key)
+		end,
+		defaultKey = "all",
+	})
+
+	-- Everything else goes into layout.contentArea
+	local contentArea = self.layout.contentArea
+
 	-- Filter Bar
-	local filterBar = FenUI:CreateLayout(frame, {
+	local filterBar = FenUI:CreateLayout(contentArea, {
 		height = 30,
 		background = "surfaceElevated",
 	})
 	filterBar:SetPoint("TOPLEFT", 0, 0)
 	filterBar:SetPoint("TOPRIGHT", 0, 0)
 	self.filterBar = filterBar
-
-	-- TODO: Add dropdowns for Source and Category (requires AceGUI Dropdown for now per MASTER_PLAN)
-	-- For Phase 1, we'll use a simple search box and buttons.
 
 	-- Search Box
 	local searchBox = CreateFrame("EditBox", nil, filterBar, "SearchBoxTemplate")
@@ -47,7 +73,7 @@ function Console:Initialize(parent)
 	self.searchBox = searchBox
 
 	-- Main Display (MultiLineEditBox)
-	local logDisplay = FenUI:CreateMultiLineEditBox(frame, {
+	local logDisplay = FenUI:CreateMultiLineEditBox(contentArea, {
 		readOnly = true,
 		background = "surfaceInset",
 	})
@@ -55,8 +81,14 @@ function Console:Initialize(parent)
 	logDisplay:SetPoint("BOTTOMRIGHT", 0, 34) -- Leave space for toolbar
 	self.logDisplay = logDisplay
 
+	-- Refresh on show
+	frame:SetScript("OnShow", function()
+		self:RefreshSourceList()
+		self:Refresh()
+	end)
+
 	-- Toolbar
-	local toolbar = FenUI:CreateToolbar(frame, {
+	local toolbar = FenUI:CreateToolbar(contentArea, {
 		height = 30,
 	})
 	toolbar:SetPoint("BOTTOMLEFT", 0, 0)
@@ -68,14 +100,6 @@ function Console:Initialize(parent)
 		text = "Clear",
 		onClick = function()
 			self:Clear()
-		end,
-	})
-
-	-- Copy Button
-	toolbar:AddButton({
-		text = "Copy",
-		onClick = function()
-			self:Copy()
 		end,
 	})
 
@@ -109,12 +133,61 @@ function Console:Initialize(parent)
 	self.lineCount:SetText("Lines: 0")
 end
 
+function Console:RefreshSourceList()
+	local items = {
+		{ key = "all", text = string.format("All (%d)", #self.buffer) },
+	}
+
+	-- Count entries per source
+	local sourceCounts = {}
+	for _, entry in ipairs(self.buffer) do
+		sourceCounts[entry.source] = (sourceCounts[entry.source] or 0) + 1
+	end
+
+	-- Add registered addons
+	local MechanicLib = LibStub("MechanicLib-1.0", true)
+	if MechanicLib then
+		local registered = MechanicLib:GetRegistered()
+		local sortedNames = {}
+		for name in pairs(registered) do
+			table.insert(sortedNames, name)
+		end
+		table.sort(sortedNames)
+
+		for _, addonName in ipairs(sortedNames) do
+			local count = sourceCounts[addonName] or 0
+			table.insert(items, {
+				key = addonName,
+				text = string.format("%s (%d)", addonName, count),
+			})
+		end
+	end
+
+	-- Add "System" for internal logs if it has entries and isn't a registered addon
+	if sourceCounts["System"] then
+		local isRegistered = MechanicLib and MechanicLib:GetRegistered()["System"]
+		if not isRegistered then
+			table.insert(items, {
+				key = "System",
+				text = string.format("System (%d)", sourceCounts["System"]),
+			})
+		end
+	end
+
+	self.layout:SetItems(items)
+end
+
+function Console:OnSourceSelected(key)
+	self.filters.source = key == "all" and "All" or key
+	self:Refresh()
+end
+
 function Console:OnLog(addonName, message, category)
 	table.insert(self.buffer, {
 		source = addonName,
 		category = category or "",
 		message = message,
-		time = GetTime(),
+		time = time(),
 	})
 
 	-- Enforce buffer limit
@@ -124,6 +197,9 @@ function Console:OnLog(addonName, message, category)
 	end
 
 	if not self.paused then
+		if self.frame and self.frame:IsVisible() then
+			self:RefreshSourceList()
+		end
 		self:Refresh()
 	end
 end
@@ -194,7 +270,7 @@ function Console:ApplyFilters()
 	return filtered
 end
 
-function Console:FormatEntries(entries)
+function Console:FormatEntries(entries, stripColors)
 	local lines = {}
 	local showTimestamps = Mechanic.db.profile.showTimestamps
 	for _, entry in ipairs(entries) do
@@ -203,8 +279,20 @@ function Console:FormatEntries(entries)
 			timestamp = date("[%H:%M:%S] ", entry.time)
 		end
 
-		local category = entry.category ~= "" and (" " .. entry.category) or ""
-		local count = entry.count and entry.count > 1 and (" (x" .. entry.count .. ")") or ""
+		local category = ""
+		if entry.category ~= "" then
+			if stripColors then
+				category = string.format(" %s", entry.category)
+			else
+				local color = CATEGORY_COLORS[entry.category] or DEFAULT_CATEGORY_COLOR
+				category = string.format(" %s%s|r", color, entry.category)
+			end
+		end
+
+		local count = ""
+		if entry.count and entry.count > 1 then
+			count = string.format(" (x%d)", entry.count)
+		end
 
 		table.insert(lines, string.format("%s[%s]%s %s%s", timestamp, entry.source, category, entry.message, count))
 	end
@@ -301,12 +389,6 @@ function Console:SetDedupMode(mode)
 	self:Refresh()
 end
 
-function Console:Copy()
-	local text = self:GetCopyText(Mechanic.db.profile.includeEnvHeader)
-	-- In WoW, we show an editbox for the user to Ctrl+C
-	Mechanic:ShowCopyDialog(text)
-end
-
 function Console:GetCopyText(includeHeader)
 	local lines = {}
 	if includeHeader then
@@ -318,7 +400,7 @@ function Console:GetCopyText(includeHeader)
 	end
 
 	local filtered = self:ApplyFilters()
-	table.insert(lines, self:FormatEntries(filtered))
+	table.insert(lines, self:FormatEntries(filtered, true))
 
 	return table.concat(lines, "\n")
 end

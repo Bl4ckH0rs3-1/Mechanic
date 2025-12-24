@@ -17,6 +17,7 @@ PerformanceModule.eventCounts = {}
 PerformanceModule.sortColumn = "memory"
 PerformanceModule.sortDesc = true
 PerformanceModule.visible = false
+PerformanceModule.exportMode = false
 
 -- Column definitions for addon list
 local COLUMNS = {
@@ -41,13 +42,28 @@ function Mechanic:InitializePerformance()
 	frame:SetAllPoints()
 	PerformanceModule.frame = frame
 
-	-- Toolbar
-	local toolbar = FenUI:CreateToolbar(frame, {
+	-- Create split nav layout
+	local SplitNavLayout = ns.SplitNavLayout
+	PerformanceModule.layout = SplitNavLayout:Create(frame, {
+		navWidth = 180,
+		onSelect = function(key)
+			PerformanceModule:OnNavSelected(key)
+		end,
+		defaultKey = "general",
+	})
+
+	-- Everything else goes into layout.contentArea or specific content frames
+	local contentArea = PerformanceModule.layout.contentArea
+	local generalFrame = PerformanceModule.layout:GetContentFrame("general")
+
+	-- Toolbar (shared, in contentArea)
+	local toolbar = FenUI:CreateToolbar(contentArea, {
 		height = 32,
 		padding = 4,
 	})
 	toolbar:SetPoint("TOPLEFT", 0, 0)
 	toolbar:SetPoint("TOPRIGHT", 0, 0)
+	PerformanceModule.toolbar = toolbar
 
 	-- Auto-Refresh Toggle
 	local autoRefreshBtn = toolbar:AddButton({
@@ -80,18 +96,20 @@ function Mechanic:InitializePerformance()
 
 	toolbar:AddSpacer("flex")
 
-	-- Copy Button
-	local copyBtn = toolbar:AddButton({
-		text = "Copy",
-		width = 60,
+	-- Export Button
+	local exportBtn = toolbar:AddButton({
+		text = "Export",
+		width = 70,
 		onClick = function()
-			local text = PerformanceModule:GetCopyText(self.db.profile.includeEnvHeader)
-			self:ShowCopyDialog(text)
+			PerformanceModule:ToggleExportMode()
 		end,
 	})
+	PerformanceModule.exportButton = exportBtn
+
+	-- --- General View UI ---
 
 	-- Extended Metrics Row
-	local metricsRow = CreateFrame("Frame", nil, frame)
+	local metricsRow = CreateFrame("Frame", nil, generalFrame)
 	metricsRow:SetHeight(28)
 	metricsRow:SetPoint("TOPLEFT", toolbar, "BOTTOMLEFT", 0, -4)
 	metricsRow:SetPoint("TOPRIGHT", toolbar, "BOTTOMRIGHT", 0, -4)
@@ -112,7 +130,7 @@ function Mechanic:InitializePerformance()
 	PerformanceModule.memoryLabel = memoryLabel
 
 	-- Footer bar
-	local footerBar = CreateFrame("Frame", nil, frame)
+	local footerBar = CreateFrame("Frame", nil, generalFrame)
 	footerBar:SetHeight(24)
 	footerBar:SetPoint("BOTTOMLEFT", 0, 0)
 	footerBar:SetPoint("BOTTOMRIGHT", 0, 0)
@@ -123,7 +141,7 @@ function Mechanic:InitializePerformance()
 	PerformanceModule.footerLabel = footerLabel
 
 	-- Header row for addon list
-	local headerRow = CreateFrame("Frame", nil, frame)
+	local headerRow = CreateFrame("Frame", nil, generalFrame)
 	headerRow:SetHeight(24)
 	headerRow:SetPoint("TOPLEFT", metricsRow, "BOTTOMLEFT", 0, -4)
 	headerRow:SetPoint("TOPRIGHT", metricsRow, "BOTTOMRIGHT", 0, -4)
@@ -131,7 +149,7 @@ function Mechanic:InitializePerformance()
 	PerformanceModule.headerRow = headerRow
 
 	-- Addon list (scrollable)
-	local scrollFrame = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
+	local scrollFrame = CreateFrame("ScrollFrame", nil, generalFrame, "UIPanelScrollFrameTemplate")
 	scrollFrame:SetPoint("TOPLEFT", headerRow, "BOTTOMLEFT", 0, -2)
 	scrollFrame:SetPoint("BOTTOMRIGHT", footerBar, "TOPRIGHT", -24, 4)
 
@@ -144,6 +162,23 @@ function Mechanic:InitializePerformance()
 	-- Pre-create row pool
 	PerformanceModule.rowPool = {}
 
+	-- Store references to table UI for export toggle
+	PerformanceModule.metricsRow = metricsRow
+	PerformanceModule.headerRowFrame = headerRow
+	PerformanceModule.footerBarFrame = footerBar
+
+	-- Export Mode: Full-tab text display (hidden by default)
+	-- This should probably be in contentArea so it covers everything
+	local exportBox = FenUI:CreateMultiLineEditBox(contentArea, {
+		readOnly = true,
+		background = "surfaceInset",
+		autoScroll = false,
+	})
+	exportBox:SetPoint("TOPLEFT", toolbar, "BOTTOMLEFT", 0, -4)
+	exportBox:SetPoint("BOTTOMRIGHT", 0, 0)
+	exportBox:Hide()
+	PerformanceModule.exportBox = exportBox
+
 	-- Initialize state
 	PerformanceModule.trackingStart = GetTime()
 	PerformanceModule:UpdateCPUButtonState()
@@ -152,6 +187,189 @@ function Mechanic:InitializePerformance()
 	if Mechanic.db.profile.autoRefresh then
 		PerformanceModule.autoRefresh = true
 	end
+
+	frame:SetScript("OnShow", function()
+		PerformanceModule:RefreshNavItems()
+		PerformanceModule:OnShow()
+	end)
+end
+
+function PerformanceModule:RefreshNavItems()
+	local items = {
+		{ key = "general", text = "General" },
+	}
+
+	-- Add addons with performance capability
+	local MechanicLib = LibStub("MechanicLib-1.0", true)
+	if MechanicLib then
+		local registered = MechanicLib:GetRegistered()
+		local sortedNames = {}
+		for name in pairs(registered) do
+			table.insert(sortedNames, name)
+		end
+		table.sort(sortedNames)
+
+		for _, addonName in ipairs(sortedNames) do
+			local capabilities = registered[addonName]
+			if capabilities.performance and capabilities.performance.getSubMetrics then
+				table.insert(items, {
+					key = addonName,
+					text = addonName,
+				})
+			end
+		end
+	end
+
+	self.layout:SetItems(items)
+end
+
+function PerformanceModule:OnNavSelected(key)
+	self.selectedNav = key
+
+	if key == "general" then
+		self:Refresh()
+	else
+		self:ShowAddonMetrics(key)
+	end
+end
+
+function PerformanceModule:ShowAddonMetrics(addonName)
+	local contentFrame = self.layout:GetContentFrame(addonName)
+
+	-- Get sub-metrics from addon
+	local MechanicLib = LibStub("MechanicLib-1.0", true)
+	local capabilities = MechanicLib and MechanicLib:GetRegistered()[addonName]
+	if not capabilities or not capabilities.performance then
+		return
+	end
+
+	local ok, subMetrics = pcall(capabilities.performance.getSubMetrics)
+	if not ok or not subMetrics then
+		return
+	end
+
+	-- Render sub-metrics table
+	self:RenderSubMetrics(contentFrame, addonName, subMetrics)
+end
+
+function PerformanceModule:RenderSubMetrics(parent, addonName, metrics)
+	-- Clear previous content
+	for _, child in ipairs({ parent:GetChildren() }) do
+		child:Hide()
+	end
+
+	-- Header
+	local header = parent.header
+	if not header then
+		header = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+		header:SetPoint("TOPLEFT", 8, -40) -- Below toolbar area
+		parent.header = header
+	end
+	header:SetText(string.format("%s - Performance Breakdown", addonName))
+	header:Show()
+
+	-- Metrics table
+	local yOffset = -72
+	local totalMs = 0
+
+	-- Calculate total for percentages
+	for _, metric in ipairs(metrics) do
+		totalMs = totalMs + (metric.msPerSec or 0)
+	end
+
+	for i, metric in ipairs(metrics) do
+		local row = self:GetOrCreateMetricRow(parent, i)
+		row:SetPoint("TOPLEFT", 8, yOffset)
+		row:SetPoint("RIGHT", -8, 0)
+
+		row.nameLabel:SetText(metric.name)
+		row.valueLabel:SetText(string.format("%.2f ms/s", metric.msPerSec or 0))
+
+		local pct = totalMs > 0 and ((metric.msPerSec or 0) / totalMs * 100) or 0
+		row.pctLabel:SetText(string.format("%.1f%%", pct))
+
+		if metric.description then
+			row.descLabel:SetText(string.format("|cff888888%s|r", metric.description))
+		else
+			row.descLabel:SetText("")
+		end
+
+		row:Show()
+		yOffset = yOffset - 24
+	end
+
+	-- Hide remaining rows in pool for this parent if any
+	if parent.metricRows then
+		for i = #metrics + 1, #parent.metricRows do
+			parent.metricRows[i]:Hide()
+		end
+	end
+
+	-- Total row
+	local totalRow = parent.totalRow
+	if not totalRow then
+		totalRow = CreateFrame("Frame", nil, parent)
+		totalRow:SetHeight(24)
+
+		local sep = totalRow:CreateTexture(nil, "BACKGROUND")
+		sep:SetPoint("TOPLEFT", 0, -2)
+		sep:SetPoint("TOPRIGHT", 0, -2)
+		sep:SetHeight(1)
+		sep:SetColorTexture(1, 1, 1, 0.2)
+
+		local label = totalRow:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+		label:SetPoint("LEFT", 0, 0)
+		label:SetText("Total:")
+		totalRow.label = label
+
+		local value = totalRow:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+		value:SetPoint("LEFT", 150, 0)
+		totalRow.value = value
+
+		parent.totalRow = totalRow
+	end
+
+	totalRow:SetPoint("TOPLEFT", 8, yOffset - 8)
+	totalRow:SetPoint("RIGHT", -8, 0)
+	totalRow.value:SetText(string.format("%.2f ms/s", totalMs))
+	totalRow:Show()
+end
+
+function PerformanceModule:GetOrCreateMetricRow(parent, index)
+	parent.metricRows = parent.metricRows or {}
+
+	if parent.metricRows[index] then
+		return parent.metricRows[index]
+	end
+
+	local row = CreateFrame("Frame", nil, parent)
+	row:SetHeight(22)
+
+	local nameLabel = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	nameLabel:SetPoint("LEFT", 0, 0)
+	nameLabel:SetWidth(140)
+	nameLabel:SetJustifyH("LEFT")
+	row.nameLabel = nameLabel
+
+	local valueLabel = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	valueLabel:SetPoint("LEFT", 150, 0)
+	valueLabel:SetWidth(80)
+	valueLabel:SetJustifyH("RIGHT")
+	row.valueLabel = valueLabel
+
+	local pctLabel = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	pctLabel:SetPoint("LEFT", 240, 0)
+	pctLabel:SetWidth(50)
+	pctLabel:SetJustifyH("RIGHT")
+	row.pctLabel = pctLabel
+
+	local descLabel = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	descLabel:SetPoint("LEFT", 300, 0)
+	descLabel:SetJustifyH("LEFT")
+	row.descLabel = descLabel
+
+	parent.metricRows[index] = row
+	return row
 end
 
 function PerformanceModule:CreateHeaderRow(parent)
@@ -415,8 +633,12 @@ end
 --------------------------------------------------------------------------------
 
 function PerformanceModule:Refresh()
-	self:UpdateExtendedMetrics()
-	self:RefreshList()
+	if self.selectedNav == "general" then
+		self:UpdateExtendedMetrics()
+		self:RefreshList()
+	else
+		self:ShowAddonMetrics(self.selectedNav)
+	end
 end
 
 function PerformanceModule:StartAutoRefresh()
@@ -552,7 +774,60 @@ function PerformanceModule:GetEventFrequency()
 end
 
 --------------------------------------------------------------------------------
--- Copy
+-- Export Mode Toggle
+--------------------------------------------------------------------------------
+
+function PerformanceModule:ToggleExportMode()
+	self.exportMode = not self.exportMode
+
+	if self.exportMode then
+		-- Hide table UI, show export box
+		if self.metricsRow then
+			self.metricsRow:Hide()
+		end
+		if self.headerRowFrame then
+			self.headerRowFrame:Hide()
+		end
+		if self.scrollFrame then
+			self.scrollFrame:Hide()
+		end
+		if self.footerBarFrame then
+			self.footerBarFrame:Hide()
+		end
+		if self.exportBox then
+			local text = self:GetCopyText(Mechanic.db.profile.includeEnvHeader)
+			self.exportBox:SetText(text)
+			self.exportBox:Show()
+			self.exportBox:ScrollToTop()
+		end
+		if self.exportButton then
+			self.exportButton:SetText("Table View")
+		end
+	else
+		-- Hide export box, show table UI
+		if self.exportBox then
+			self.exportBox:Hide()
+		end
+		if self.metricsRow then
+			self.metricsRow:Show()
+		end
+		if self.headerRowFrame then
+			self.headerRowFrame:Show()
+		end
+		if self.scrollFrame then
+			self.scrollFrame:Show()
+		end
+		if self.footerBarFrame then
+			self.footerBarFrame:Show()
+		end
+		if self.exportButton then
+			self.exportButton:SetText("Export")
+		end
+	end
+end
+
+--------------------------------------------------------------------------------
+-- Copy Text Generation
 --------------------------------------------------------------------------------
 
 function PerformanceModule:GetCopyText(includeHeader)

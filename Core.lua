@@ -69,14 +69,25 @@ end
 
 function Mechanic:OnAddonRegistered(name, capabilities)
 	-- Notify UI modules if they are interested
-	if self.Console and self.Console.OnAddonRegistered then
-		self.Console:OnAddonRegistered(name, capabilities)
+	if self.Console and self.Console.RefreshSourceList then
+		self.Console:RefreshSourceList()
 	end
 
 	if self.Tests and self.Tests.RefreshTree then
 		self.Tests:RefreshTree()
 		self.Tests:UpdateSummary()
 	end
+
+	if self.Tools and self.Tools.RefreshAddonList then
+		self.Tools:RefreshAddonList()
+	end
+
+	if self.Perf and self.Perf.RefreshNavItems then
+		self.Perf:RefreshNavItems()
+	end
+
+	-- Update status bar count
+	self:UpdateStatusBar()
 
 	-- Send registration log to console
 	local version = capabilities and capabilities.version or "?.?.?"
@@ -127,24 +138,19 @@ function Mechanic:GetEnvironmentHeader()
 
 	-- Timestamp (optional)
 	if self.db.profile.includeTimestamp then
-		table.insert(lines, "Exported: " .. date("%Y-%m-%d %H:%M:%S"))
+		table.insert(lines, string.format("Exported: %s", date("%Y-%m-%d %H:%M:%S")))
 	end
 
 	-- Registered addons
 	local MechanicLib = LibStub("MechanicLib-1.0", true)
 	if MechanicLib then
 		local registered = {}
-		local regParts = {}
 		for name, caps in pairs(MechanicLib:GetRegistered()) do
 			local ver = caps.version or "?"
-			wipe(regParts)
-			table.insert(regParts, name)
-			table.insert(regParts, " ")
-			table.insert(regParts, ver)
-			table.insert(registered, table.concat(regParts))
+			table.insert(registered, string.format("%s %s", name, ver))
 		end
 		if #registered > 0 then
-			table.insert(lines, "Registered: " .. table.concat(registered, ", "))
+			table.insert(lines, string.format("Registered: %s", table.concat(registered, ", ")))
 		end
 	end
 
@@ -193,6 +199,8 @@ function Mechanic:SlashCommand(input)
 		self:ShowTab("errors")
 	elseif cmd == "tests" then
 		self:ShowTab("tests")
+	elseif cmd == "tools" then
+		self:ShowTab("tools")
 	elseif cmd == "perf" then
 		self:ShowTab("perf")
 	elseif cmd == "reload" then
@@ -210,13 +218,11 @@ function Mechanic:SlashCommand(input)
 		end
 	elseif cmd == "pause" then
 		self:TogglePause()
-	elseif cmd == "copy" then
-		self:CopyCurrentTab()
 	elseif cmd == "clear" then
 		self:ClearCurrentTab()
 	else
 		self:Print("Unknown command: " .. cmd)
-		self:Print("Commands: console, errors, tests, perf, reload, gc, pause, copy, clear")
+		self:Print("Commands: console, errors, tests, perf, reload, gc, pause, clear")
 	end
 end
 
@@ -248,60 +254,6 @@ function Mechanic:TogglePause()
 	elseif activeTab == "errors" and self.Errors then
 		self.Errors:TogglePause()
 	end
-end
-
-function Mechanic:CopyCurrentTab()
-	local activeTab = self.db.profile.activeTab
-	local text = ""
-	local includeHeader = self.db.profile.includeEnvHeader
-
-	if activeTab == "console" and self.Console then
-		text = self.Console:GetCopyText(includeHeader)
-	elseif activeTab == "errors" and self.Errors then
-		text = self.Errors:GetCopyText(includeHeader)
-	elseif activeTab == "tests" and self.Tests then
-		text = self.Tests:GetCopyText(includeHeader)
-	elseif activeTab == "perf" and self.Perf then
-		text = self.Perf:GetCopyText(includeHeader)
-	end
-
-	if text ~= "" then
-		self:ShowCopyDialog(text)
-	end
-end
-
-function Mechanic:ShowCopyDialog(text)
-	if not self.copyDialog then
-		local dialog = FenUI:CreatePanel(UIParent, {
-			name = "MechanicCopyDialog",
-			title = "Copy to Clipboard (Ctrl+C)",
-			width = 600,
-			height = 400,
-			closable = true,
-			movable = true,
-		})
-		dialog:SetPoint("CENTER")
-		dialog:SetFrameStrata("DIALOG")
-		dialog:SetFrameLevel(200)
-
-		-- Allow Escape to close
-		_G["MechanicCopyDialog"] = dialog
-		tinsert(UISpecialFrames, "MechanicCopyDialog")
-
-		local editBox = FenUI:CreateMultiLineEditBox(dialog:GetContentFrame(), {
-			readOnly = true,
-			background = "surfaceInset",
-		})
-		editBox:SetPoint("TOPLEFT", 0, 0)
-		editBox:SetPoint("BOTTOMRIGHT", 0, 0)
-
-		dialog.editBox = editBox
-		self.copyDialog = dialog
-	end
-
-	self.copyDialog.editBox:SetText(text)
-	self.copyDialog:Show()
-	self.copyDialog.editBox:SelectAll()
 end
 
 function Mechanic:ClearCurrentTab()

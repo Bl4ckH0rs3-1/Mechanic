@@ -57,8 +57,8 @@ function ErrorsModule:Initialize(parent)
     -- Session dropdown
     -- Navigation controls (Prev, count, Next)
     -- Pause button
-    -- Error display (MultiLineEditBox)
-    -- Action buttons (Send to Console, Copy, Wipe)
+    -- Error display (MultiLineEditBox, readOnly, direct Ctrl+A/Ctrl+C copy)
+    -- Action buttons (Send to Console, Wipe)
 end
 ```
 
@@ -287,7 +287,7 @@ end
 - [ ] Session filter works
 - [ ] Colorization matches BugSack style
 - [ ] Send to Console works
-- [ ] Copy produces formatted output
+- [ ] Direct copy works (Ctrl+A / Ctrl+C in display)
 - [ ] Wipe clears database
 
 ---
@@ -306,8 +306,9 @@ TestsModule.selectedTest = nil
 function TestsModule:Initialize(parent)
     -- Left panel: Tree view (use AceGUI TreeGroup - see note below)
     -- Right panel: Test details
-    -- Toolbar: Run Selected, Run All, Validate, Clear, Copy
+    -- Toolbar: Run Selected, Run All, Export (toggle), Clear
     -- Summary bar: Total, Passed, Failed, Pending
+    -- Export Mode: Replaces tree with copyable text (Ctrl+A/Ctrl+C)
 end
 ```
 
@@ -543,7 +544,9 @@ function TestsModule:UpdateSummary()
 end
 ```
 
-#### Copy
+#### Export Mode (Toggle View)
+
+When Export is toggled ON, the tree view is hidden and replaced with a `MultiLineEditBox` containing the formatted test report. Users can then Ctrl+A / Ctrl+C to copy.
 
 ```lua
 function TestsModule:GetCopyText(includeHeader)
@@ -601,10 +604,10 @@ end
 - [ ] Test selection shows details
 - [ ] Run Selected executes single test
 - [ ] Run All Auto executes all auto tests
-- [ ] Validate works for manual tests
 - [ ] Clear resets all results
 - [ ] Summary bar shows accurate counts
-- [ ] Copy produces formatted output
+- [ ] Export toggle switches to text view
+- [ ] Direct copy works in export mode (Ctrl+A / Ctrl+C)
 - [ ] Works with no registered tests (empty state)
 
 ---

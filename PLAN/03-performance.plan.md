@@ -50,10 +50,11 @@ PerformanceModule.trackingStart = nil
 PerformanceModule.eventCounts = {}  -- For optional event tracking
 
 function PerformanceModule:Initialize(parent)
-    -- Toolbar: Auto-Refresh toggle, Reset, CPU Profiling toggle, Copy
+    -- Toolbar: Auto-Refresh toggle, Reset, CPU Profiling toggle, Export
     -- Extended metrics row: FPS, Latency, Lua Memory
     -- Addon list (Grid or ScrollFrame)
     -- Footer: Duration, Total Memory
+    -- Export Mode: Replaces table with copyable text (Ctrl+A/Ctrl+C)
 end
 ```
 
@@ -319,7 +320,9 @@ function PerformanceModule:GetEventFrequency()
 end
 ```
 
-#### Copy
+#### Export Mode (Toggle View)
+
+When Export is toggled ON, the addon table is hidden and replaced with a `MultiLineEditBox` containing the formatted performance report. Users can then Ctrl+A / Ctrl+C to copy.
 
 ```lua
 function PerformanceModule:GetCopyText(includeHeader)
@@ -381,7 +384,8 @@ end
 - [x] Auto-refresh toggles correctly
 - [x] Reset clears stats
 - [x] CPU profiling toggle prompts for reload
-- [x] Copy produces formatted table
+- [x] Export toggle switches to text view
+- [x] Direct copy works in export mode (Ctrl+A / Ctrl+C)
 - [x] Event tracking works when enabled (opt-in)
 
 ---

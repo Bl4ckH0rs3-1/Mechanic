@@ -21,8 +21,20 @@ function Mechanic:InitializeErrors()
 	frame:SetAllPoints()
 	ErrorsModule.frame = frame
 
+	-- Create split nav layout
+	local SplitNavLayout = ns.SplitNavLayout
+	ErrorsModule.layout = SplitNavLayout:Create(frame, {
+		navWidth = 160,
+		onSelect = function(key)
+			ErrorsModule:OnSourceSelected(key)
+		end,
+		defaultKey = "all",
+	})
+
+	local contentArea = ErrorsModule.layout.contentArea
+
 	-- Toolbar
-	local toolbar = FenUI:CreateToolbar(frame, {
+	local toolbar = FenUI:CreateToolbar(contentArea, {
 		height = 32,
 		padding = 4,
 	})
@@ -107,7 +119,7 @@ function Mechanic:InitializeErrors()
 	})
 
 	-- Error Display
-	local editBox = FenUI:CreateMultiLineEditBox(frame, {
+	local editBox = FenUI:CreateMultiLineEditBox(contentArea, {
 		readOnly = true,
 		background = "surfaceInset",
 	})
@@ -117,6 +129,65 @@ function Mechanic:InitializeErrors()
 
 	-- Initial state
 	ErrorsModule:OnEnable()
+
+	frame:SetScript("OnShow", function()
+		ErrorsModule:RefreshSourceList()
+		ErrorsModule:UpdateDisplay()
+	end)
+end
+
+function ErrorsModule:RefreshSourceList()
+	local items = {
+		{ key = "all", text = string.format("All (%d)", #self.errors) },
+	}
+
+	-- Group errors by detected addon
+	local sourceCounts = {}
+	for _, err in ipairs(self.errors) do
+		local source = self:DetectErrorSource(err) or "Unknown"
+		sourceCounts[source] = (sourceCounts[source] or 0) + 1
+	end
+
+	local sources = {}
+	for source in pairs(sourceCounts) do
+		table.insert(sources, source)
+	end
+	table.sort(sources)
+
+	for _, source in ipairs(sources) do
+		table.insert(items, {
+			key = source,
+			text = string.format("%s (%d)", source, sourceCounts[source]),
+		})
+	end
+
+	self.layout:SetItems(items)
+end
+
+function ErrorsModule:DetectErrorSource(errorObj)
+	-- Parse error message/stack to identify source addon
+	local msg = errorObj.message or ""
+
+	-- Look for addon name in path (e.g., "ActionHud\Core.lua" or "ActionHud/Core.lua")
+	local addon = msg:match("([%w_!]+)[/\\]")
+	if addon then
+		return addon
+	end
+
+	-- Look for Interface/AddOns path (forward slash)
+	addon = msg:match("Interface/AddOns/([%w_!]+)/")
+	if addon then
+		return addon
+	end
+
+	return nil
+end
+
+function ErrorsModule:OnSourceSelected(key)
+	self.selectedSource = key
+	self:RefreshErrors() -- This will now need to respect self.selectedSource
+	self.currentIndex = #self.errors
+	self:UpdateDisplay()
 end
 
 function ErrorsModule:OnEnable()
@@ -169,6 +240,10 @@ function ErrorsModule:OnBugGrabbed(event, errorObject)
 
 	self:RefreshErrors()
 
+	if self.frame and self.frame:IsVisible() then
+		self:RefreshSourceList()
+	end
+
 	-- Auto-navigate to newest if we were already at the end
 	if self.currentIndex == #self.errors - 1 or self.currentIndex == 0 then
 		self.currentIndex = #self.errors
@@ -186,13 +261,26 @@ function ErrorsModule:RefreshErrors()
 	local allErrors = _G.BugGrabber:GetDB()
 	self.errors = {}
 
-	if session == "all" then
-		self.errors = allErrors
-	else
-		for _, err in ipairs(allErrors) do
-			if err.session == session then
-				table.insert(self.errors, err)
+	local filterSource = self.selectedSource and self.selectedSource ~= "all" and self.selectedSource
+
+	for _, err in ipairs(allErrors) do
+		local match = true
+
+		-- Session filter
+		if session ~= "all" and err.session ~= session then
+			match = false
+		end
+
+		-- Source filter (Phase 6)
+		if match and filterSource then
+			local source = self:DetectErrorSource(err) or "Unknown"
+			if source ~= filterSource then
+				match = false
 			end
+		end
+
+		if match then
+			table.insert(self.errors, err)
 		end
 	end
 end

@@ -6,8 +6,17 @@ local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
 local TestsModule = {}
 Mechanic.Tests = TestsModule
 
+-- Status color mapping per Phase 5 spec
+local DETAIL_STATUS_COLORS = {
+	pass = "|cff00ff00", -- Green
+	warn = "|cffffff00", -- Yellow
+	fail = "|cffff0000", -- Red
+}
+local DETAIL_STATUS_DEFAULT = "|cffffffff" -- White
+
 TestsModule.selectedAddon = nil
 TestsModule.selectedTest = nil
+TestsModule.exportMode = false
 
 function Mechanic:InitializeTests()
 	if TestsModule.frame then
@@ -44,6 +53,15 @@ function Mechanic:InitializeTests()
 	})
 
 	toolbar:AddSpacer("flex")
+
+	local exportBtn = toolbar:AddButton({
+		text = "Export",
+		width = 70,
+		onClick = function()
+			TestsModule:ToggleExportMode()
+		end,
+	})
+	TestsModule.exportButton = exportBtn
 
 	local clearBtn = toolbar:AddButton({
 		text = "Clear",
@@ -118,11 +136,26 @@ function Mechanic:InitializeTests()
 	detailsBox:SetPoint("BOTTOMRIGHT", -8, 8)
 	TestsModule.detailsBox = detailsBox
 
+	-- Export Mode: Full-tab text display (hidden by default)
+	local exportBox = FenUI:CreateMultiLineEditBox(frame, {
+		readOnly = true,
+		background = "surfaceInset",
+		autoScroll = false,
+	})
+	exportBox:SetPoint("TOPLEFT", toolbar, "BOTTOMLEFT", 0, -4)
+	exportBox:SetPoint("BOTTOMRIGHT", summaryBar, "TOPRIGHT", 0, 4)
+	exportBox:Hide()
+	TestsModule.exportBox = exportBox
+	TestsModule.treeContainer = container
+
 	TestsModule:RefreshTree()
 	TestsModule:UpdateSummary()
 end
 
 function TestsModule:RefreshTree()
+	if not self.frame or not self.treeGroup then
+		return
+	end
 	local tree = self:BuildTree()
 	self.treeGroup:SetTree(tree)
 end
@@ -233,14 +266,14 @@ end
 
 function TestsModule:UpdateDetailsPanel(testDef, result)
 	local typeTag = testDef.type == "manual" and "|cff888888(Manual)|r" or "|cff88ff88(Auto)|r"
-	self.nameLabel:SetText(testDef.name .. " " .. typeTag)
-	self.categoryLabel:SetText("Category: " .. testDef.category)
+	self.nameLabel:SetText(string.format("%s %s", testDef.name, typeTag))
+	self.categoryLabel:SetText(string.format("Category: %s", testDef.category))
 
 	if result then
 		local statusColor = result.passed == true and "|cff00ff00"
 			or (result.passed == false and "|cffff0000" or "|cffffcc00")
 		local statusText = result.passed == true and "PASSED" or (result.passed == false and "FAILED" or "PENDING")
-		self.statusLabel:SetText("Status: " .. statusColor .. statusText .. "|r")
+		self.statusLabel:SetText(string.format("Status: %s%s|r", statusColor, statusText))
 
 		if result.duration then
 			self.durationLabel:SetText(string.format("Duration: %.3fs", result.duration))
@@ -250,15 +283,28 @@ function TestsModule:UpdateDetailsPanel(testDef, result)
 
 		local details = {}
 		if result.message then
-			table.insert(details, "Message: " .. result.message)
-		end
-		if result.logs and #result.logs > 0 then
+			table.insert(details, string.format("Message: %s", result.message))
 			table.insert(details, "")
+		end
+
+		-- NEW: Details array rendering per Phase 5
+		if result.details and #result.details > 0 then
+			table.insert(details, "Details:")
+			for _, detail in ipairs(result.details) do
+				local statusColor = DETAIL_STATUS_COLORS[detail.status] or DETAIL_STATUS_DEFAULT
+				local statusIcon = self:GetDetailStatusIcon(detail.status)
+				table.insert(details, string.format("  %s %s: %s%s|r", statusIcon, detail.label, statusColor, detail.value))
+			end
+			table.insert(details, "")
+		end
+
+		if result.logs and #result.logs > 0 then
 			table.insert(details, "Captured Logs:")
 			for _, log in ipairs(result.logs) do
-				table.insert(details, "  " .. log)
+				table.insert(details, string.format("  %s", log))
 			end
 		end
+
 		if self.detailsBox then
 			self.detailsBox:SetText(table.concat(details, "\n"))
 		end
@@ -274,6 +320,19 @@ function TestsModule:UpdateDetailsPanel(testDef, result)
 		self.descriptionLabel:SetText(testDef.description)
 	else
 		self.descriptionLabel:SetText("")
+	end
+end
+
+-- Helper for status icons per Phase 5
+function TestsModule:GetDetailStatusIcon(status)
+	if status == "pass" then
+		return "|cff00ff00[✓]|r"
+	elseif status == "warn" then
+		return "|cffffff00[!]|r"
+	elseif status == "fail" then
+		return "|cffff0000[✗]|r"
+	else
+		return "|cffffffff[-]|r"
 	end
 end
 
@@ -333,6 +392,9 @@ function TestsModule:ClearResults()
 end
 
 function TestsModule:UpdateSummary()
+	if not self.summaryLabel then
+		return
+	end
 	local total, passed, failed, pending = 0, 0, 0, 0
 	local MechanicLib = LibStub("MechanicLib-1.0", true)
 	if not MechanicLib then
@@ -360,6 +422,37 @@ function TestsModule:UpdateSummary()
 	self.summaryLabel:SetText(
 		string.format("Total: %d | Passed: %d | Failed: %d | Pending: %d", total, passed, failed, pending)
 	)
+end
+
+function TestsModule:ToggleExportMode()
+	self.exportMode = not self.exportMode
+
+	if self.exportMode then
+		-- Hide tree/details, show export box
+		if self.treeContainer then
+			self.treeContainer.frame:Hide()
+		end
+		if self.exportBox then
+			local text = self:GetCopyText(Mechanic.db.profile.includeEnvHeader)
+			self.exportBox:SetText(text)
+			self.exportBox:Show()
+			self.exportBox:ScrollToTop()
+		end
+		if self.exportButton then
+			self.exportButton:SetText("Tree View")
+		end
+	else
+		-- Hide export box, show tree/details
+		if self.exportBox then
+			self.exportBox:Hide()
+		end
+		if self.treeContainer then
+			self.treeContainer.frame:Show()
+		end
+		if self.exportButton then
+			self.exportButton:SetText("Export")
+		end
+	end
 end
 
 function TestsModule:GetCopyText(includeHeader)
@@ -429,6 +522,14 @@ function TestsModule:GetCopyText(includeHeader)
 								end
 
 								table.insert(lines, string.format("  %s %s%s", status, test.name, detail))
+
+								-- NEW: Include details array in copy per Phase 5
+								if result and result.details and #result.details > 0 then
+									for _, d in ipairs(result.details) do
+										local statusTag = d.status and string.upper(d.status) or "INFO"
+										table.insert(lines, string.format("    [%s] %s: %s", statusTag, d.label, d.value))
+									end
+								end
 							end
 						end
 					end
