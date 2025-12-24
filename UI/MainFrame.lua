@@ -19,6 +19,7 @@ function Mechanic:CreateMainFrame()
 		closable = true,
 	})
 
+	frame:SetFrameStrata("HIGH")
 	self.frame = frame
 
 	-- Save position

@@ -282,7 +282,7 @@ function Mechanic:ShowCopyDialog(text)
 		})
 		dialog:SetPoint("CENTER")
 		dialog:SetFrameStrata("DIALOG")
-		dialog:SetFrameLevel(100)
+		dialog:SetFrameLevel(200)
 
 		-- Allow Escape to close
 		_G["MechanicCopyDialog"] = dialog
