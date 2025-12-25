@@ -11,21 +11,20 @@ All notable changes to !Mechanic will be documented in this file.
 ## [1.1.6] - 2025-12-25
 
 ### Added
-- **Utility Consolidation**: Created a centralized `Utils.lua` and migrated shared logic from all UI modules to eliminate duplication.
-- Added `Mechanic.Utils.Colors` for standardized category and status colors across the addon.
-- Added `Utils:GetExtendedMetrics()` for unified FPS, Latency, and Lua memory tracking.
-- Added `Utils:FormatError()` for standardized BugGrabber error formatting.
-- Added `Utils:DeepCopy()` table helper.
+- **Utility Consolidation (Round 2)**: Further consolidated UI and formatting logic across API and Inspect modules.
+- Added `Mechanic.Utils:GetOrCreateWidget()` generic UI factory to eliminate repeated boilerplate.
+- Added `Utils:FormatValue()` with support for table serialization, field filtering, and secret value detection (standardized across Test Bench and Inspector).
+- Added `Utils:SafeCall()` helper for safe API execution with multiple return values.
+- Added `Utils:ShowMenu()` wrapper for Blizzard's EasyMenu.
+- Added `Utils:ResolveFrameOrTable()` to centralize string-to-object resolution.
+- Added `Utils.Colors.Impact` for standardized API impact highlighting.
 
 ### Fixed
-- **Console**: Fixed a bug in `DedupAdjacent` where `lastEntry` was incorrectly polluting its own state instead of using the local key buffer.
-- **Performance**: Export view now correctly refreshes content when switching navigation items.
-- **Inspect**: Standardized `GetMouseFocus` across WoW versions and moved it to `Utils`.
+- **Inspect**: Fixed layout issues in property details where text height wasn't correctly accounted for. Improved table inspection by using the new unified serializer.
+- **API**: Standardized parameter input creation and example menu handling.
 
 ### Changed
-- **Core**: Refactored `GetEnvironmentHeader`, `OpenSettings`, and `SlashCommand("gc")` to use shared utility functions.
-- **UI**: Updated `Console`, `Errors`, `Performance`, `Tests`, and `Inspect` tabs to use the new `Utils` module for all formatting and color constants.
-- Removed redundant validation logic from `Core.lua` and standardized registration checks.
+- Refactored `API.lua`, `Inspect.lua`, and `InspectDetails.lua` to remove local helper redundancy.
 
 ## [1.1.6] - 2025-12-24
 

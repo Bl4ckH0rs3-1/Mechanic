@@ -35,6 +35,13 @@ Utils.Colors = {
 		pending = "|cffffcc00", -- Yellow-orange
 		default = "|cffffffff", -- White
 		not_run = "|cff888888", -- Grey
+	},
+	-- Impact color mapping (from API.lua)
+	Impact = {
+		HIGH = "|cffff4444", -- Red
+		CONDITIONAL = "|cffffaa00", -- Orange
+		RESTRICTED = "|cffffff00", -- Yellow
+		LOW = "|cff00ff00", -- Green
 	}
 }
 
@@ -89,6 +96,30 @@ end
 -- System & UI Helpers
 --------------------------------------------------------------------------------
 
+--- Generic widget factory to ensure single instance per parent.
+---@param parent table The parent frame/object
+---@param key string The key to store/retrieve the widget
+---@param creator function Function that creates the widget: creator(parent)
+---@return any widget
+function Utils:GetOrCreateWidget(parent, key, creator)
+	if parent[key] then
+		return parent[key]
+	end
+	local widget = creator(parent)
+	parent[key] = widget
+	return widget
+end
+
+--- Wrapper for Blizzard EasyMenu.
+---@param menuList table Array of menu definitions
+---@param anchor string|table Anchor point or frame (default: "cursor")
+function Utils:ShowMenu(menuList, anchor)
+	if not self.menuFrame then
+		self.menuFrame = CreateFrame("Frame", "MechanicUtilsMenu", UIParent, "UIDropDownMenuTemplate")
+	end
+	EasyMenu(menuList, self.menuFrame, anchor or "cursor", 0, 0, "MENU")
+end
+
 --- Robustly opens the settings panel for an addon.
 ---@param categoryName string|table The category name or object
 function Utils:OpenSettings(categoryName)
@@ -115,6 +146,32 @@ function Utils:GetMouseFocus()
 		local foci = GetMouseFoci()
 		return foci and foci[1]
 	end
+end
+
+--- Resolves a string path to either a frame or a global table.
+---@param input string|table The path or object reference
+---@return any|nil resolved
+function Utils:ResolveFrameOrTable(input)
+	if type(input) ~= "string" then
+		return input
+	end
+
+	-- Try FrameResolver first
+	if ns.FrameResolver then
+		local frame = ns.FrameResolver:ResolvePath(input)
+		if frame then return frame end
+	end
+
+	-- Fallback to global traversal
+	local parts = { strsplit(".", input) }
+	local current = _G
+	for _, part in ipairs(parts) do
+		if type(current) ~= "table" then return nil end
+		current = current[part]
+		if not current then return nil end
+	end
+
+	return current
 end
 
 --- Generates a header with environment information for copy/paste.
@@ -206,6 +263,16 @@ function Utils:GetExtendedMetrics()
 	}
 end
 
+--- Executes a function with pcall and returns (success, resultsTable).
+---@param func function The function to call
+---@vararg any Arguments to pass to func
+---@return boolean success, table results
+function Utils:SafeCall(func, ...)
+	local results = { pcall(func, ...) }
+	local success = table.remove(results, 1)
+	return success, results
+end
+
 --------------------------------------------------------------------------------
 -- Error Analysis & Formatting
 --------------------------------------------------------------------------------
@@ -289,6 +356,79 @@ function Utils:FormatError(err)
 	end
 
 	return table.concat(lines, "\n")
+end
+
+--- Formats a value for display, handling secrets and tables.
+---@param value any The value to format
+---@param options table? {fields: string[], plain: boolean}
+---@return string formatted
+function Utils:FormatValue(value, options)
+	if value == nil then
+		return "nil"
+	end
+
+	-- Check if secret
+	local isSecret = issecretvalue and issecretvalue(value)
+	local secretTag = isSecret and (options and options.plain and " (SECRET)" or " |cffaa00ff(SECRET)|r") or ""
+
+	if type(value) == "table" then
+		local parts = {}
+		if not options or not options.plain then
+			table.insert(parts, "{")
+		end
+
+		if options and options.fields then
+			for _, fieldName in ipairs(options.fields) do
+				local fieldValue = value[fieldName]
+				local fieldSecret = issecretvalue and issecretvalue(fieldValue)
+				local fieldSecretTag = fieldSecret and (options.plain and " (SECRET)" or " |cffaa00ff(SECRET)|r") or ""
+				table.insert(parts, string.format("  .%s = %s%s", fieldName, tostring(fieldValue), fieldSecretTag))
+			end
+		else
+			local count = 0
+			for k, v in pairs(value) do
+				local fieldSecret = issecretvalue and issecretvalue(v)
+				local fieldSecretTag = fieldSecret and (options and options.plain and " (SECRET)" or " |cffaa00ff(SECRET)|r") or ""
+				table.insert(parts, string.format("  .%s = %s%s", tostring(k), tostring(v), fieldSecretTag))
+				count = count + 1
+				if count > 20 and not (options and options.fields) then
+					table.insert(parts, "  ...")
+					break
+				end
+			end
+		end
+
+		if not options or not options.plain then
+			table.insert(parts, "}")
+			return table.concat(parts, "\n")
+		else
+			return string.format("{\n%s\n  }", table.concat(parts, "\n"))
+		end
+	end
+
+	return string.format("%s%s", tostring(value), secretTag)
+end
+
+--- Counts secret values within a results table.
+---@param results table The results to scan
+---@return number count
+function Utils:CountSecrets(results)
+	local count = 0
+	if not results then
+		return 0
+	end
+	for _, value in ipairs(results) do
+		if issecretvalue and issecretvalue(value) then
+			count = count + 1
+		elseif type(value) == "table" then
+			for _, v in pairs(value) do
+				if issecretvalue and issecretvalue(v) then
+					count = count + 1
+				end
+			end
+		end
+	end
+	return count
 end
 
 --------------------------------------------------------------------------------

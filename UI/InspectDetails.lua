@@ -102,23 +102,14 @@ function InspectModule:AddDetailProperties(frame, yOffset)
 	
 	-- For plain tables, show some members
 	if not frame.GetObjectType then
-		local count = 0
-		for k, v in pairs(frame) do
-			if type(v) ~= "function" and type(v) ~= "table" then
-				table.insert(props, string.format("%s: %s", tostring(k), tostring(v)))
-				count = count + 1
-			end
-			if count > 10 then 
-				table.insert(props, "...")
-				break 
-			end
-		end
+		local formatted = Mechanic.Utils:FormatValue(frame, { plain = true })
+		table.insert(props, formatted)
 	end
 	
 	if #props == 0 then table.insert(props, "None") end
 	section.content:SetText(table.concat(props, "\n"))
 	
-	local height = 20 + (#props * 14)
+	local height = 20 + (section.content:GetStringHeight() or 14)
 	section:SetHeight(height)
 	section:Show()
 	return yOffset - height - 10
@@ -150,28 +141,27 @@ function InspectModule:AddDetailScripts(frame, yOffset)
 end
 
 function InspectModule:GetOrCreateDetailSection(name, yOffset)
-	if self.detailSections[name] then
-		local s = self.detailSections[name]
-		s:SetPoint("TOPLEFT", self.detailsContent, "TOPLEFT", 0, yOffset)
+	local section = Mechanic.Utils:GetOrCreateWidget(self.detailsContent, "section_" .. name, function(p)
+		local s = CreateFrame("Frame", nil, p)
+		s:SetPoint("RIGHT", p, "RIGHT", 0, 0)
+		
+		s.title = s:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+		s.title:SetPoint("TOPLEFT", 0, 0)
+		
+		s.content = s:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		s.content:SetPoint("TOPLEFT", 4, -16)
+		s.content:SetJustifyH("LEFT")
+		s.content:SetWidth(p:GetWidth() - 8)
+		
 		return s
-	end
+	end)
 
-	local section = CreateFrame("Frame", nil, self.detailsContent)
 	section:SetPoint("TOPLEFT", self.detailsContent, "TOPLEFT", 0, yOffset)
-	section:SetPoint("RIGHT", self.detailsContent, "RIGHT", 0, 0)
-	
-	local title = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-	title:SetPoint("TOPLEFT", 0, 0)
-	section.title = title
-	
-	local content = section:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	content:SetPoint("TOPLEFT", 4, -16)
-	content:SetJustifyH("LEFT")
-	content:SetWidth(self.detailsContent:GetWidth() - 8)
-	section.content = content
-
 	self.detailSections[name] = section
-	table.insert(self.detailSections, section)
+	if not tContains(self.detailSections, section) then
+		table.insert(self.detailSections, section)
+	end
+	
 	return section
 end
 

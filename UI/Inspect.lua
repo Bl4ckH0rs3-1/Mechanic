@@ -185,9 +185,9 @@ function InspectModule:StopPicking()
 end
 
 function InspectModule:InspectPath(path)
-	local frame = ns.FrameResolver:ResolvePath(path)
-	if frame then
-		self:SetSelectedFrame(frame, path)
+	local resolved = Mechanic.Utils:ResolveFrameOrTable(path)
+	if resolved then
+		self:SetSelectedFrame(resolved, path)
 	else
 		Mechanic:Print("Could not resolve path: " .. tostring(path))
 	end
@@ -196,32 +196,24 @@ end
 function InspectModule:SetSelectedFrame(frame, path)
 	if not frame then return end
 	
-	-- If it's a string, try to resolve it first
+	-- Resolve string if passed directly
 	if type(frame) == "string" then
-		local resolved = ns.FrameResolver:ResolvePath(frame)
+		local resolved = Mechanic.Utils:ResolveFrameOrTable(frame)
 		if resolved then
 			frame = resolved
 			path = path or frame
 		else
-			-- If it's a string that can't be resolved to a frame, 
-			-- we might still want to "inspect" it if it's a global table
-			local globalTable = _G[frame]
-			if type(globalTable) == "table" then
-				frame = globalTable
-				path = path or frame
-			else
-				Mechanic:Print("Could not resolve frame or global table: " .. tostring(frame))
-				return
-			end
+			Mechanic:Print("Could not resolve frame or global table: " .. tostring(frame))
+			return
 		end
 	end
 
 	self.selectedFrame = frame
-	local displayPath = path or ns.FrameResolver:GetFramePath(frame)
+	local displayPath = path or (ns.FrameResolver and ns.FrameResolver:GetFramePath(frame))
 	self.pathInput:SetText(displayPath or "<anonymous>")
 	
 	-- Developer feedback: Inspecting a plain table
-	if frame and type(frame) == "table" and not frame.GetObjectType then
+	if frame and type(frame) == "table" and not (frame.GetObjectType or (type(frame) == "table" and frame[0] and type(frame[0]) == "userdata")) then
 		Mechanic:OnLog("System", string.format("|cffffaa00Note:|r Inspecting global table '%s' (not a WoW object). Ancestors/Children tree disabled.", displayPath or "table"), "[Inspect]")
 	end
 

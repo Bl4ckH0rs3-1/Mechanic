@@ -93,7 +93,7 @@ function APIModule:BuildNavTree()
 		end)
 
 		for _, api in ipairs(apis) do
-			local impactColor = self:GetImpactColor(api.impact)
+			local impactColor = Mechanic.Utils.Colors.Impact[api.impact] or Mechanic.Utils.Colors.Impact.LOW
 			table.insert(items, {
 				key = api.key,
 				text = string.format("  %s%s|r", impactColor, api.name),
@@ -106,15 +106,7 @@ function APIModule:BuildNavTree()
 end
 
 function APIModule:GetImpactColor(impact)
-	if impact == "HIGH" then
-		return "|cffff4444" -- Red
-	elseif impact == "CONDITIONAL" then
-		return "|cffffaa00" -- Orange
-	elseif impact == "RESTRICTED" then
-		return "|cffffff00" -- Yellow
-	else
-		return "|cff00ff00" -- Green
-	end
+	return Mechanic.Utils.Colors.Impact[impact] or Mechanic.Utils.Colors.Impact.LOW
 end
 
 --------------------------------------------------------------------------------
@@ -154,48 +146,70 @@ function APIModule:BuildAPIPanel(parent, apiDef)
 	local yOffset = -8
 
 	-- Header: API name and path
-	local nameLabel = self:GetOrCreateLabel(parent, "nameLabel", "GameFontNormalHuge")
+	local nameLabel = Mechanic.Utils:GetOrCreateWidget(parent, "nameLabel", function(p)
+		return p:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
+	end)
 	nameLabel:SetPoint("TOPLEFT", 8, yOffset)
 	nameLabel:SetText(apiDef.funcPath)
+	nameLabel:Show()
 	yOffset = yOffset - 24
 
 	-- Namespace and category
-	local infoLabel = self:GetOrCreateLabel(parent, "infoLabel", "GameFontHighlight")
+	local infoLabel = Mechanic.Utils:GetOrCreateWidget(parent, "infoLabel", function(p)
+		return p:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	end)
 	infoLabel:SetPoint("TOPLEFT", 8, yOffset)
 	local catName = ns.APICategoryLookup[apiDef.category] and ns.APICategoryLookup[apiDef.category].name
 		or apiDef.category
 	infoLabel:SetText(string.format("Category: %s", catName))
+	infoLabel:Show()
 	yOffset = yOffset - 18
 
 	-- Midnight impact
-	local impactColor = self:GetImpactColor(apiDef.midnightImpact)
-	local impactLabel = self:GetOrCreateLabel(parent, "impactLabel", "GameFontHighlight")
+	local impactColor = Mechanic.Utils.Colors.Impact[apiDef.midnightImpact] or Mechanic.Utils.Colors.Impact.LOW
+	local impactLabel = Mechanic.Utils:GetOrCreateWidget(parent, "impactLabel", function(p)
+		return p:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	end)
 	impactLabel:SetPoint("TOPLEFT", 8, yOffset)
 	impactLabel:SetText(string.format("Midnight Impact: %s%s|r", impactColor, apiDef.midnightImpact))
+	impactLabel:Show()
 	yOffset = yOffset - 18
 
 	-- Midnight note
 	if apiDef.midnightNote then
-		local noteLabel = self:GetOrCreateLabel(parent, "noteLabel", "GameFontHighlightSmall")
+		local noteLabel = Mechanic.Utils:GetOrCreateWidget(parent, "noteLabel", function(p)
+			local label = p:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+			label:SetJustifyH("LEFT")
+			label:SetWordWrap(true)
+			return label
+		end)
 		noteLabel:SetPoint("TOPLEFT", 8, yOffset)
 		noteLabel:SetPoint("RIGHT", -8, 0)
 		noteLabel:SetText(string.format("|cffaaaaaa%s|r", apiDef.midnightNote))
-		noteLabel:SetJustifyH("LEFT")
-		noteLabel:SetWordWrap(true)
+		noteLabel:Show()
 		yOffset = yOffset - (noteLabel:GetStringHeight() + 8)
 	end
 
 	-- Separator
 	yOffset = yOffset - 8
-	local sep1 = self:GetOrCreateSeparator(parent, "sep1")
+	local sep1 = Mechanic.Utils:GetOrCreateWidget(parent, "sep1", function(p)
+		local sep = p:CreateTexture(nil, "BACKGROUND")
+		sep:SetHeight(1)
+		sep:SetColorTexture(1, 1, 1, 0.2)
+		return sep
+	end)
 	sep1:SetPoint("TOPLEFT", 8, yOffset)
 	sep1:SetPoint("RIGHT", -8, 0)
+	sep1:Show()
 	yOffset = yOffset - 12
 
 	-- Parameters section
-	local paramsHeader = self:GetOrCreateLabel(parent, "paramsHeader", "GameFontNormal")
+	local paramsHeader = Mechanic.Utils:GetOrCreateWidget(parent, "paramsHeader", function(p)
+		return p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	end)
 	paramsHeader:SetPoint("TOPLEFT", 8, yOffset)
 	paramsHeader:SetText("Parameters:")
+	paramsHeader:Show()
 	yOffset = yOffset - 20
 
 	for i, param in ipairs(apiDef.params) do
@@ -205,72 +219,109 @@ function APIModule:BuildAPIPanel(parent, apiDef)
 
 	-- Buttons
 	yOffset = yOffset - 8
-	local buttonRow = self:GetOrCreateFrame(parent, "buttonRow")
+	local buttonRow = Mechanic.Utils:GetOrCreateWidget(parent, "buttonRow", function(p)
+		return CreateFrame("Frame", nil, p)
+	end)
 	buttonRow:SetPoint("TOPLEFT", 8, yOffset)
 	buttonRow:SetSize(400, 30)
+	buttonRow:Show()
 
-	local runBtn = self:GetOrCreateButton(buttonRow, "runBtn", "Run")
+	local runBtn = Mechanic.Utils:GetOrCreateWidget(buttonRow, "runBtn", function(p)
+		return CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+	end)
 	runBtn:SetPoint("LEFT", 0, 0)
 	runBtn:SetSize(80, 24)
+	runBtn:SetText("Run")
 	runBtn:SetScript("OnClick", function()
 		self:RunAPI(apiDef)
 	end)
+	runBtn:Show()
 
-	local runCatBtn = self:GetOrCreateButton(buttonRow, "runCatBtn", "Run Category")
+	local runCatBtn = Mechanic.Utils:GetOrCreateWidget(buttonRow, "runCatBtn", function(p)
+		return CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+	end)
 	runCatBtn:SetPoint("LEFT", runBtn, "RIGHT", 8, 0)
 	runCatBtn:SetSize(110, 24)
+	runCatBtn:SetText("Run Category")
 	runCatBtn:SetScript("OnClick", function()
 		self:RunCategory(apiDef.category)
 	end)
+	runCatBtn:Show()
 
-	local copyBtn = self:GetOrCreateButton(buttonRow, "copyBtn", "Copy Report")
+	local copyBtn = Mechanic.Utils:GetOrCreateWidget(buttonRow, "copyBtn", function(p)
+		return CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+	end)
 	copyBtn:SetPoint("LEFT", runCatBtn, "RIGHT", 8, 0)
 	copyBtn:SetSize(100, 24)
+	copyBtn:SetText("Copy Report")
 	copyBtn:SetScript("OnClick", function()
 		self:CopyAPIReport(apiDef)
 	end)
+	copyBtn:Show()
 
 	yOffset = yOffset - 40
 
 	-- Separator
-	local sep2 = self:GetOrCreateSeparator(parent, "sep2")
+	local sep2 = Mechanic.Utils:GetOrCreateWidget(parent, "sep2", function(p)
+		local sep = p:CreateTexture(nil, "BACKGROUND")
+		sep:SetHeight(1)
+		sep:SetColorTexture(1, 1, 1, 0.2)
+		return sep
+	end)
 	sep2:SetPoint("TOPLEFT", 8, yOffset)
 	sep2:SetPoint("RIGHT", -8, 0)
+	sep2:Show()
 	yOffset = yOffset - 12
 
 	-- Results section
-	local resultsHeader = self:GetOrCreateLabel(parent, "resultsHeader", "GameFontNormal")
+	local resultsHeader = Mechanic.Utils:GetOrCreateWidget(parent, "resultsHeader", function(p)
+		return p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	end)
 	resultsHeader:SetPoint("TOPLEFT", 8, yOffset)
 	resultsHeader:SetText("Results:")
+	resultsHeader:Show()
 	yOffset = yOffset - 20
 
 	-- Status line
-	local statusLabel = self:GetOrCreateLabel(parent, "statusLabel", "GameFontHighlight")
+	local statusLabel = Mechanic.Utils:GetOrCreateWidget(parent, "statusLabel", function(p)
+		return p:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	end)
 	statusLabel:SetPoint("TOPLEFT", 8, yOffset)
 	statusLabel:SetText("Not yet run")
+	statusLabel:Show()
 	parent.statusLabel = statusLabel
 	yOffset = yOffset - 20
 
 	-- Results display (MultiLineEditBox)
-	local resultsBox = FenUI:CreateMultiLineEditBox(parent, {
-		readOnly = true,
-		background = "surfaceInset",
-	})
+	local resultsBox = FenUI:GetOrCreateWidget(parent, "resultsBox", function(p)
+		return FenUI:CreateMultiLineEditBox(p, {
+			readOnly = true,
+			background = "surfaceInset",
+		})
+	end)
 	resultsBox:SetPoint("TOPLEFT", 8, yOffset)
 	resultsBox:SetPoint("BOTTOMRIGHT", -8, 80)
+	resultsBox:Show()
 	parent.resultsBox = resultsBox
 
 	-- Notes section (at bottom)
-	local notesHeader = self:GetOrCreateLabel(parent, "notesHeader", "GameFontNormal")
+	local notesHeader = Mechanic.Utils:GetOrCreateWidget(parent, "notesHeader", function(p)
+		return p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	end)
 	notesHeader:SetPoint("BOTTOMLEFT", 8, 70)
 	notesHeader:SetText("Notes:")
+	notesHeader:Show()
 
-	local notesBox = self:GetOrCreateEditBox(parent, "notesBox")
+	local notesBox = Mechanic.Utils:GetOrCreateWidget(parent, "notesBox", function(p)
+		local box = CreateFrame("EditBox", nil, p, "InputBoxTemplate")
+		box:SetMultiLine(true)
+		box:SetAutoFocus(false)
+		return box
+	end)
 	notesBox:SetPoint("BOTTOMLEFT", 8, 8)
 	notesBox:SetPoint("BOTTOMRIGHT", -8, 8)
 	notesBox:SetHeight(55)
-	notesBox:SetMultiLine(true)
-	notesBox:SetAutoFocus(false)
+	notesBox:Show()
 
 	-- Load saved notes
 	local savedNotes = Mechanic.db.profile.apiTests
@@ -291,39 +342,53 @@ function APIModule:BuildAPIPanel(parent, apiDef)
 end
 
 function APIModule:CreateParamInput(parent, param, index, yOffset)
-	local row = self:GetOrCreateFrame(parent, string.format("param_%d", index))
+	local row = Mechanic.Utils:GetOrCreateWidget(parent, string.format("param_%d", index), function(p)
+		return CreateFrame("Frame", nil, p)
+	end)
 	row:SetPoint("TOPLEFT", 16, yOffset)
 	row:SetSize(500, 24)
+	row:Show()
 
-	local label = row.label or row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	local label = Mechanic.Utils:GetOrCreateWidget(row, "label", function(p)
+		local fs = p:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+		fs:SetWidth(120)
+		fs:SetJustifyH("LEFT")
+		return fs
+	end)
 	label:SetPoint("LEFT", 0, 0)
-	label:SetWidth(120)
-	label:SetJustifyH("LEFT")
 	label:SetText(string.format("%s:", param.name))
-	row.label = label
+	label:Show()
 
-	local input = row.input or CreateFrame("EditBox", nil, row, "InputBoxTemplate")
+	local input = Mechanic.Utils:GetOrCreateWidget(row, "input", function(p)
+		local eb = CreateFrame("EditBox", nil, p, "InputBoxTemplate")
+		eb:SetSize(150, 20)
+		eb:SetAutoFocus(false)
+		return eb
+	end)
 	input:SetPoint("LEFT", label, "RIGHT", 8, 0)
-	input:SetSize(150, 20)
-	input:SetAutoFocus(false)
 	input:SetText(tostring(param.default or ""))
-	row.input = input
+	input:Show()
 
-	local typeLabel = row.typeLabel or row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+	local typeLabel = Mechanic.Utils:GetOrCreateWidget(row, "typeLabel", function(p)
+		return p:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+	end)
 	typeLabel:SetPoint("LEFT", input, "RIGHT", 8, 0)
 	typeLabel:SetText(string.format("(%s)", param.type))
-	row.typeLabel = typeLabel
+	typeLabel:Show()
 
 	-- Examples dropdown (if examples provided)
 	if param.examples and #param.examples > 0 then
-		local examplesBtn = row.examplesBtn or CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+		local examplesBtn = Mechanic.Utils:GetOrCreateWidget(row, "examplesBtn", function(p)
+			local btn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+			btn:SetSize(24, 20)
+			btn:SetText("▼")
+			return btn
+		end)
 		examplesBtn:SetPoint("LEFT", typeLabel, "RIGHT", 8, 0)
-		examplesBtn:SetSize(24, 20)
-		examplesBtn:SetText("▼")
 		examplesBtn:SetScript("OnClick", function()
 			self:ShowExamplesMenu(param, input)
 		end)
-		row.examplesBtn = examplesBtn
+		examplesBtn:Show()
 
 		-- Quick example buttons for common cases (show first 3)
 		local xOffset = 36
@@ -331,17 +396,18 @@ function APIModule:CreateParamInput(parent, param, index, yOffset)
 			if i > 3 then
 				break
 			end -- Limit to 3 quick buttons
-			local quickBtn = row[string.format("quickBtn%d", i)] or CreateFrame("Button", nil, row)
+			local quickBtn = Mechanic.Utils:GetOrCreateWidget(row, string.format("quickBtn%d", i), function(p)
+				local btn = CreateFrame("Button", nil, p)
+				local btnText = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+				btnText:SetPoint("CENTER")
+				btn.btnText = btnText
+				return btn
+			end)
 			quickBtn:SetPoint("LEFT", typeLabel, "RIGHT", xOffset, 0)
+			quickBtn.btnText:SetText(string.format("|cff88ccff%s|r", example.label))
 
-			-- Create text first so we can measure it
-			local btnText = quickBtn.btnText or quickBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-			btnText:SetPoint("CENTER")
-			btnText:SetText(string.format("|cff88ccff%s|r", example.label))
-			quickBtn.btnText = btnText
-
-			-- Size button based on text width (now that text exists)
-			local textWidth = btnText:GetStringWidth()
+			-- Size button based on text width
+			local textWidth = quickBtn.btnText:GetStringWidth()
 			quickBtn:SetSize(math.max(textWidth + 16, 40), 18)
 
 			quickBtn:SetScript("OnClick", function()
@@ -353,8 +419,8 @@ function APIModule:CreateParamInput(parent, param, index, yOffset)
 			quickBtn:SetScript("OnLeave", function(self)
 				self.btnText:SetText(string.format("|cff88ccff%s|r", example.label))
 			end)
+			quickBtn:Show()
 
-			row[string.format("quickBtn%d", i)] = quickBtn
 			xOffset = xOffset + quickBtn:GetWidth() + 4
 		end
 	end
@@ -362,7 +428,6 @@ function APIModule:CreateParamInput(parent, param, index, yOffset)
 	-- Store reference for value retrieval
 	self.paramInputs[param.name] = input
 
-	row:Show()
 	return row
 end
 
@@ -380,13 +445,7 @@ function APIModule:ShowExamplesMenu(param, inputBox)
 		})
 	end
 
-	-- EasyMenu is a Blizzard global available in Retail
-	local menuFrame = self.examplesMenuFrame
-	if not menuFrame then
-		menuFrame = CreateFrame("Frame", "MechanicAPIExamplesMenu", UIParent, "UIDropDownMenuTemplate")
-		self.examplesMenuFrame = menuFrame
-	end
-	EasyMenu(menu, menuFrame, "cursor", 0, 0, "MENU")
+	Mechanic.Utils:ShowMenu(menu)
 end
 
 --------------------------------------------------------------------------------
@@ -422,7 +481,7 @@ function APIModule:RunAPI(apiDef)
 
 	-- Execute API
 	local startTime = debugprofilestop()
-	local success, results = self:SafeCallAPI(apiDef.func, unpack(params))
+	local success, results = Mechanic.Utils:SafeCall(apiDef.func, unpack(params))
 	local endTime = debugprofilestop()
 	local duration = (endTime - startTime)
 
@@ -466,7 +525,7 @@ function APIModule:DisplayResults(parent, apiDef, resultData)
 		statusText = "|cffff0000ERROR|r"
 	else
 		-- Check for secrets in results
-		local secretCount = self:CountSecrets(resultData.results)
+		local secretCount = Mechanic.Utils:CountSecrets(resultData.results)
 		if secretCount > 0 then
 			statusText = string.format("|cffaa00ffSECRET|r (%d secret values)", secretCount)
 		else
@@ -487,7 +546,7 @@ function APIModule:DisplayResults(parent, apiDef, resultData)
 		table.insert(lines, "Returns:")
 		for i, retDef in ipairs(apiDef.returns) do
 			local value = resultData.results[i]
-			local valueStr = self:FormatValue(value, retDef)
+			local valueStr = Mechanic.Utils:FormatValue(value, { fields = retDef.fields })
 			table.insert(lines, string.format("  %s = %s", retDef.name, valueStr))
 		end
 	end
@@ -625,7 +684,7 @@ function APIModule:FormatResultsPlainText(apiDef, resultData)
 	else
 		for i, retDef in ipairs(apiDef.returns) do
 			local value = resultData.results[i]
-			local valueStr = self:FormatValuePlainText(value, retDef)
+			local valueStr = Mechanic.Utils:FormatValue(value, { fields = retDef.fields, plain = true })
 			table.insert(lines, string.format("  %s = %s", retDef.name, valueStr))
 		end
 	end
@@ -699,7 +758,7 @@ function APIModule:GetCategoryReport(categoryKey)
 		elseif not resultData.success then
 			status = "FAIL"
 			errorCount = errorCount + 1
-		elseif self:CountSecrets(resultData.results or {}) > 0 then
+		elseif Mechanic.Utils:CountSecrets(resultData.results or {}) > 0 then
 			status = "SCRT"
 			secretCount = secretCount + 1
 		else
@@ -735,7 +794,7 @@ function APIModule:SaveAPIResult(apiKey, resultData)
 
 	local saved = Mechanic.db.profile.apiTests[apiKey]
 	saved.lastRun = resultData.timestamp
-	saved.lastResult = resultData.success and (self:CountSecrets(resultData.results or {}) > 0 and "secret" or "pass")
+	saved.lastResult = resultData.success and (Mechanic.Utils:CountSecrets(resultData.results or {}) > 0 and "secret" or "pass")
 		or "error"
 	saved.lastParams = resultData.params
 end
