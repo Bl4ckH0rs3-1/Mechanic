@@ -12,6 +12,7 @@ Mechanic.Tools = ToolsModule
 ToolsModule.layout = nil
 ToolsModule.selectedAddon = nil
 ToolsModule.activePanel = nil
+ToolsModule.navDirty = true
 
 function Mechanic:InitializeTools()
 	if ToolsModule.frame then
@@ -27,19 +28,27 @@ function Mechanic:InitializeTools()
 	local SplitNavLayout = ns.SplitNavLayout
 	ToolsModule.layout = SplitNavLayout:Create(frame, {
 		navWidth = 200,
+		items = ToolsModule:GetAddonList(),
+		storageKey = "tools",
 		onSelect = function(key)
 			ToolsModule:OnAddonSelected(key)
 		end,
 	})
 
+	-- Manually trigger initial selection now that layout is assigned
+	local initialKey = ToolsModule.layout:GetSelectedKey()
+	if initialKey then
+		ToolsModule:OnAddonSelected(initialKey)
+	end
+
 	-- Populate nav with registered addons
 	ToolsModule:RefreshAddonList()
 end
 
-function ToolsModule:RefreshAddonList()
+function ToolsModule:GetAddonList()
 	local MechanicLib = LibStub("MechanicLib-1.0", true)
 	if not MechanicLib then
-		return
+		return {}
 	end
 
 	local items = {}
@@ -62,10 +71,21 @@ function ToolsModule:RefreshAddonList()
 		items = { { key = "_empty", text = "(No tools registered)" } }
 	end
 
+	return items
+end
+
+function ToolsModule:RefreshAddonList()
+	local items = self:GetAddonList()
+
+	if not self.layout then
+		return
+	end
+
 	self.layout:SetItems(items)
+	self.navDirty = false
 
 	-- Select first real addon if available
-	if #items > 0 and items[1].key ~= "_empty" and not self.selectedAddon then
+	if #items > 0 and items[1].key ~= "_empty" and not self.layout:GetSelectedKey() then
 		self.layout:Select(items[1].key)
 	end
 end
@@ -125,7 +145,9 @@ function ToolsModule:OnAddonSelected(addonName)
 end
 
 function ToolsModule:OnShow()
-	self:RefreshAddonList()
+	if self.navDirty then
+		self:RefreshAddonList()
+	end
 end
 
 function ToolsModule:OnHide()

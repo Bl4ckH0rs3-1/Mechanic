@@ -46,21 +46,40 @@ function MultiLineEditBoxMixin:Init(config)
     end
     
     -- Handle size changes
-    self:SetScript("OnSizeChanged", function(_, width)
+    self:SetScript("OnSizeChanged", function(_, width, height)
         self.editBox:SetWidth(width - 30)
+        -- Ensure editBox is at least as tall as the scroll frame so it's clickable
+        if height and height > 8 then
+            self.editBox:SetHeight(math.max(height - 8, self.editBox:GetTextHeight()))
+        end
     end)
     
-    -- Click to focus - ensure the editBox captures keyboard input
-    local function FocusEditBox()
-        self.editBox:SetFocus()
-    end
-    self:SetScript("OnMouseDown", FocusEditBox)
-    self.scrollFrame:SetScript("OnMouseDown", FocusEditBox)
+    -- Click to focus
+    self:SetScript("OnMouseDown", function()
+        if not self.editBox:HasFocus() then
+            self.editBox:SetFocus()
+        end
+    end)
     
-    -- Auto-scroll to bottom on text change (can be disabled)
-    self.autoScroll = config.autoScroll ~= false
-    self.editBox:SetScript("OnTextChanged", function(eb)
-        if self.autoScroll then
+    self.scrollFrame:SetScript("OnMouseDown", function()
+        if not self.editBox:HasFocus() then
+            self.editBox:SetFocus()
+        end
+    end)
+    
+    -- Auto-scroll to bottom on text change (optional)
+    self.editBox:SetScript("OnTextChanged", function(eb, userInput)
+        -- Read-only enforcement: revert user changes but allow programmatic updates
+        if self.readOnly and userInput then
+            eb:SetText(self.currentText or "")
+            return
+        end
+        
+        -- Update height to ensure it's always clickable even with little text
+        local scrollHeight = self.scrollFrame:GetHeight()
+        eb:SetHeight(math.max(scrollHeight, eb:GetTextHeight()))
+
+        if not self.paused then
             self.scrollFrame:SetVerticalScroll(self.scrollFrame:GetVerticalScrollRange())
         end
     end)
@@ -77,7 +96,8 @@ function MultiLineEditBoxMixin:Init(config)
 end
 
 function MultiLineEditBoxMixin:SetText(text)
-    self.editBox:SetText(text or "")
+    self.currentText = text or ""
+    self.editBox:SetText(self.currentText)
 end
 
 function MultiLineEditBoxMixin:GetText()
@@ -93,67 +113,45 @@ function MultiLineEditBoxMixin:SelectAll()
     self.editBox:HighlightText()
 end
 
-function MultiLineEditBoxMixin:SetAutoScroll(enabled)
-    self.autoScroll = enabled
-end
-
-function MultiLineEditBoxMixin:ScrollToTop()
-    self.scrollFrame:SetVerticalScroll(0)
-end
-
-function MultiLineEditBoxMixin:ScrollToBottom()
-    self.scrollFrame:SetVerticalScroll(self.scrollFrame:GetVerticalScrollRange())
-end
-
 function MultiLineEditBoxMixin:SetReadOnly(readOnly)
-    -- Do NOT use SetEnabled(false) as it prevents focus and copy.
-    -- Instead, we block character input but keep the widget enabled for selection.
-    self.isReadOnly = readOnly
+    self.readOnly = readOnly
+    
+    -- Ensure the edit box is always enabled so it can receive focus for selection/copying.
+    -- Native EditBox:SetEnabled(false) makes it non-selectable.
+    self.editBox:SetEnabled(true)
+    
     if readOnly then
-        self.editBox:SetScript("OnChar", function(eb)
-            -- Block all character input; prevent fallthrough to game
-            eb:SetPropagateKeyboardInput(false)
-        end)
+        -- Block character input (typing)
+        self.editBox:SetScript("OnChar", function() end)
+        
+        -- Handle key presses to allow navigation/copy but block modification
         self.editBox:SetScript("OnKeyDown", function(eb, key)
-            -- Default: do not propagate to game bindings
-            eb:SetPropagateKeyboardInput(false)
-
-            -- Allow Ctrl+C (copy)
-            if key == "C" and IsControlKeyDown() then
-                eb:SetPropagateKeyboardInput(true)
+            -- Allow modifiers (needed for Shift+Arrow selection, Ctrl+C, etc.)
+            if key == "LSHIFT" or key == "RSHIFT" or key == "LCTRL" or key == "RCTRL" or key == "LALT" or key == "RALT" then
                 return
             end
 
-            -- Allow Ctrl+A (select all)
-            if key == "A" and IsControlKeyDown() then
-                self:SelectAll()
-                return
+            -- Allow Ctrl+C (Copy) and Ctrl+A (Select All)
+            if IsControlKeyDown() then
+                if key == "C" then return end
+                if key == "A" then 
+                    self:SelectAll()
+                    return 
+                end
             end
-
+            
             -- Allow navigation keys
-            if
-                key == "UP"
-                or key == "DOWN"
-                or key == "LEFT"
-                or key == "RIGHT"
-                or key == "PAGEUP"
-                or key == "PAGEDOWN"
-                or key == "HOME"
-                or key == "END"
-            then
-                eb:SetPropagateKeyboardInput(true)
+            if key == "LEFT" or key == "RIGHT" or key == "UP" or key == "DOWN" or
+               key == "HOME" or key == "END" or key == "PAGEUP" or key == "PAGEDOWN" or
+               key == "ESCAPE" then
                 return
             end
-
-            -- Allow Escape to clear focus
-            if key == "ESCAPE" then
-                eb:ClearFocus()
-                return
-            end
-
-            -- Block destructive keys silently
+            
+            -- Block everything else (Backspace, Delete, Enter, etc.)
+            eb:SetPropagateKeyboardInput(false)
         end)
     else
+        -- Restore default behavior
         self.editBox:SetScript("OnChar", nil)
         self.editBox:SetScript("OnKeyDown", nil)
     end

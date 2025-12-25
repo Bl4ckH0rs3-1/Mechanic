@@ -25,6 +25,7 @@ function Mechanic:InitializeErrors()
 	local SplitNavLayout = ns.SplitNavLayout
 	ErrorsModule.layout = SplitNavLayout:Create(frame, {
 		navWidth = 160,
+		storageKey = "errors",
 		onSelect = function(key)
 			ErrorsModule:OnSourceSelected(key)
 		end,

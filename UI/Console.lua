@@ -1,5 +1,7 @@
 -- UI/Console.lua
 -- !Mechanic - Console Module
+--
+-- Aggregated debug output from all registered addons.
 
 local ADDON_NAME, ns = ...
 local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
@@ -29,6 +31,7 @@ Console.filters = {
 	category = "All",
 	search = "",
 }
+Console.navDirty = true
 
 function Console:Initialize(parent)
 	if self.frame then
@@ -43,6 +46,8 @@ function Console:Initialize(parent)
 	local SplitNavLayout = ns.SplitNavLayout
 	self.layout = SplitNavLayout:Create(frame, {
 		navWidth = 160,
+		items = self:GetSourceList(),
+		storageKey = "console",
 		onSelect = function(key)
 			self:OnSourceSelected(key)
 		end,
@@ -83,8 +88,10 @@ function Console:Initialize(parent)
 
 	-- Refresh on show
 	frame:SetScript("OnShow", function()
-		self:RefreshSourceList()
-		self:Refresh()
+		if Console.navDirty then
+			Console:RefreshSourceList()
+		end
+		Console:Refresh()
 	end)
 
 	-- Toolbar
@@ -131,9 +138,15 @@ function Console:Initialize(parent)
 	self.lineCount = toolbar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	self.lineCount:SetPoint("RIGHT", -8, 0)
 	self.lineCount:SetText("Lines: 0")
+
+	-- Manually trigger initial selection now that ALL UI elements are created
+	local initialKey = self.layout:GetSelectedKey()
+	if initialKey then
+		self:OnSourceSelected(initialKey)
+	end
 end
 
-function Console:RefreshSourceList()
+function Console:GetSourceList()
 	local items = {
 		{ key = "all", text = string.format("All (%d)", #self.buffer) },
 	}
@@ -174,8 +187,15 @@ function Console:RefreshSourceList()
 		end
 	end
 
+	return items
+end
+
+function Console:RefreshSourceList()
+	local items = self:GetSourceList()
+
 	if self.layout then
 		self.layout:SetItems(items)
+		self.navDirty = false
 	end
 end
 
@@ -347,7 +367,7 @@ function Console:DedupAdjacent(entries)
 			wipe(keyParts)
 			table.insert(keyParts, lastEntry.source)
 			table.insert(keyParts, lastEntry.category or "")
-			table.insert(keyParts, lastEntry.message)
+			table.insert(lastEntry, lastEntry.message)
 			lastKey = table.concat(keyParts)
 		end
 

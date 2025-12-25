@@ -268,18 +268,9 @@ function LayoutMixin:ApplyColorBackground(values)
         a = values.alpha
     end
     
-    -- #region agent log H4c
-    print("[FenUI:DBG:H4c] ApplyColorBackground: token=" .. tostring(values.token) .. " rgba=" .. tostring(r) .. "," .. tostring(g) .. "," .. tostring(b) .. "," .. tostring(a))
-    -- #endregion
-    
     self.bgTexture:SetColorTexture(r, g, b, a)
     self:ApplyBackgroundAnchors()
     self.bgTexture:Show()
-    
-    -- #region agent log H2
-    local bgW, bgH = self.bgFrame:GetSize()
-    print("[FenUI:DBG:H2] ApplyColorBackground: bgTexture:Show() called, IsShown=" .. tostring(self.bgTexture:IsShown()) .. ", bgFrame:IsShown=" .. tostring(self.bgFrame:IsShown()) .. ", bgFrame size=" .. tostring(bgW) .. "x" .. tostring(bgH))
-    -- #endregion
 end
 
 function LayoutMixin:ApplyGradientBackground(values)

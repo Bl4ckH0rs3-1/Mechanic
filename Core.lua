@@ -7,7 +7,7 @@
 local ADDON_NAME, ns = ...
 
 local Mechanic = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceConsole-3.0", "AceEvent-3.0")
-_G.Mechanic = Mechanic -- Global for MechanicLib:IsEnabled() check
+_G.Mechanic = Mechanic -- luacheck: ignore W122 -- Global for MechanicLib:IsEnabled() check
 
 -- Database defaults per MASTER_PLAN Section 7
 local defaults = {
@@ -24,11 +24,20 @@ local defaults = {
 		autoRefresh = true,
 		refreshInterval = 1.0,
 		trackEventFrequency = false,
+		hiddenAddons = {},
 		-- Minimap (Phase 3)
 		minimap = {
 			hide = false,
 		},
 		addonSettings = {},
+		-- Sub-tab persistence
+		activeSubTabs = {
+			console = "all",
+			errors = "all",
+			tools = nil,
+			api = nil,
+			perf = "general",
+		},
 		-- NEW: API test data (Phase 7)
 		apiTests = {},
 		-- NEW: Inspect & Watch data (Phase 8)
@@ -39,6 +48,14 @@ local defaults = {
 function Mechanic:OnInitialize()
 	-- Initialize database
 	self.db = LibStub("AceDB-3.0"):New("MechanicDB", defaults, true)
+
+	-- Debug logging for database state
+	print("|cffffaa00[MechDebug]|r DB initialized.")
+	if self.db.profile.activeSubTabs then
+		for k, v in pairs(self.db.profile.activeSubTabs) do
+			print(string.format("|cffffaa00[MechDebug]|r SubTab Storage: %s = %s", tostring(k), tostring(v)))
+		end
+	end
 
 	-- Register slash commands
 	self:RegisterSlashCommands()
@@ -51,7 +68,7 @@ function Mechanic:OnInitialize()
 	-- Setup minimap button (Phase 3)
 	self:SetupDataBroker()
 
-	self:Print("!Mechanic initialized.")
+	self:Print("Mechanic initialized.")
 end
 
 function Mechanic:OnEnable()
@@ -68,13 +85,61 @@ function Mechanic:OnEnable()
 end
 
 --------------------------------------------------------------------------------
+-- Validation & Developer Feedback
+--------------------------------------------------------------------------------
+
+--- Validates registration capabilities and logs warnings for non-standard patterns.
+function Mechanic:ValidateCapabilities(name, capabilities)
+	if not capabilities then
+		self:OnLog("System", string.format("|cffffaa00Warning:|r Addon %s registered with no capabilities.", name), "[Core]")
+		return
+	end
+
+	-- Version check
+	if not capabilities.version then
+		self:OnLog("System", string.format("|cffffaa00Warning:|r Addon %s missing 'version' capability.", name), "[Core]")
+	end
+
+	-- Test interface check
+	if capabilities.tests then
+		if not capabilities.tests.getAll or not capabilities.tests.run or not capabilities.tests.getResult then
+			self:OnLog("System", string.format("|cffffaa00Warning:|r Addon %s has incomplete 'tests' interface (requires getAll, run, getResult).", name), "[Core]")
+		end
+	end
+end
+
+--- Validates a single test entry and logs warnings for legacy formats.
+function Mechanic:ValidateTestEntry(addonName, entry)
+	if type(entry) ~= "table" then return end
+
+	-- Check for the 'def' wrapper (Classic vs Modern)
+	if not (entry.def and type(entry.def) == "table") then
+		if not entry.id or not entry.name or not entry.category then
+			self:OnLog("System", string.format("|cffffaa00Warning:|r %s sent malformed test entry (missing id, name, or category).", addonName), "[Core]")
+		end
+	end
+end
+
+--------------------------------------------------------------------------------
 -- Registration Handlers (called by MechanicLib)
 --------------------------------------------------------------------------------
 
 function Mechanic:OnAddonRegistered(name, capabilities)
+	-- Global Filter
+	if self.db.profile.hiddenAddons[name] then
+		self:OnLog("System", string.format("Addon %s registered but is currently HIDDEN by global filter.", name), "[Core]")
+		return
+	end
+
+	-- Validation (Developer feedback)
+	self:ValidateCapabilities(name, capabilities)
+
 	-- Notify UI modules if they are interested
-	if self.Console and self.Console.RefreshSourceList then
-		self.Console:RefreshSourceList()
+	if self.Console then
+		self.Console.navDirty = true
+		if self.Console.frame and self.Console.frame:IsVisible() then
+			self.Console:RefreshSourceList()
+		end
 	end
 
 	if self.Tests and self.Tests.RefreshTree then
@@ -82,12 +147,18 @@ function Mechanic:OnAddonRegistered(name, capabilities)
 		self.Tests:UpdateSummary()
 	end
 
-	if self.Tools and self.Tools.RefreshAddonList then
-		self.Tools:RefreshAddonList()
+	if self.Tools then
+		self.Tools.navDirty = true
+		if self.Tools.frame and self.Tools.frame:IsVisible() then
+			self.Tools:RefreshAddonList()
+		end
 	end
 
-	if self.Perf and self.Perf.RefreshNavItems then
-		self.Perf:RefreshNavItems()
+	if self.Perf then
+		self.Perf.navDirty = true
+		if self.Perf.frame and self.Perf.frame:IsVisible() then
+			self.Perf:RefreshNavItems()
+		end
 	end
 
 	-- Check for inspect capability (Phase 8)
@@ -117,6 +188,11 @@ function Mechanic:OnAddonUnregistered(name)
 end
 
 function Mechanic:OnLog(addonName, message, category)
+	-- Global Filter
+	if self.db.profile.hiddenAddons[addonName] then
+		return
+	end
+
 	-- Forward to Console module
 	if self.Console and self.Console.OnLog then
 		self.Console:OnLog(addonName, message, category)
@@ -182,24 +258,33 @@ end
 
 --- Detects the client type (Retail/PTR/Beta).
 ---@return string client "Retail", "PTR", or "Beta"
+--- Detects the client type (Retail/PTR/Beta).
+---@return string client "Retail", "PTR", or "Beta"
 function Mechanic:GetClientType()
-	-- Try API functions first
-	if IsTestBuild and IsTestBuild() then
-		return "PTR"
-	end
-	if IsBetaBuild and IsBetaBuild() then
+	-- 1. Try native build type checks (standard WoW API globals)
+	if _G.IsBetaBuild and _G.IsBetaBuild() then
 		return "Beta"
 	end
+	if _G.IsTestBuild and _G.IsTestBuild() then
+		return "PTR"
+	end
 
-	-- Fallback to portal CVar
+	-- 2. Fallback to portal CVar (very reliable for developers)
 	local project = GetCVar("portal") or ""
 	if project:find("test") then
 		return "PTR"
 	elseif project:find("beta") then
 		return "Beta"
-	else
+	end
+
+	-- 3. Final fallback based on interface version during transition
+	local _, _, _, interface = GetBuildInfo()
+	if interface >= 120000 then
+		-- If it's 12.x and not flagged as test/beta, it might be pre-patch or early launch
 		return "Retail"
 	end
+
+	return "Retail"
 end
 
 --------------------------------------------------------------------------------
@@ -349,7 +434,7 @@ function Mechanic:SetupDataBroker()
 			end
 		end,
 		OnTooltipShow = function(tooltip)
-			tooltip:AddLine("|cff00ff00!Mechanic|r")
+			tooltip:AddLine("|cff00ff00Mechanic|r")
 			tooltip:AddLine("|cffffffffLeft-click:|r Toggle window")
 			tooltip:AddLine("|cffffffffRight-click:|r Settings")
 

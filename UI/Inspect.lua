@@ -8,6 +8,18 @@ local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
 local InspectModule = {}
 Mechanic.Inspect = InspectModule
 
+-- Helper for modern WoW GetMouseFocus
+local function GetMouseFocus()
+	if C_UI and C_UI.GetMouseFocus then
+		return C_UI.GetMouseFocus()
+	elseif _G.GetMouseFocus then
+		return _G.GetMouseFocus()
+	else
+		local foci = GetMouseFoci()
+		return foci and foci[1]
+	end
+end
+
 InspectModule.frame = nil
 InspectModule.selectedFrame = nil
 InspectModule.pickMode = false
@@ -127,8 +139,44 @@ function InspectModule:TogglePickMode()
 end
 
 function InspectModule:StartPicking()
+	-- We use a hidden editbox to capture keyboard/mouse without tainting everything
+	if not self.pickCapturer then
+		local cap = CreateFrame("EditBox", nil, UIParent)
+		cap:SetAllPoints()
+		cap:SetFrameStrata("TOOLTIP")
+		cap:SetAutoFocus(false)
+		cap:EnableMouse(true)
+		
+		-- Click to select
+		cap:SetScript("OnMouseDown", function(_, button)
+			if button == "LeftButton" then
+				local focus = GetMouseFocus()
+				if focus and focus ~= cap then
+					InspectModule:SetSelectedFrame(focus)
+				end
+			end
+			InspectModule:TogglePickMode()
+		end)
+
+		-- Escape to cancel
+		cap:SetScript("OnEscapePressed", function()
+			InspectModule:TogglePickMode()
+		end)
+
+		cap:SetPropagateKeyboardInput(false)
+		self.pickCapturer = cap
+	end
+
 	self.pickOverlay:Show()
-	self.pickOverlay:SetScript("OnUpdate", function(s)
+	self.pickCapturer:Show()
+	self.pickCapturer:SetFocus()
+
+	local lastUpdate = 0
+	self.pickOverlay:SetScript("OnUpdate", function(s, elapsed)
+		lastUpdate = lastUpdate + elapsed
+		if lastUpdate < 0.016 then return end -- ~60fps throttle
+		lastUpdate = 0
+
 		local focus = GetMouseFocus()
 		if focus and focus ~= s and focus ~= UIParent then
 			s:ClearAllPoints()
@@ -138,32 +186,6 @@ function InspectModule:StartPicking()
 			s:Hide()
 		end
 	end)
-
-	-- We use a hidden button to capture the click without tainting everything
-	if not self.pickCapturer then
-		local cap = CreateFrame("Button", nil, UIParent)
-		cap:SetAllPoints()
-		cap:SetFrameStrata("TOOLTIP")
-		cap:RegisterForClicks("AnyUp")
-		cap:SetScript("OnClick", function(_, button)
-			if button == "LeftButton" then
-				local focus = GetMouseFocus()
-				if focus and focus ~= cap then
-					InspectModule:SetSelectedFrame(focus)
-				end
-			end
-			InspectModule:TogglePickMode()
-		end)
-		cap:SetScript("OnKeyDown", function(_, key)
-			if key == "ESCAPE" then
-				InspectModule:TogglePickMode()
-			end
-		end)
-		cap:SetPropagateKeyboardInput(false)
-		self.pickCapturer = cap
-	end
-	self.pickCapturer:Show()
-	self.pickCapturer:SetFocus()
 end
 
 function InspectModule:StopPicking()
@@ -184,10 +206,37 @@ function InspectModule:InspectPath(path)
 end
 
 function InspectModule:SetSelectedFrame(frame, path)
+	if not frame then return end
+	
+	-- If it's a string, try to resolve it first
+	if type(frame) == "string" then
+		local resolved = ns.FrameResolver:ResolvePath(frame)
+		if resolved then
+			frame = resolved
+			path = path or frame
+		else
+			-- If it's a string that can't be resolved to a frame, 
+			-- we might still want to "inspect" it if it's a global table
+			local globalTable = _G[frame]
+			if type(globalTable) == "table" then
+				frame = globalTable
+				path = path or frame
+			else
+				Mechanic:Print("Could not resolve frame or global table: " .. tostring(frame))
+				return
+			end
+		end
+	end
+
 	self.selectedFrame = frame
 	local displayPath = path or ns.FrameResolver:GetFramePath(frame)
 	self.pathInput:SetText(displayPath or "<anonymous>")
 	
+	-- Developer feedback: Inspecting a plain table
+	if frame and type(frame) == "table" and not frame.GetObjectType then
+		Mechanic:OnLog("System", string.format("|cffffaa00Note:|r Inspecting global table '%s' (not a WoW object). Ancestors/Children tree disabled.", displayPath or "table"), "[Inspect]")
+	end
+
 	if self.UpdateTree then self:UpdateTree(frame) end
 	if self.UpdateDetails then self:UpdateDetails(frame) end
 end

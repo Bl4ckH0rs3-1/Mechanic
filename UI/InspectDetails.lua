@@ -27,31 +27,44 @@ function InspectModule:UpdateDetails(frame)
 		section:Hide()
 	end
 	
-	if not frame then return end
+	if not frame or type(frame) ~= "table" then return end
 
 	local yOffset = 0
 
 	-- 1. Header Section
 	yOffset = self:AddDetailHeader(frame, yOffset)
 	
-	-- 2. Geometry Section
-	yOffset = self:AddDetailGeometry(frame, yOffset)
+	-- 2. Geometry Section (Frames only)
+	if frame.GetObjectType and frame.GetSize then
+		yOffset = self:AddDetailGeometry(frame, yOffset)
+	end
 	
 	-- 3. Properties Section
 	yOffset = self:AddDetailProperties(frame, yOffset)
 	
-	-- 4. Scripts Section
-	yOffset = self:AddDetailScripts(frame, yOffset)
+	-- 4. Scripts Section (Frames only)
+	if frame.HasScript then
+		yOffset = self:AddDetailScripts(frame, yOffset)
+	end
 
 	self.detailsContent:SetHeight(-yOffset)
 end
 
 function InspectModule:AddDetailHeader(frame, yOffset)
 	local section = self:GetOrCreateDetailSection("Header", yOffset)
-	section.title:SetText(frame:GetName() or "<anonymous>")
 	
-	local info = string.format("Type: %s | Level: %d | Strata: %s", 
-		frame:GetObjectType(), frame:GetFrameLevel(), frame:GetFrameStrata())
+	local name = frame.GetName and frame:GetName() or "<anonymous>"
+	section.title:SetText(name)
+	
+	local info
+	if frame.GetObjectType then
+		info = string.format("Type: %s | Level: %d | Strata: %s", 
+			frame:GetObjectType(), 
+			frame.GetFrameLevel and frame:GetFrameLevel() or 0, 
+			frame.GetFrameStrata and frame:GetFrameStrata() or "N/A")
+	else
+		info = "Type: Table (Global)"
+	end
 	section.content:SetText(info)
 	
 	local height = 40
@@ -80,11 +93,26 @@ function InspectModule:AddDetailProperties(frame, yOffset)
 	section.title:SetText("Common Properties")
 	
 	local props = {}
-	if frame.GetText then table.insert(props, "Text: " .. tostring(frame:GetText())) end
-	if frame.GetValue then table.insert(props, "Value: " .. tostring(frame:GetValue())) end
-	if frame.GetMinMaxValues then 
+	if type(frame.GetText) == "function" then table.insert(props, string.format("Text: %s", tostring(frame:GetText()))) end
+	if type(frame.GetValue) == "function" then table.insert(props, string.format("Value: %s", tostring(frame:GetValue()))) end
+	if type(frame.GetMinMaxValues) == "function" then 
 		local min, max = frame:GetMinMaxValues()
 		table.insert(props, string.format("Min/Max: %.1f - %.1f", min, max)) 
+	end
+	
+	-- For plain tables, show some members
+	if not frame.GetObjectType then
+		local count = 0
+		for k, v in pairs(frame) do
+			if type(v) ~= "function" and type(v) ~= "table" then
+				table.insert(props, string.format("%s: %s", tostring(k), tostring(v)))
+				count = count + 1
+			end
+			if count > 10 then 
+				table.insert(props, "...")
+				break 
+			end
+		end
 	end
 	
 	if #props == 0 then table.insert(props, "None") end
@@ -108,7 +136,7 @@ function InspectModule:AddDetailScripts(frame, yOffset)
 	local active = {}
 	for _, script in ipairs(scripts) do
 		if frame:HasScript(script) and frame:GetScript(script) then
-			table.insert(active, script .. ": [function]")
+			table.insert(active, string.format("%s: [function]", script))
 		end
 	end
 	

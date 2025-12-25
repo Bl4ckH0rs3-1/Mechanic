@@ -18,42 +18,67 @@ local NAV_PADDING = 4
 ---@field items table[]? Array of {key, text, icon?} for nav items
 ---@field onSelect function? Callback(key) when item selected
 ---@field defaultKey string? Initial selection
+---@field storageKey string? Key for persistence in Mechanic.db.profile.activeSubTabs
 
 ---Create a split navigation layout
 ---@param parent Frame Parent frame
 ---@param config SplitNavConfig
 ---@return table layout Layout controller object
 function SplitNavLayout:Create(parent, config)
+	local MechanicObj = _G.Mechanic
 	local layout = {
 		items = {},
 		buttons = {},
+		headers = {},
 		selectedKey = nil,
 		contentFrames = {},
+		storageKey = config.storageKey,
+		addonProfile = MechanicObj and MechanicObj.db and MechanicObj.db.profile,
+		initializing = true, -- Flag to prevent saves during initialization
 	}
+
+	-- Load selected key from storage if available
+	if layout.storageKey and layout.addonProfile and layout.addonProfile.activeSubTabs then
+		layout.selectedKey = layout.addonProfile.activeSubTabs[layout.storageKey]
+		if layout.selectedKey then
+			print(string.format("|cff00ffff[MechDebug]|r SplitNav '%s' RESTORED: %s", layout.storageKey, tostring(layout.selectedKey)))
+		end
+	end
+
+	-- Fallback to default key
+	if not layout.selectedKey then
+		layout.selectedKey = config.defaultKey
+		-- print(string.format("|cff00ffff[MechDebug]|r SplitNav '%s' using fallback: %s", tostring(layout.storageKey), tostring(layout.selectedKey)))
+	end
 
 	local navWidth = config.navWidth or NAV_WIDTH
 
-	-- Left navigation panel
-	local navPanel = CreateFrame("Frame", nil, parent)
-	navPanel:SetWidth(navWidth)
+	-- Left navigation panel (using FenUI Layout for a proper frame/border)
+	local navPanel = FenUI:CreateLayout(parent, {
+		width = navWidth,
+		border = "Inset",
+		background = "surfacePanel",
+		padding = NAV_PADDING,
+	})
 	navPanel:SetPoint("TOPLEFT", 0, 0)
 	navPanel:SetPoint("BOTTOMLEFT", 0, 0)
 	layout.navPanel = navPanel
 
-	-- Nav background
-	local navBg = navPanel:CreateTexture(nil, "BACKGROUND")
-	navBg:SetAllPoints()
-	navBg:SetColorTexture(0, 0, 0, 0.3)
-
 	-- Scrollable nav content
 	local navScroll = CreateFrame("ScrollFrame", nil, navPanel, "UIPanelScrollFrameTemplate")
-	navScroll:SetPoint("TOPLEFT", NAV_PADDING, -NAV_PADDING)
-	navScroll:SetPoint("BOTTOMRIGHT", -NAV_PADDING - 16, NAV_PADDING)
+	navScroll:SetPoint("TOPLEFT", 4, -4)
+	navScroll:SetPoint("BOTTOMRIGHT", -26, 4)
 
 	local navContent = CreateFrame("Frame", nil, navScroll)
-	navContent:SetWidth(navWidth - NAV_PADDING * 2 - 16)
+	navContent:SetSize(navWidth - 35, 1) -- Initial reasonable width
 	navScroll:SetScrollChild(navContent)
 	layout.navContent = navContent
+
+	-- Keep navContent width synced with navScroll to fill the space
+	navScroll:SetScript("OnSizeChanged", function(self, width, height)
+		navContent:SetWidth(width)
+		layout:RefreshNav()
+	end)
 
 	-- Content area (right side)
 	local contentArea = CreateFrame("Frame", nil, parent)
@@ -64,35 +89,64 @@ function SplitNavLayout:Create(parent, config)
 	-- Methods
 	function layout:SetItems(items)
 		self.items = items
+		
+		-- We used to validate and clear selectedKey here if it wasn't in the list.
+		-- However, this caused issues during initialization where addons hadn't 
+		-- registered yet, causing restored selections to be lost.
+		-- Now we keep the selectedKey; if it's not in the list, no highlight will show,
+		-- but it will stay saved so that when the addon registers later, it works.
+		
 		self:RefreshNav()
 	end
 
 	function layout:RefreshNav()
-		-- Clear existing buttons
+		-- Hide all existing buttons and headers
 		for _, btn in ipairs(self.buttons) do
 			btn:Hide()
 		end
-
-		local yOffset = 0
-		for i, item in ipairs(self.items) do
-			local btn = self:GetOrCreateButton(i)
-			btn:SetPoint("TOPLEFT", self.navContent, "TOPLEFT", 0, -yOffset)
-			btn:SetSize(self.navContent:GetWidth(), NAV_ITEM_HEIGHT)
-			btn.text:SetText(item.text)
-			btn.key = item.key
-			btn:Show()
-
-			-- Highlight if selected
-			if item.key == self.selectedKey then
-				btn.highlight:Show()
-			else
-				btn.highlight:Hide()
-			end
-
-			yOffset = yOffset + NAV_ITEM_HEIGHT + 2
+		for _, header in ipairs(self.headers) do
+			header:Hide()
 		end
 
-		self.navContent:SetHeight(yOffset)
+		local yOffset = 0
+		local buttonIndex = 1
+		local headerIndex = 1
+
+		for i, item in ipairs(self.items) do
+			if item.isHeader then
+				local header = self:GetOrCreateHeader(headerIndex)
+				header:SetPoint("TOPLEFT", self.navContent, "TOPLEFT", 0, -yOffset)
+				header:SetPoint("TOPRIGHT", self.navContent, "TOPRIGHT", 0, -yOffset)
+				header:SetText(item.text)
+				header:Show()
+				
+				yOffset = yOffset + header:GetHeight() + 2
+				headerIndex = headerIndex + 1
+			else
+				local btn = self:GetOrCreateButton(buttonIndex)
+				btn:SetPoint("TOPLEFT", self.navContent, "TOPLEFT", 0, -yOffset)
+				btn:SetPoint("TOPRIGHT", self.navContent, "TOPRIGHT", 0, -yOffset)
+				btn:SetHeight(NAV_ITEM_HEIGHT)
+				btn.text:SetText(item.text)
+				btn.key = item.key
+				
+				btn:Enable()
+				btn.text:SetTextColor(1, 0.82, 0)
+
+				btn:Show()
+				yOffset = yOffset + NAV_ITEM_HEIGHT + 2
+				buttonIndex = buttonIndex + 1
+			end
+		end
+
+		self.navContent:SetHeight(math.max(1, yOffset))
+		
+		self:UpdateButtonStates()
+
+		-- Ensure content frame for selected key is shown
+		if self.selectedKey and self.contentFrames[self.selectedKey] then
+			self.contentFrames[self.selectedKey]:Show()
+		end
 	end
 
 	function layout:GetOrCreateButton(index)
@@ -119,23 +173,74 @@ function SplitNavLayout:Create(parent, config)
 		local text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 		text:SetPoint("LEFT", 8, 0)
 		text:SetJustifyH("LEFT")
+		text:SetText("Test Item") -- Default text
 		btn.text = text
 
 		btn:SetScript("OnClick", function()
-			self:Select(btn.key)
+			if btn.key then
+				self:Select(btn.key)
+			end
 		end)
 
 		self.buttons[index] = btn
 		return btn
 	end
 
-	function layout:Select(key)
-		if self.selectedKey == key then
+	function layout:GetOrCreateHeader(index)
+		if self.headers[index] then
+			return self.headers[index]
+		end
+
+		local header = FenUI:CreateSectionHeader(self.navContent, {
+			text = "Header",
+			spacing = "md",
+		})
+		
+		self.headers[index] = header
+		return header
+	end
+
+	function layout:UpdateButtonStates()
+		for _, btn in ipairs(self.buttons) do
+			if btn:IsShown() then
+				if btn.key == self.selectedKey then
+					btn.highlight:Show()
+				else
+					btn.highlight:Hide()
+				end
+			end
+		end
+	end
+
+	function layout:Select(key, force)
+		if self.selectedKey == key and not force then
 			return
 		end
 
+		-- Debug: Show where Select is being called from (only for perf>general)
+		if key == "general" and self.storageKey == "perf" then
+			local stack = debugstack(2, 3, 0)
+			print(string.format("|cffff0000[MechDebug]|r Select('general') called (current: '%s') from:\n%s", tostring(self.selectedKey), stack))
+		end
+
+		local oldKey = self.selectedKey
 		self.selectedKey = key
-		self:RefreshNav()
+		
+		-- Debug: Track key changes for perf tab
+		if self.storageKey == "perf" and oldKey ~= key then
+			print(string.format("|cffffaa00[MechDebug]|r SplitNav 'perf' selectedKey changed: '%s' -> '%s'", tostring(oldKey), tostring(key)))
+		end
+		
+		-- Persist if storage key provided (but NOT during initialization)
+		if self.storageKey and self.addonProfile and not self.initializing then
+			self.addonProfile.activeSubTabs = self.addonProfile.activeSubTabs or {}
+			self.addonProfile.activeSubTabs[self.storageKey] = key
+			print(string.format("|cff00ffff[MechDebug]|r SplitNav '%s' SAVE ATTEMPT: %s", self.storageKey, tostring(key)))
+		elseif self.initializing then
+			print(string.format("|cffff8800[MechDebug]|r SplitNav '%s' Select('%s') BLOCKED (initializing)", self.storageKey or "nil", tostring(key)))
+		end
+
+		self:UpdateButtonStates()
 
 		-- Hide all content frames
 		for _, frame in pairs(self.contentFrames) do
@@ -147,8 +252,8 @@ function SplitNavLayout:Create(parent, config)
 			self.contentFrames[key]:Show()
 		end
 
-		-- Callback
-		if config.onSelect then
+		-- Callback (only if NOT initializing)
+		if config.onSelect and not self.initializing then
 			config.onSelect(key)
 		end
 	end
@@ -157,8 +262,14 @@ function SplitNavLayout:Create(parent, config)
 		if not self.contentFrames[key] then
 			local frame = CreateFrame("Frame", nil, self.contentArea)
 			frame:SetAllPoints()
-			frame:Hide()
 			self.contentFrames[key] = frame
+			
+			-- If this is already the selected key, show it immediately
+			if self.selectedKey == key then
+				frame:Show()
+			else
+				frame:Hide()
+			end
 		end
 		return self.contentFrames[key]
 	end
@@ -171,9 +282,12 @@ function SplitNavLayout:Create(parent, config)
 	if config.items then
 		layout:SetItems(config.items)
 	end
-	if config.defaultKey then
+	if not layout.selectedKey and config.defaultKey then
 		layout:Select(config.defaultKey)
 	end
+
+	-- Clear initialization flag - now saves will work
+	layout.initializing = false
 
 	return layout
 end

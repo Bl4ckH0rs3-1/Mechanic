@@ -36,7 +36,7 @@ function StatusRowMixin:SetValues(valuesTable)
         
         -- Label
         local labelFS = self:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        labelFS:SetText(item.label .. ":")
+        labelFS:SetFormattedText("%s:", item.label)
         labelFS:SetTextColor(FenUI:GetColorRGB("textMuted"))
         entry.labelFS = labelFS
         
@@ -88,28 +88,17 @@ function StatusRowMixin:UpdateLayout()
     local xOffset = 8
     local gap = self.config.gap or 12
     local internalGap = 4
-    local needsRetry = false
     
     for i, item in ipairs(self.items) do
         item.labelFS:ClearAllPoints()
         item.labelFS:SetPoint("LEFT", self, "LEFT", xOffset, 0)
         item.labelFS:Show()
-        
-        local labelW = item.labelFS:GetWidth()
-        if labelW == 0 and item.labelFS:GetText() ~= "" then
-            needsRetry = true
-        end
-        xOffset = xOffset + labelW + internalGap
+        xOffset = xOffset + item.labelFS:GetWidth() + internalGap
         
         item.valueFS:ClearAllPoints()
         item.valueFS:SetPoint("LEFT", self, "LEFT", xOffset, 0)
         item.valueFS:Show()
-        
-        local valueW = item.valueFS:GetWidth()
-        if valueW == 0 and item.valueFS:GetText() ~= "" then
-            needsRetry = true
-        end
-        xOffset = xOffset + valueW
+        xOffset = xOffset + item.valueFS:GetWidth()
         
         if item.divider then
             xOffset = xOffset + (gap / 2)
@@ -120,14 +109,6 @@ function StatusRowMixin:UpdateLayout()
         end
         
         xOffset = xOffset + gap
-    end
-
-    if needsRetry and not self.retryPending then
-        self.retryPending = true
-        C_Timer.After(0.05, function()
-            self.retryPending = false
-            self:UpdateLayout()
-        end)
     end
 end
 

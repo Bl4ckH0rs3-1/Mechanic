@@ -35,7 +35,7 @@ end
 --     getDebugBuffer = function(),
 --     clearDebugBuffer = function(),
 --     tests = {
---         getAll = function(),        -- returns { {id, def}, ... }
+--         getAll = function(),        -- returns array of definitions {id, name, ...} or {id, def={...}}
 --         getCategories = function(), -- returns { "cat", ... }
 --         run = function(id),
 --         runAll = function(),

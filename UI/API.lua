@@ -12,10 +12,12 @@ APIModule.layout = nil
 APIModule.selectedAPI = nil
 APIModule.paramInputs = {}
 APIModule.lastResults = {}
+APIModule.navDirty = true
 
 -- Import definitions
 local API_DEFINITIONS = ns.APIDefinitions
 local API_CATEGORIES = ns.APICategories
+local API_REGISTRY = ns.APIRegistry
 
 --------------------------------------------------------------------------------
 -- Initialization
@@ -39,13 +41,16 @@ function Mechanic:InitializeAPI()
 	APIModule.layout = SplitNavLayout:Create(frame, {
 		navWidth = 220,
 		items = navItems,
+		storageKey = "api",
 		onSelect = function(key)
 			APIModule:OnAPISelected(key)
 		end,
 	})
+	APIModule.navDirty = false
 
-	-- Select first API by default
-	if navItems[1] then
+	-- Select first API by default if nothing was restored from storage
+	local initialKey = APIModule.layout.selectedKey
+	if not initialKey and navItems[1] then
 		-- Find first actual API (not category)
 		for _, item in ipairs(navItems) do
 			if not item.isCategory then
@@ -53,6 +58,9 @@ function Mechanic:InitializeAPI()
 				break
 			end
 		end
+	elseif initialKey then
+		-- Manually trigger initial selection now that ALL UI elements are created
+		APIModule:OnAPISelected(initialKey)
 	end
 end
 
@@ -62,7 +70,7 @@ function APIModule:BuildNavTree()
 	for _, category in ipairs(API_CATEGORIES) do
 		-- Add category header
 		table.insert(items, {
-			key = "cat_" .. category.key,
+			key = string.format("cat_%s", category.key),
 			text = category.name,
 			isCategory = true,
 		})
@@ -71,7 +79,11 @@ function APIModule:BuildNavTree()
 		local apis = {}
 		for apiKey, apiDef in pairs(API_DEFINITIONS) do
 			if apiDef.category == category.key then
-				table.insert(apis, apiDef)
+				table.insert(apis, {
+					key = apiKey,
+					name = apiDef.name,
+					impact = apiDef.midnightImpact
+				})
 			end
 		end
 
@@ -80,11 +92,11 @@ function APIModule:BuildNavTree()
 			return a.name < b.name
 		end)
 
-		for _, apiDef in ipairs(apis) do
-			local impactColor = self:GetImpactColor(apiDef.midnightImpact)
+		for _, api in ipairs(apis) do
+			local impactColor = self:GetImpactColor(api.impact)
 			table.insert(items, {
-				key = apiDef.key,
-				text = string.format("  %s%s|r", impactColor, apiDef.name),
+				key = api.key,
+				text = string.format("  %s%s|r", impactColor, api.name),
 				isAPI = true,
 			})
 		end
@@ -96,9 +108,9 @@ end
 function APIModule:GetImpactColor(impact)
 	if impact == "HIGH" then
 		return "|cffff4444" -- Red
-	elseif impact == "MEDIUM" then
+	elseif impact == "CONDITIONAL" then
 		return "|cffffaa00" -- Orange
-	elseif impact == "LOW" then
+	elseif impact == "RESTRICTED" then
 		return "|cffffff00" -- Yellow
 	else
 		return "|cff00ff00" -- Green
@@ -112,6 +124,11 @@ end
 function APIModule:OnAPISelected(key)
 	-- Skip category headers
 	if key:find("^cat_") then
+		return
+	end
+
+	-- Guard: layout might not be assigned yet during initialization
+	if not self.layout then
 		return
 	end
 
@@ -147,14 +164,14 @@ function APIModule:BuildAPIPanel(parent, apiDef)
 	infoLabel:SetPoint("TOPLEFT", 8, yOffset)
 	local catName = ns.APICategoryLookup[apiDef.category] and ns.APICategoryLookup[apiDef.category].name
 		or apiDef.category
-	infoLabel:SetText("Category: " .. catName)
+	infoLabel:SetText(string.format("Category: %s", catName))
 	yOffset = yOffset - 18
 
 	-- Midnight impact
 	local impactColor = self:GetImpactColor(apiDef.midnightImpact)
 	local impactLabel = self:GetOrCreateLabel(parent, "impactLabel", "GameFontHighlight")
 	impactLabel:SetPoint("TOPLEFT", 8, yOffset)
-	impactLabel:SetText("Midnight Impact: " .. impactColor .. apiDef.midnightImpact .. "|r")
+	impactLabel:SetText(string.format("Midnight Impact: %s%s|r", impactColor, apiDef.midnightImpact))
 	yOffset = yOffset - 18
 
 	-- Midnight note
@@ -274,7 +291,7 @@ function APIModule:BuildAPIPanel(parent, apiDef)
 end
 
 function APIModule:CreateParamInput(parent, param, index, yOffset)
-	local row = self:GetOrCreateFrame(parent, "param_" .. index)
+	local row = self:GetOrCreateFrame(parent, string.format("param_%d", index))
 	row:SetPoint("TOPLEFT", 16, yOffset)
 	row:SetSize(500, 24)
 
@@ -282,7 +299,7 @@ function APIModule:CreateParamInput(parent, param, index, yOffset)
 	label:SetPoint("LEFT", 0, 0)
 	label:SetWidth(120)
 	label:SetJustifyH("LEFT")
-	label:SetText(param.name .. ":")
+	label:SetText(string.format("%s:", param.name))
 	row.label = label
 
 	local input = row.input or CreateFrame("EditBox", nil, row, "InputBoxTemplate")
@@ -294,7 +311,7 @@ function APIModule:CreateParamInput(parent, param, index, yOffset)
 
 	local typeLabel = row.typeLabel or row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 	typeLabel:SetPoint("LEFT", input, "RIGHT", 8, 0)
-	typeLabel:SetText("(" .. param.type .. ")")
+	typeLabel:SetText(string.format("(%s)", param.type))
 	row.typeLabel = typeLabel
 
 	-- Examples dropdown (if examples provided)
@@ -314,13 +331,13 @@ function APIModule:CreateParamInput(parent, param, index, yOffset)
 			if i > 3 then
 				break
 			end -- Limit to 3 quick buttons
-			local quickBtn = row["quickBtn" .. i] or CreateFrame("Button", nil, row)
+			local quickBtn = row[string.format("quickBtn%d", i)] or CreateFrame("Button", nil, row)
 			quickBtn:SetPoint("LEFT", typeLabel, "RIGHT", xOffset, 0)
 
 			-- Create text first so we can measure it
 			local btnText = quickBtn.btnText or quickBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 			btnText:SetPoint("CENTER")
-			btnText:SetText("|cff88ccff" .. example.label .. "|r")
+			btnText:SetText(string.format("|cff88ccff%s|r", example.label))
 			quickBtn.btnText = btnText
 
 			-- Size button based on text width (now that text exists)
@@ -331,13 +348,13 @@ function APIModule:CreateParamInput(parent, param, index, yOffset)
 				input:SetText(tostring(example.value))
 			end)
 			quickBtn:SetScript("OnEnter", function(self)
-				self.btnText:SetText("|cffffffff" .. example.label .. "|r")
+				self.btnText:SetText(string.format("|cffffffff%s|r", example.label))
 			end)
 			quickBtn:SetScript("OnLeave", function(self)
-				self.btnText:SetText("|cff88ccff" .. example.label .. "|r")
+				self.btnText:SetText(string.format("|cff88ccff%s|r", example.label))
 			end)
 
-			row["quickBtn" .. i] = quickBtn
+			row[string.format("quickBtn%d", i)] = quickBtn
 			xOffset = xOffset + quickBtn:GetWidth() + 4
 		end
 	end
@@ -354,7 +371,7 @@ function APIModule:ShowExamplesMenu(param, inputBox)
 	local menu = {}
 	for _, example in ipairs(param.examples) do
 		table.insert(menu, {
-			text = example.label .. " (" .. tostring(example.value) .. ")",
+			text = string.format("%s (%s)", example.label, tostring(example.value)),
 			func = function()
 				inputBox:SetText(tostring(example.value))
 				CloseDropDownMenus()
@@ -444,13 +461,12 @@ function APIModule:DisplayResults(parent, apiDef, resultData)
 	-- Status line
 	local timeStr = date("%H:%M:%S")
 	local statusText
-	local secretCount = 0
 
 	if not resultData.success then
 		statusText = "|cffff0000ERROR|r"
 	else
 		-- Check for secrets in results
-		secretCount = self:CountSecrets(resultData.results)
+		local secretCount = self:CountSecrets(resultData.results)
 		if secretCount > 0 then
 			statusText = string.format("|cffaa00ffSECRET|r (%d secret values)", secretCount)
 		else
@@ -466,7 +482,7 @@ function APIModule:DisplayResults(parent, apiDef, resultData)
 	local lines = {}
 
 	if not resultData.success then
-		table.insert(lines, "Error: " .. tostring(resultData.results[1]))
+		table.insert(lines, string.format("Error: %s", tostring(resultData.results[1])))
 	else
 		table.insert(lines, "Returns:")
 		for i, retDef in ipairs(apiDef.returns) do
@@ -558,7 +574,7 @@ function APIModule:CopyAPIReport(apiDef)
 	local lines = {}
 
 	-- Header
-	table.insert(lines, "=== Mechanic API Report: " .. apiDef.funcPath .. " ===")
+	table.insert(lines, string.format("=== Mechanic API Report: %s ===", apiDef.funcPath))
 	local header = Mechanic:GetEnvironmentHeader()
 	if header then
 		table.insert(lines, header)
@@ -566,11 +582,11 @@ function APIModule:CopyAPIReport(apiDef)
 	table.insert(lines, "---")
 
 	-- API info
-	table.insert(lines, "API: " .. apiDef.funcPath)
-	table.insert(lines, "Category: " .. apiDef.category)
-	table.insert(lines, "Midnight Impact: " .. apiDef.midnightImpact)
+	table.insert(lines, string.format("API: %s", apiDef.funcPath))
+	table.insert(lines, string.format("Category: %s", apiDef.category))
+	table.insert(lines, string.format("Midnight Impact: %s", apiDef.midnightImpact))
 	if apiDef.midnightNote then
-		table.insert(lines, "Note: " .. apiDef.midnightNote)
+		table.insert(lines, string.format("Note: %s", apiDef.midnightNote))
 	end
 	table.insert(lines, "")
 
@@ -605,7 +621,7 @@ function APIModule:FormatResultsPlainText(apiDef, resultData)
 	local lines = {}
 
 	if not resultData.success then
-		table.insert(lines, "  Error: " .. tostring(resultData.results[1]))
+		table.insert(lines, string.format("  Error: %s", tostring(resultData.results[1])))
 	else
 		for i, retDef in ipairs(apiDef.returns) do
 			local value = resultData.results[i]
@@ -641,7 +657,7 @@ function APIModule:FormatValuePlainText(value, retDef)
 				table.insert(parts, string.format("    .%s = %s%s", tostring(k), tostring(v), fieldSecretTag))
 			end
 		end
-		return "{\n" .. table.concat(parts, "\n") .. "\n  }"
+		return string.format("{\n%s\n  }", table.concat(parts, "\n"))
 	end
 
 	return string.format("%s%s", tostring(value), secretTag)
@@ -651,7 +667,7 @@ function APIModule:GetCategoryReport(categoryKey)
 	local lines = {}
 	local catName = ns.APICategoryLookup[categoryKey] and ns.APICategoryLookup[categoryKey].name or categoryKey
 
-	table.insert(lines, "=== Mechanic API Report: " .. catName .. " ===")
+	table.insert(lines, string.format("=== Mechanic API Report: %s ===", catName))
 	local header = Mechanic:GetEnvironmentHeader()
 	if header then
 		table.insert(lines, header)
@@ -802,9 +818,10 @@ function APIModule:DisplayMissingFuncError(apiDef)
 	end
 	if contentFrame and contentFrame.resultsBox then
 		contentFrame.resultsBox:SetText(
-			"Function not available: "
-				.. apiDef.funcPath
-				.. "\n\nThis may be a newer API not yet available in this WoW version."
+			string.format(
+				"Function not available: %s\n\nThis may be a newer API not yet available in this WoW version.",
+				apiDef.funcPath
+			)
 		)
 	end
 end
@@ -814,6 +831,14 @@ end
 --------------------------------------------------------------------------------
 
 function APIModule:OnShow()
+	if self.navDirty then
+		local navItems = self:BuildNavTree()
+		if self.layout then
+			self.layout:SetItems(navItems)
+		end
+		self.navDirty = false
+	end
+
 	-- Refresh current selection if any
 	if self.selectedAPI then
 		local contentFrame = self.layout:GetContentFrame(self.selectedAPI)

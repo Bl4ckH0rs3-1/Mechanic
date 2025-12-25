@@ -193,19 +193,29 @@ MechanicLib:Register("MyAddon", {
 
 ### Test Interface Contract
 
-For addons providing tests, the following contract must be met:
+For addons providing tests, the following contract must be met. The `getAll()` function can return test definitions in two formats for flexibility.
 
 ```lua
--- getAll() returns:
+-- getAll() returns an array of test entries:
 {
-    { id = "test-id", def = {
-        id = "test-id",
+    -- Format A (Modern - Preferred): Direct definition
+    {
+        id = "test-id-1",
         name = "Test Name",
         category = "CategoryName",
-        type = "auto" or "manual",
+        type = "auto", -- or "manual"
         description = "Optional description",
-    }},
-    -- ...
+    },
+    -- Format B (Classic): Nested definition
+    { 
+        id = "test-id-2", 
+        def = {
+            id = "test-id-2",
+            name = "Another Test",
+            category = "CategoryName",
+            type = "auto",
+        }
+    },
 }
 
 -- run(id) returns:
@@ -217,6 +227,9 @@ passed, message  -- boolean/nil, string
     message = "Result message",
     duration = 0.003,  -- seconds
     logs = { "log line 1", "log line 2" },  -- captured during test
+    details = { -- Optional (Phase 5)
+        { label = "Name", value = "Val", status = "pass"|"warn"|"fail" }
+    }
 }
 ```
 
@@ -338,39 +351,19 @@ passed, message  -- boolean/nil, string
 - **Export Toggle**: Replaces tree view with a copyable text report (Ctrl+A / Ctrl+C)
 - **Summary Bar**: Aggregated counts
 
-### Performance Tab
+### Inspect Tab (Phase 8)
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│ [▶ Auto-Refresh] [Reset Stats] [CPU Profiling: OFF] [Export]│
-├─────────────────────────────────────────────────────────────┤
-│ FPS: 144 | Latency: 42ms / 68ms | Lua Memory: 45.2 MB       │
-├─────────────────────────────────────────────────────────────┤
-│ Addon              │ Memory   │ %     │ CPU ms/s │ %        │
-│────────────────────│──────────│───────│──────────│──────────│
-│ WeakAuras          │ 8,920 KB │ 45.1% │ 2.34     │ 27.1%    │
-│ WimpyAuras         │ 2,450 KB │ 12.3% │ 0.45     │ 5.2%     │
-│ ActionHud          │ 1,230 KB │ 6.2%  │ 0.23     │ 2.7%     │
-│ !Mechanic          │ 890 KB   │ 4.5%  │ 0.12     │ 1.4%     │
-├─────────────────────────────────────────────────────────────┤
-│ Tracking: 5m 32s | Total Memory: 19,780 KB                  │
-└─────────────────────────────────────────────────────────────┘
-```
+**Universal Inspection**: The Inspect tab is designed to handle both WoW `Frame` objects and plain global `tables`. 
 
 **Features**:
-- **Auto-Refresh Toggle**: 1-second interval when enabled
-- **Reset Stats**: Clears CPU tracking, restarts duration
-- **CPU Profiling Toggle**: Enables `scriptProfile` CVar (requires reload)
-- **Extended Metrics**: FPS, Home/World latency, total Lua memory
-- **Sortable Columns**: Click headers to sort
-- **Export Toggle**: Replaces table view with a copyable text report (Ctrl+A / Ctrl+C)
-
-**APIs Used**:
-- `GetFramerate()` - FPS
-- `GetNetStats()` - latencyHome, latencyWorld
-- `collectgarbage("count")` - Total Lua memory
-- `GetAddOnMemoryUsage(index)` - Per-addon memory
-- `GetAddOnCPUUsage(index)` - Per-addon CPU (requires scriptProfile)
+- **Pick Mode**: Click-to-inspect frames in the UI.
+- **Contextual Tree**: 
+    - For Frames: Shows ancestors up to UIParent and direct children.
+    - For Tables: Shows the table as a root node.
+- **Details Panel**:
+    - Frames: Shows Geometry, Scripts, and common properties.
+    - Tables: Iterates and displays top-level members (up to 10) for quick inspection.
+- **Watch List**: Tracks specific paths/frames with live value updates.
 
 ---
 
@@ -729,10 +722,19 @@ MechanicLib is embedded in consuming addons:
 | 5 | Polish | Category colors, rich test results | **COMPLETE** |
 | 6 | Extensibility | Tools tab, Performance sub-metrics, Split nav | **COMPLETE** |
 | 7 | API Test Bench | API discovery, testing, Midnight readiness | **COMPLETE** |
+| 8 | Inspect Tab | Frame Inspector, Watch List, Pick mode | **COMPLETE** |
+| 9 | API Database Automation | Automated discovery, lazy loading, massive coverage | **COMPLETE** |
+| 10 | Persistence & Initialization | Tab memory, race condition fixes, UI refinements | **COMPLETE** |
 
 See individual phase specs for detailed requirements:
 - [01-foundation.plan.md](01-foundation.plan.md)
 - [02-error-tests.plan.md](02-error-tests.plan.md)
 - [03-performance.plan.md](03-performance.plan.md)
 - [04-migration.plan.md](04-migration.plan.md)
+- [05-polish.plan.md](05-polish.plan.md)
+- [06-extensibility.plan.md](06-extensibility.plan.md)
+- [07-api-bench.plan.md](07-api-bench.plan.md)
+- [08-inspect.plan.md](08-inspect.plan.md)
+- [09-api_database_automation.plan.md](09-api_database_automation.plan.md)
+- [10-persistence_initialization.plan.md](10-persistence_initialization.plan.md)
 

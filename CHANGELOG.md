@@ -7,6 +7,21 @@ All notable changes to !Mechanic will be documented in this file.
 
 
 
+
+## [1.1.6] - 2025-12-25
+
+### Changed
+- Beta compatibility fixes for MultiLineEditBox (GetTextHeight error), Inspect tab performance optimizations (avoiding CreateFrame in OnUpdate), and API database documentation updates for Midnight.
+
+## [1.1.6] - 2025-12-24
+
+### Added
+- **Phase 9: API Database Automation**:
+  - Integrated 3,000+ Midnight-affected and restricted APIs via automated discovery.
+  - Implemented lazy-loading architecture with namespace-specific files and a central registry.
+  - Added real-world usage examples from hundreds of addons to the Test Bench parameter presets.
+  - Automates "Protected" status detection for APIs that cannot be called in combat.
+
 ## [1.1.5] - 2025-12-23
 
 ### Changed

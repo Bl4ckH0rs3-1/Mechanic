@@ -114,10 +114,10 @@ function FrameResolver:GetChildren(frame)
 	local childList = { frame:GetChildren() }
 	for i, child in ipairs(childList) do
 		local name = child:GetName()
-		local key = name or (self:GetFramePath(child) or ("child" .. i))
+		local key = name or (self:GetFramePath(child) or string.format("child%d", i))
 		table.insert(children, {
 			key = key,
-			text = name or ("<anonymous " .. child:GetObjectType() .. ">"),
+			text = name or string.format("<anonymous %s>", child:GetObjectType()),
 			frame = child,
 		})
 	end

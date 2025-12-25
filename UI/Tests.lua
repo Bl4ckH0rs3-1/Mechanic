@@ -191,8 +191,9 @@ function TestsModule:BuildTree()
 					if capabilities.tests.getAll then
 						local allTests = capabilities.tests.getAll()
 						for _, entry in ipairs(allTests) do
-							local test = entry.def
-							if test and test.category == category then
+							Mechanic:ValidateTestEntry(addonName, entry) -- Developer validation
+							local test = entry.def or entry -- Support both {def={...}} and direct {...}
+							if test and test.id and test.category == category then
 								local result = capabilities.tests.getResult and capabilities.tests.getResult(test.id)
 								local icon = self:GetStatusIcon(result)
 
@@ -246,8 +247,9 @@ function TestsModule:OnTestSelected(addonName, testId)
 	local testDef = nil
 	if capabilities.tests.getAll then
 		for _, entry in ipairs(capabilities.tests.getAll()) do
-			if entry.def.id == testId then
-				testDef = entry.def
+			local test = entry.def or entry
+			if test and test.id == testId then
+				testDef = test
 				break
 			end
 		end
@@ -407,8 +409,10 @@ function TestsModule:UpdateSummary()
 	for addonName, capabilities in pairs(MechanicLib:GetRegistered()) do
 		if capabilities.tests and capabilities.tests.getAll then
 			for _, entry in ipairs(capabilities.tests.getAll()) do
+				local test = entry.def or entry
+				if test and test.id then
 				total = total + 1
-				local result = capabilities.tests.getResult and capabilities.tests.getResult(entry.def.id)
+					local result = capabilities.tests.getResult and capabilities.tests.getResult(test.id)
 				if result then
 					if result.passed == true then
 						passed = passed + 1
@@ -416,6 +420,7 @@ function TestsModule:UpdateSummary()
 						failed = failed + 1
 					else
 						pending = pending + 1
+						end
 					end
 				end
 			end
@@ -472,8 +477,10 @@ function TestsModule:GetCopyText(includeHeader)
 				for _, caps in pairs(MechanicLib:GetRegistered()) do
 					if caps.tests and caps.tests.getAll then
 						for _, entry in ipairs(caps.tests.getAll()) do
+							local test = entry.def or entry
+							if test and test.id then
 							total = total + 1
-							local res = caps.tests.getResult and caps.tests.getResult(entry.def.id)
+								local res = caps.tests.getResult and caps.tests.getResult(test.id)
 							if res then
 								if res.passed == true then
 									passed = passed + 1
@@ -481,6 +488,7 @@ function TestsModule:GetCopyText(includeHeader)
 									failed = failed + 1
 								else
 									pending = pending + 1
+									end
 								end
 							end
 						end
@@ -505,8 +513,8 @@ function TestsModule:GetCopyText(includeHeader)
 
 					if capabilities.tests.getAll then
 						for _, entry in ipairs(capabilities.tests.getAll()) do
-							local test = entry.def
-							if test.category == category then
+							local test = entry.def or entry
+							if test and test.id and test.category == category then
 								local result = capabilities.tests.getResult and capabilities.tests.getResult(test.id)
 								local status = "[----]"
 								local detail = ""
@@ -517,10 +525,10 @@ function TestsModule:GetCopyText(includeHeader)
 										detail = result.duration and string.format(" (%.3fs)", result.duration) or ""
 									elseif result.passed == false then
 										status = "[FAIL]"
-										detail = result.message and (" - " .. result.message) or ""
+										detail = result.message and string.format(" - %s", result.message) or ""
 									else
 										status = "[PEND]"
-										detail = result.message and (" - " .. result.message) or ""
+										detail = result.message and string.format(" - %s", result.message) or ""
 									end
 								end
 

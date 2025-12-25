@@ -28,17 +28,19 @@ function InspectModule:UpdateTree(selectedFrame)
 		node:Hide()
 	end
 	
-	if not selectedFrame then return end
+	if not selectedFrame or type(selectedFrame) ~= "table" then return end
 
 	local yOffset = 0
 	local nodes = {}
 
-	-- 1. Ancestors
+	-- 1. Ancestors (Frames only)
 	local ancestors = {}
-	local current = selectedFrame:GetParent()
-	while current and current ~= UIParent do
-		table.insert(ancestors, 1, current)
-		current = current:GetParent()
+	if selectedFrame.GetParent then
+		local current = selectedFrame:GetParent()
+		while current and current ~= UIParent do
+			table.insert(ancestors, 1, current)
+			current = current.GetParent and current:GetParent() or nil
+		end
 	end
 	
 	for _, frame in ipairs(ancestors) do
@@ -49,10 +51,12 @@ function InspectModule:UpdateTree(selectedFrame)
 	local selectedIdx = #nodes + 1
 	table.insert(nodes, { frame = selectedFrame, indent = #ancestors * 10, type = "selected" })
 
-	-- 3. Children
-	local children = { selectedFrame:GetChildren() }
-	for _, child in ipairs(children) do
-		table.insert(nodes, { frame = child, indent = (#ancestors + 1) * 10, type = "child" })
+	-- 3. Children (Frames only)
+	if selectedFrame.GetChildren then
+		local children = { selectedFrame:GetChildren() }
+		for _, child in ipairs(children) do
+			table.insert(nodes, { frame = child, indent = (#ancestors + 1) * 10, type = "child" })
+		end
 	end
 
 	-- Render nodes
@@ -61,7 +65,8 @@ function InspectModule:UpdateTree(selectedFrame)
 		node:SetPoint("TOPLEFT", self.treeContent, "TOPLEFT", nodeData.indent, -yOffset)
 		node:SetPoint("RIGHT", self.treeContent, "RIGHT", 0, 0)
 		
-		local name = nodeData.frame:GetName() or ("<" .. nodeData.frame:GetObjectType() .. ">")
+		local name = nodeData.frame.GetName and nodeData.frame:GetName() 
+			or (nodeData.frame.GetObjectType and ("<" .. nodeData.frame:GetObjectType() .. ">") or "<table>")
 		node.text:SetText(name)
 		
 		if nodeData.type == "selected" then

@@ -18,6 +18,7 @@ PerformanceModule.sortColumn = "memory"
 PerformanceModule.sortDesc = true
 PerformanceModule.visible = false
 PerformanceModule.exportMode = false
+PerformanceModule.navDirty = true
 
 -- Column definitions for addon list
 local COLUMNS = {
@@ -46,6 +47,8 @@ function Mechanic:InitializePerformance()
 	local SplitNavLayout = ns.SplitNavLayout
 	PerformanceModule.layout = SplitNavLayout:Create(frame, {
 		navWidth = 180,
+		items = PerformanceModule:GetNavItems(),
+		storageKey = "perf",
 		onSelect = function(key)
 			PerformanceModule:OnNavSelected(key)
 		end,
@@ -67,18 +70,33 @@ function Mechanic:InitializePerformance()
 
 	-- Auto-Refresh Toggle
 	local autoRefreshBtn = toolbar:AddButton({
-		text = "▶ Auto-Refresh: ON",
-		width = 140,
+		text = "   Auto-Refresh: ON",
+		width = 135,
 		onClick = function()
 			PerformanceModule:ToggleAutoRefresh()
 		end,
 	})
 	PerformanceModule.autoRefreshButton = autoRefreshBtn
 
+	-- Add icon to auto-refresh button (using Atlas)
+	local autoRefreshIcon = autoRefreshBtn:CreateTexture(nil, "OVERLAY", nil, 7)
+	autoRefreshIcon:SetSize(16, 16)
+	autoRefreshIcon:SetPoint("LEFT", 6, 0)
+	autoRefreshIcon:SetAtlas("actionbar-icon-continuetracking")
+	autoRefreshBtn.icon = autoRefreshIcon
+	
+	-- Initial state for icon color
+	if self.autoRefresh then
+		autoRefreshIcon:SetVertexColor(0, 1, 0) -- Green
+	else
+		autoRefreshIcon:SetVertexColor(1, 0, 0) -- Red
+		autoRefreshBtn:SetText("   Auto-Refresh: OFF")
+	end
+
 	-- Reset Stats
 	local resetBtn = toolbar:AddButton({
-		text = "Reset Stats",
-		width = 90,
+		text = "Reset",
+		width = 60,
 		onClick = function()
 			PerformanceModule:ResetStats()
 		end,
@@ -108,14 +126,19 @@ function Mechanic:InitializePerformance()
 
 	-- --- General View UI ---
 
+	-- Metrics Container (to ensure visibility and proper layering)
+	local generalContent = CreateFrame("Frame", nil, generalFrame)
+	generalContent:SetAllPoints()
+	PerformanceModule.generalContent = generalContent
+
 	-- Extended Metrics Row
-	local metricsRow = CreateFrame("Frame", nil, generalFrame)
+	local metricsRow = CreateFrame("Frame", nil, generalContent)
 	metricsRow:SetHeight(28)
-	metricsRow:SetPoint("TOPLEFT", toolbar, "BOTTOMLEFT", 0, -4)
-	metricsRow:SetPoint("TOPRIGHT", toolbar, "BOTTOMRIGHT", 0, -4)
+	metricsRow:SetPoint("TOPLEFT", generalContent, "TOPLEFT", 8, -40)
+	metricsRow:SetPoint("TOPRIGHT", generalContent, "TOPRIGHT", -8, -40)
 
 	local fpsLabel = metricsRow:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-	fpsLabel:SetPoint("LEFT", 8, 0)
+	fpsLabel:SetPoint("LEFT", 0, 0)
 	fpsLabel:SetText("FPS: --")
 	PerformanceModule.fpsLabel = fpsLabel
 
@@ -130,18 +153,18 @@ function Mechanic:InitializePerformance()
 	PerformanceModule.memoryLabel = memoryLabel
 
 	-- Footer bar
-	local footerBar = CreateFrame("Frame", nil, generalFrame)
+	local footerBar = CreateFrame("Frame", nil, generalContent)
 	footerBar:SetHeight(24)
-	footerBar:SetPoint("BOTTOMLEFT", 0, 0)
-	footerBar:SetPoint("BOTTOMRIGHT", 0, 0)
+	footerBar:SetPoint("BOTTOMLEFT", generalContent, "BOTTOMLEFT", 8, 4)
+	footerBar:SetPoint("BOTTOMRIGHT", generalContent, "BOTTOMRIGHT", -8, 4)
 
 	local footerLabel = footerBar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	footerLabel:SetPoint("LEFT", 8, 0)
+	footerLabel:SetPoint("LEFT", 0, 0)
 	footerLabel:SetText("Tracking: 0m 0s | Total Memory: 0 KB")
 	PerformanceModule.footerLabel = footerLabel
 
 	-- Header row for addon list
-	local headerRow = CreateFrame("Frame", nil, generalFrame)
+	local headerRow = CreateFrame("Frame", nil, generalContent)
 	headerRow:SetHeight(24)
 	headerRow:SetPoint("TOPLEFT", metricsRow, "BOTTOMLEFT", 0, -4)
 	headerRow:SetPoint("TOPRIGHT", metricsRow, "BOTTOMRIGHT", 0, -4)
@@ -149,7 +172,7 @@ function Mechanic:InitializePerformance()
 	PerformanceModule.headerRow = headerRow
 
 	-- Addon list (scrollable)
-	local scrollFrame = CreateFrame("ScrollFrame", nil, generalFrame, "UIPanelScrollFrameTemplate")
+	local scrollFrame = CreateFrame("ScrollFrame", nil, generalContent, "UIPanelScrollFrameTemplate")
 	scrollFrame:SetPoint("TOPLEFT", headerRow, "BOTTOMLEFT", 0, -2)
 	scrollFrame:SetPoint("BOTTOMRIGHT", footerBar, "TOPRIGHT", -24, 4)
 
@@ -163,6 +186,7 @@ function Mechanic:InitializePerformance()
 	PerformanceModule.rowPool = {}
 
 	-- Store references to table UI for export toggle
+	PerformanceModule.generalContent = generalContent
 	PerformanceModule.metricsRow = metricsRow
 	PerformanceModule.headerRowFrame = headerRow
 	PerformanceModule.footerBarFrame = footerBar
@@ -186,15 +210,36 @@ function Mechanic:InitializePerformance()
 	-- Start auto-refresh if enabled
 	if Mechanic.db.profile.autoRefresh then
 		PerformanceModule.autoRefresh = true
+		autoRefreshBtn:SetText("   Auto-Refresh: ON")
+		if autoRefreshBtn.icon then
+			autoRefreshBtn.icon:SetVertexColor(0, 1, 0)
+		end
+	else
+		PerformanceModule.autoRefresh = false
+		autoRefreshBtn:SetText("   Auto-Refresh: OFF")
+		if autoRefreshBtn.icon then
+			autoRefreshBtn.icon:SetVertexColor(1, 0, 0)
+		end
 	end
 
 	frame:SetScript("OnShow", function()
-		PerformanceModule:RefreshNavItems()
+		if PerformanceModule.navDirty then
+			PerformanceModule:RefreshNavItems()
+		end
 		PerformanceModule:OnShow()
 	end)
+
+	-- Initial nav items setup
+	PerformanceModule:RefreshNavItems()
+
+	-- Manually trigger initial selection now that ALL UI elements are created
+	local initialKey = PerformanceModule.layout:GetSelectedKey()
+	if initialKey then
+		PerformanceModule:OnNavSelected(initialKey)
+	end
 end
 
-function PerformanceModule:RefreshNavItems()
+function PerformanceModule:GetNavItems()
 	local items = {
 		{ key = "general", text = "General" },
 	}
@@ -203,6 +248,7 @@ function PerformanceModule:RefreshNavItems()
 	local MechanicLib = LibStub("MechanicLib-1.0", true)
 	if MechanicLib then
 		local registered = MechanicLib:GetRegistered()
+		local hasAddonItems = false
 		local sortedNames = {}
 		for name in pairs(registered) do
 			table.insert(sortedNames, name)
@@ -212,6 +258,11 @@ function PerformanceModule:RefreshNavItems()
 		for _, addonName in ipairs(sortedNames) do
 			local capabilities = registered[addonName]
 			if capabilities.performance and capabilities.performance.getSubMetrics then
+				if not hasAddonItems then
+					-- Add header before first addon item
+					table.insert(items, { key = "header_addons", text = "Addons", isHeader = true })
+					hasAddonItems = true
+				end
 				table.insert(items, {
 					key = addonName,
 					text = addonName,
@@ -220,12 +271,19 @@ function PerformanceModule:RefreshNavItems()
 		end
 	end
 
-	self.layout:SetItems(items)
+	return items
+end
+
+function PerformanceModule:RefreshNavItems()
+	local items = self:GetNavItems()
+
+	if self.layout then
+		self.layout:SetItems(items)
+		self.navDirty = false
+	end
 end
 
 function PerformanceModule:OnNavSelected(key)
-	self.selectedNav = key
-
 	if key == "general" then
 		self:Refresh()
 	else
@@ -414,8 +472,10 @@ end
 --------------------------------------------------------------------------------
 
 function PerformanceModule:OnShow()
+	Mechanic:OnLog("System", "Performance module OnShow", "[Perf]")
 	self.visible = true
 	self.trackingStart = self.trackingStart or GetTime()
+	
 	self:Refresh()
 	if self.autoRefresh then
 		self:StartAutoRefresh()
@@ -479,25 +539,29 @@ function PerformanceModule:GetAddonData()
 	for i = 1, numAddons do
 		if C_AddOns.IsAddOnLoaded(i) then
 			local name = C_AddOns.GetAddOnInfo(i)
-			local memory = GetAddOnMemoryUsage(i) -- KB
-			local cpu = 0
+			
+			-- Skip hidden addons (Developer Filter)
+			if not Mechanic.db.profile.hiddenAddons[name] then
+				local memory = GetAddOnMemoryUsage(i) -- KB
+				local cpu = 0
 
-			if cpuEnabled then
-				cpu = GetAddOnCPUUsage(i) -- ms total
-				-- Convert to ms/s
-				if duration > 0 then
-					cpu = cpu / duration
+				if cpuEnabled then
+					cpu = GetAddOnCPUUsage(i) -- ms total
+					-- Convert to ms/s
+					if duration > 0 then
+						cpu = cpu / duration
+					end
 				end
+
+				totalMemory = totalMemory + memory
+				totalCPU = totalCPU + cpu
+
+				table.insert(addons, {
+					name = name,
+					memory = memory,
+					cpu = cpu,
+				})
 			end
-
-			totalMemory = totalMemory + memory
-			totalCPU = totalCPU + cpu
-
-			table.insert(addons, {
-				name = name,
-				memory = memory,
-				cpu = cpu,
-			})
 		end
 	end
 
@@ -643,11 +707,12 @@ end
 --------------------------------------------------------------------------------
 
 function PerformanceModule:Refresh()
-	if self.selectedNav == "general" then
+	local selected = self.layout:GetSelectedKey()
+	if selected == "general" then
 		self:UpdateExtendedMetrics()
 		self:RefreshList()
-	else
-		self:ShowAddonMetrics(self.selectedNav)
+	elseif selected then
+		self:ShowAddonMetrics(selected)
 	end
 end
 
@@ -677,10 +742,18 @@ function PerformanceModule:ToggleAutoRefresh()
 
 	if self.autoRefresh then
 		self:StartAutoRefresh()
-		self.autoRefreshButton:SetText("▶ Auto-Refresh: ON")
+		self.autoRefreshButton:SetText("   Auto-Refresh: ON")
+		if self.autoRefreshButton.icon then
+			self.autoRefreshButton.icon:SetAtlas("actionbar-icon-continuetracking")
+			self.autoRefreshButton.icon:SetVertexColor(0, 1, 0) -- Green
+		end
 	else
 		self:StopAutoRefresh()
-		self.autoRefreshButton:SetText("⏸ Auto-Refresh: OFF")
+		self.autoRefreshButton:SetText("   Auto-Refresh: OFF")
+		if self.autoRefreshButton.icon then
+			self.autoRefreshButton.icon:SetAtlas("actionbar-icon-continuetracking")
+			self.autoRefreshButton.icon:SetVertexColor(1, 0, 0) -- Red
+		end
 	end
 end
 
@@ -792,17 +865,8 @@ function PerformanceModule:ToggleExportMode()
 
 	if self.exportMode then
 		-- Hide table UI, show export box
-		if self.metricsRow then
-			self.metricsRow:Hide()
-		end
-		if self.headerRowFrame then
-			self.headerRowFrame:Hide()
-		end
-		if self.scrollFrame then
-			self.scrollFrame:Hide()
-		end
-		if self.footerBarFrame then
-			self.footerBarFrame:Hide()
+		if self.generalContent then
+			self.generalContent:Hide()
 		end
 		if self.exportBox then
 			local text = self:GetCopyText(Mechanic.db.profile.includeEnvHeader)
@@ -818,17 +882,8 @@ function PerformanceModule:ToggleExportMode()
 		if self.exportBox then
 			self.exportBox:Hide()
 		end
-		if self.metricsRow then
-			self.metricsRow:Show()
-		end
-		if self.headerRowFrame then
-			self.headerRowFrame:Show()
-		end
-		if self.scrollFrame then
-			self.scrollFrame:Show()
-		end
-		if self.footerBarFrame then
-			self.footerBarFrame:Show()
+		if self.generalContent then
+			self.generalContent:Show()
 		end
 		if self.exportButton then
 			self.exportButton:SetText("Export")

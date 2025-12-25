@@ -9,9 +9,11 @@ function Mechanic:CreateMainFrame()
 		return
 	end
 
+	self.initializing = true -- Prevent OnTabChanged from saving to DB during setup
+
 	local frame = FenUI:CreatePanel(UIParent, {
 		name = "MechanicMainFrame",
-		title = "!Mechanic",
+		title = "Mechanic", -- Removed !
 		width = self.db.profile.size.width,
 		height = self.db.profile.size.height,
 		movable = true,
@@ -64,9 +66,7 @@ function Mechanic:CreateMainFrame()
 			{ key = "inspect", text = "Inspect" },
 			{ key = "perf", text = "Performance" },
 		},
-		onChange = function(key)
-			self:OnTabChanged(key)
-		end,
+		-- onChange set later after initial selection to prevent overwriting saved state during init
 	})
 	tabs:SetPoint("TOPLEFT", 0, -25)
 	tabs:SetPoint("TOPRIGHT", 0, -25)
@@ -77,9 +77,10 @@ function Mechanic:CreateMainFrame()
 	contentFrame:SetPoint("BOTTOMRIGHT", statusBar, "TOPRIGHT", 0, 4)
 
 	-- Reload button on status bar
-	local reloadBtn = FenUI:CreateIconButton(statusBar, {
-		icon = "Interface\\Buttons\\UI-RefreshButton",
-		tooltip = "Reload UI (ReloadUI)",
+	local reloadBtn = FenUI:CreateButton(statusBar, {
+		text = "Reload UI",
+		width = 90,
+		height = 20,
 		onClick = function()
 			ReloadUI()
 		end,
@@ -87,11 +88,32 @@ function Mechanic:CreateMainFrame()
 	reloadBtn:SetPoint("RIGHT", -8, 0)
 
 	-- Select initial tab
-	tabs:SelectTab(self.db.profile.activeTab or "console")
+	local initialTab = self.db.profile.activeTab or "console"
+	print(string.format("|cff00ff00[MechDebug]|r MainFrame restoring: %s", tostring(initialTab)))
+
+	-- 1. Set the hook first so future manual clicks work
+	tabs.hooks.onChange = function(key)
+		self:OnTabChanged(key)
+	end
+
+	-- 2. Force selection in widget
+	tabs:SelectTab(initialTab)
+
+	-- 3. Force module initialization and showing for the first load
+	self:OnTabChanged(initialTab)
+
+	self.initializing = false -- Setup complete, now saves will work
 end
 
 function Mechanic:OnTabChanged(key)
-	self.db.profile.activeTab = key
+	if not self.initializing and self.db.profile.activeTab == key then return end
+	
+	if not self.initializing then
+		self.db.profile.activeTab = key
+		print(string.format("|cff00ff00[MechDebug]|r MainFrame SAVED: %s", tostring(key)))
+	else
+		print(string.format("|cffffaa00[MechDebug]|r MainFrame restoring (no save): %s", tostring(key)))
+	end
 
 	-- Hide all module frames
 	if self.Console and self.Console.frame then
@@ -191,9 +213,8 @@ function Mechanic:GetStatusItems()
 
 	return {
 		{ label = "WoW", value = version .. " (" .. build .. ")" },
-		{ label = "Interface", value = interface },
-		{ label = "Client", value = client },
-		{ label = "Addons", value = registeredCount },
+		{ label = "Interface", value = interface .. " (" .. client .. ")" },
+		{ label = "Registered Addons", value = registeredCount },
 	}
 end
 

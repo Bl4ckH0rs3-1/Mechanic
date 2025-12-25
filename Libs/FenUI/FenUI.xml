@@ -22,6 +22,7 @@
     <Script file="Widgets\MultiLineEditBox.lua"/>
     <Script file="Widgets\StatusRow.lua"/>
     <Script file="Widgets\EmptyState.lua"/>
+    <Script file="Widgets\SectionHeader.lua"/>
     
     <!-- Settings Integration -->
     <Script file="Settings\ThemePicker.lua"/>

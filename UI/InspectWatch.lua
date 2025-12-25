@@ -21,14 +21,17 @@ function InspectModule:InitializeWatch(parent)
 	self.watchContent = content
 
 	self.watchNodes = {}
+	for i = 1, 20 do
+		self:GetOrCreateWatchNode(i)
+	end
 	
 	-- Live Update Timer
 	self.watchTimer = 0
 	parent:SetScript("OnUpdate", function(_, elapsed)
-		InspectModule.watchTimer = InspectModule.watchTimer + elapsed
-		if InspectModule.watchTimer > 0.5 then
-			InspectModule.watchTimer = 0
-			InspectModule:RefreshWatchList()
+		self.watchTimer = self.watchTimer + elapsed
+		if self.watchTimer > 0.5 then
+			self.watchTimer = 0
+			self:RefreshWatchList()
 		end
 	end)
 end
