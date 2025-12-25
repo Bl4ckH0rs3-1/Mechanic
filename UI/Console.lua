@@ -8,21 +8,8 @@ local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
 local Console = {}
 Mechanic.Console = Console
 
--- Category color constants per Phase 5 spec
-local CATEGORY_COLORS = {
-	["[Secret]"] = "|cffaa00ff", -- Purple - critical for Midnight
-	["[Trigger]"] = "|cff00ccff", -- Cyan - action initiation
-	["[Event]"] = "|cff88ff88", -- Light green - system events
-	["[Validation]"] = "|cffffff00", -- Yellow - test validation
-	["[Perf]"] = "|cffff8800", -- Orange - performance warnings
-	["[Core]"] = "|cff8888ff", -- Light blue - core lifecycle
-	["[Region]"] = "|cffaaaaaa", -- Grey - UI/Region updates
-	["[API]"] = "|cff00ffcc", -- Teal - API calls
-	["[Cooldown]"] = "|cffffcc00", -- Yellow-orange - Cooldowns
-	["[Load]"] = "|cffccff00", -- Lime - Load conditions
-	["[Error]"] = "|cffff4444", -- Soft red - captured errors
-}
-local DEFAULT_CATEGORY_COLOR = "|cffffffff"
+local CATEGORY_COLORS = Mechanic.Utils.Colors.Categories
+local DEFAULT_CATEGORY_COLOR = Mechanic.Utils.Colors.Status.default
 
 Console.buffer = {} -- { {source, category, message, time}, ... }
 Console.paused = false
@@ -367,7 +354,7 @@ function Console:DedupAdjacent(entries)
 			wipe(keyParts)
 			table.insert(keyParts, lastEntry.source)
 			table.insert(keyParts, lastEntry.category or "")
-			table.insert(lastEntry, lastEntry.message)
+			table.insert(keyParts, lastEntry.message)
 			lastKey = table.concat(keyParts)
 		end
 

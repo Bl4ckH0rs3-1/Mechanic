@@ -8,18 +8,6 @@ local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
 local InspectModule = {}
 Mechanic.Inspect = InspectModule
 
--- Helper for modern WoW GetMouseFocus
-local function GetMouseFocus()
-	if C_UI and C_UI.GetMouseFocus then
-		return C_UI.GetMouseFocus()
-	elseif _G.GetMouseFocus then
-		return _G.GetMouseFocus()
-	else
-		local foci = GetMouseFoci()
-		return foci and foci[1]
-	end
-end
-
 InspectModule.frame = nil
 InspectModule.selectedFrame = nil
 InspectModule.pickMode = false
@@ -150,7 +138,7 @@ function InspectModule:StartPicking()
 		-- Click to select
 		cap:SetScript("OnMouseDown", function(_, button)
 			if button == "LeftButton" then
-				local focus = GetMouseFocus()
+				local focus = Mechanic.Utils:GetMouseFocus()
 				if focus and focus ~= cap then
 					InspectModule:SetSelectedFrame(focus)
 				end
@@ -177,7 +165,7 @@ function InspectModule:StartPicking()
 		if lastUpdate < 0.016 then return end -- ~60fps throttle
 		lastUpdate = 0
 
-		local focus = GetMouseFocus()
+		local focus = Mechanic.Utils:GetMouseFocus()
 		if focus and focus ~= s and focus ~= UIParent then
 			s:ClearAllPoints()
 			s:SetPoint("TOPLEFT", focus, "TOPLEFT", -2, 2)

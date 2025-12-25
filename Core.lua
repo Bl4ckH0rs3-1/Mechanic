@@ -87,55 +87,12 @@ function Mechanic:OnEnable()
 	end
 end
 
---------------------------------------------------------------------------------
--- Validation & Developer Feedback
---------------------------------------------------------------------------------
-
---- Validates registration capabilities and logs warnings for non-standard patterns.
-function Mechanic:ValidateCapabilities(name, capabilities)
-	if not capabilities then
-		self:OnLog("System", string.format("|cffffaa00Warning:|r Addon %s registered with no capabilities.", name), "[Core]")
-		return
-	end
-
-	-- Version check
-	if not capabilities.version then
-		self:OnLog("System", string.format("|cffffaa00Warning:|r Addon %s missing 'version' capability.", name), "[Core]")
-	end
-
-	-- Test interface check
-	if capabilities.tests then
-		if not capabilities.tests.getAll or not capabilities.tests.run or not capabilities.tests.getResult then
-			self:OnLog("System", string.format("|cffffaa00Warning:|r Addon %s has incomplete 'tests' interface (requires getAll, run, getResult).", name), "[Core]")
-		end
-	end
-end
-
---- Validates a single test entry and logs warnings for legacy formats.
-function Mechanic:ValidateTestEntry(addonName, entry)
-	if type(entry) ~= "table" then return end
-
-	-- Check for the 'def' wrapper (Classic vs Modern)
-	if not (entry.def and type(entry.def) == "table") then
-		if not entry.id or not entry.name or not entry.category then
-			self:OnLog("System", string.format("|cffffaa00Warning:|r %s sent malformed test entry (missing id, name, or category).", addonName), "[Core]")
-		end
-	end
-end
-
---------------------------------------------------------------------------------
--- Registration Handlers (called by MechanicLib)
---------------------------------------------------------------------------------
-
 function Mechanic:OnAddonRegistered(name, capabilities)
 	-- Global Filter
 	if self.db.profile.hiddenAddons[name] then
 		self:OnLog("System", string.format("Addon %s registered but is currently HIDDEN by global filter.", name), "[Core]")
 		return
 	end
-
-	-- Validation (Developer feedback)
-	self:ValidateCapabilities(name, capabilities)
 
 	-- Notify UI modules if they are interested
 	if self.Console then
@@ -215,46 +172,7 @@ end
 --- Generates a header with environment information for copy/paste.
 ---@return string|nil header The formatted header, or nil if disabled
 function Mechanic:GetEnvironmentHeader()
-	if not self.db.profile.includeEnvHeader then
-		return nil
-	end
-
-	local lines = {
-		"=== Mechanic Export ===",
-	}
-
-	-- WoW version + build
-	table.insert(lines, string.format("WoW: %s | Interface: %s", self.Utils:GetVersionString(), self.Utils:GetInterfaceString()))
-
-	-- Character info (optional)
-	if self.db.profile.includeCharacterInfo then
-		local name = UnitName("player")
-		local realm = GetRealmName()
-		local _, class = UnitClass("player")
-		local spec = GetSpecialization()
-		local specName = spec and select(2, GetSpecializationInfo(spec)) or "None"
-		table.insert(lines, string.format("Character: %s-%s (%s, %s)", name, realm, class, specName))
-	end
-
-	-- Timestamp (optional)
-	if self.db.profile.includeTimestamp then
-		table.insert(lines, string.format("Exported: %s", date("%Y-%m-%d %H:%M:%S")))
-	end
-
-	-- Registered addons
-	local MechanicLib = LibStub("MechanicLib-1.0", true)
-	if MechanicLib then
-		local registered = {}
-		for name, caps in pairs(MechanicLib:GetRegistered()) do
-			local ver = caps.version or "?"
-			table.insert(registered, string.format("%s %s", name, ver))
-		end
-		if #registered > 0 then
-			table.insert(lines, string.format("Registered: %s", table.concat(registered, ", ")))
-		end
-	end
-
-	return table.concat(lines, "\n")
+	return self.Utils:GetEnvironmentHeader(self.db.profile)
 end
 
 function Mechanic:GetClientType()
@@ -296,11 +214,14 @@ function Mechanic:SlashCommand(input)
 		collectgarbage("collect")
 		local after = collectgarbage("count")
 		local freed = before - after
-		self:Print(string.format("GC: %.1f KB freed (%.1f MB -> %.1f MB)", freed, before / 1024, after / 1024))
+		self:Print(string.format("GC: %s freed (%s -> %s)", 
+			self.Utils:FormatMemory(freed), 
+			self.Utils:FormatMemory(before), 
+			self.Utils:FormatMemory(after)))
 
 		local MechanicLib = LibStub("MechanicLib-1.0", true)
 		if MechanicLib then
-			MechanicLib:Log("System", string.format("GC executed: %.1f KB freed", freed), MechanicLib.Categories.PERF)
+			MechanicLib:Log("System", string.format("GC executed: %s freed", self.Utils:FormatMemory(freed)), MechanicLib.Categories.PERF)
 		end
 	elseif cmd == "pause" then
 		self:TogglePause()
@@ -364,22 +285,8 @@ end
 
 -- Helper to open settings panel (robust for 11.0+)
 function Mechanic:OpenSettings()
-	if InCombatLockdown() then
-		self:Print("Settings cannot be opened while in combat.")
-		return
-	end
-
-	if Settings and Settings.OpenToCategory then
-		-- Prefer explicit category object if we have it (from AddToBlizOptions)
-		if self.optionsFrame then
-			Settings.OpenToCategory(self.optionsFrame)
-		else
-			-- Fallback to string if object not yet available
-			Settings.OpenToCategory("!Mechanic")
-		end
-	elseif InterfaceOptionsFrame_OpenToCategory then
-		InterfaceOptionsFrame_OpenToCategory("!Mechanic")
-	end
+	local category = self.optionsFrame or "!Mechanic"
+	self.Utils:OpenSettings(category)
 end
 
 --------------------------------------------------------------------------------

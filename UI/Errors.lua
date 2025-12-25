@@ -289,38 +289,13 @@ function ErrorsModule:UpdateDisplay()
 		return
 	end
 
-	local text = self:FormatError(err)
+	local text = Mechanic.Utils:FormatError(err)
 	self.editBox:SetText(text)
 
 	-- Update navigation
 	self.countLabel:SetText(string.format("%d/%d", self.currentIndex, #self.errors))
 	self.prevButton:SetEnabled(self.currentIndex > 1)
 	self.nextButton:SetEnabled(self.currentIndex < #self.errors)
-end
-
-function ErrorsModule:FormatError(err)
-	local lines = {}
-
-	-- Count and message
-	table.insert(lines, string.format("|cffffffff%dx|r %s", err.counter or 1, err.message))
-	table.insert(lines, "")
-
-	-- Stack trace
-	if err.stack then
-		table.insert(lines, "|cff888888Stack:|r")
-		for line in err.stack:gmatch("[^\n]+") do
-			table.insert(lines, string.format("  %s", Mechanic.Utils:ColorizeStackLine(line)))
-		end
-		table.insert(lines, "")
-	end
-
-	-- Locals
-	if err.locals then
-		table.insert(lines, "|cff888888Locals:|r")
-		table.insert(lines, Mechanic.Utils:ColorizeLocals(err.locals))
-	end
-
-	return table.concat(lines, "\n")
 end
 
 function ErrorsModule:TogglePause()
@@ -349,7 +324,7 @@ function ErrorsModule:SendToConsole()
 		return
 	end
 
-	local text = self:FormatError(err)
+	local text = Mechanic.Utils:FormatError(err)
 	local MechanicLib = LibStub("MechanicLib-1.0", true)
 	if MechanicLib then
 		MechanicLib:Log("BugGrabber", text, "[Error]")
@@ -378,7 +353,7 @@ function ErrorsModule:GetCopyText(includeHeader)
 
 	local err = self.errors[self.currentIndex]
 	if err then
-		table.insert(lines, self:FormatError(err))
+		table.insert(lines, Mechanic.Utils:FormatError(err))
 	end
 
 	return table.concat(lines, "\n")

@@ -6,13 +6,7 @@ local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
 local TestsModule = {}
 Mechanic.Tests = TestsModule
 
--- Status color mapping per Phase 5 spec
-local DETAIL_STATUS_COLORS = {
-	pass = "|cff00ff00", -- Green
-	warn = "|cffffff00", -- Yellow
-	fail = "|cffff0000", -- Red
-}
-local DETAIL_STATUS_DEFAULT = "|cffffffff" -- White
+local STATUS_COLORS = Mechanic.Utils.Colors.Status
 
 TestsModule.selectedAddon = nil
 TestsModule.selectedTest = nil
@@ -191,7 +185,6 @@ function TestsModule:BuildTree()
 					if capabilities.tests.getAll then
 						local allTests = capabilities.tests.getAll()
 						for _, entry in ipairs(allTests) do
-							Mechanic:ValidateTestEntry(addonName, entry) -- Developer validation
 							local test = entry.def or entry -- Support both {def={...}} and direct {...}
 							if test and test.id and test.category == category then
 								local result = capabilities.tests.getResult and capabilities.tests.getResult(test.id)
@@ -223,13 +216,13 @@ end
 
 function TestsModule:GetStatusIcon(result)
 	if not result then
-		return "|cff888888[-]|r" -- Not run
+		return string.format("%s[-]|r", STATUS_COLORS.not_run) -- Not run
 	elseif result.passed == true then
-		return "|cff00ff00[✓]|r" -- Passed
+		return string.format("%s[✓]|r", STATUS_COLORS.pass) -- Passed
 	elseif result.passed == false then
-		return "|cffff0000[✗]|r" -- Failed
+		return string.format("%s[✗]|r", STATUS_COLORS.fail) -- Failed
 	else
-		return "|cff88ccff[~]|r" -- Pending
+		return string.format("%s[~]|r", STATUS_COLORS.pending) -- Pending
 	end
 end
 
@@ -272,8 +265,8 @@ function TestsModule:UpdateDetailsPanel(testDef, result)
 	self.categoryLabel:SetText(string.format("Category: %s", testDef.category))
 
 	if result then
-		local statusColor = result.passed == true and "|cff00ff00"
-			or (result.passed == false and "|cffff0000" or "|cffffcc00")
+		local statusColor = result.passed == true and STATUS_COLORS.pass
+			or (result.passed == false and STATUS_COLORS.fail or STATUS_COLORS.pending)
 		local statusText = result.passed == true and "PASSED" or (result.passed == false and "FAILED" or "PENDING")
 		self.statusLabel:SetText(string.format("Status: %s%s|r", statusColor, statusText))
 
@@ -293,7 +286,7 @@ function TestsModule:UpdateDetailsPanel(testDef, result)
 		if result.details and #result.details > 0 then
 			table.insert(details, "Details:")
 			for _, detail in ipairs(result.details) do
-				local statusColor = DETAIL_STATUS_COLORS[detail.status] or DETAIL_STATUS_DEFAULT
+				local statusColor = STATUS_COLORS[detail.status] or STATUS_COLORS.default
 				local statusIcon = self:GetDetailStatusIcon(detail.status)
 				table.insert(
 					details,
@@ -331,13 +324,13 @@ end
 -- Helper for status icons per Phase 5
 function TestsModule:GetDetailStatusIcon(status)
 	if status == "pass" then
-		return "|cff00ff00[✓]|r"
+		return string.format("%s[✓]|r", STATUS_COLORS.pass)
 	elseif status == "warn" then
-		return "|cffffff00[!]|r"
+		return string.format("%s[!]|r", STATUS_COLORS.warn)
 	elseif status == "fail" then
-		return "|cffff0000[✗]|r"
+		return string.format("%s[✗]|r", STATUS_COLORS.fail)
 	else
-		return "|cffffffff[-]|r"
+		return string.format("%s[-]|r", STATUS_COLORS.default)
 	end
 end
 
@@ -390,7 +383,7 @@ function TestsModule:ClearResults()
 	end
 	self:RefreshTree()
 	self:UpdateSummary()
-	self.statusLabel:SetText("Status: |cff888888Not run|r")
+	self.statusLabel:SetText(string.format("Status: %sNot run|r", STATUS_COLORS.not_run))
 	if self.detailsBox then
 		self.detailsBox:SetText("")
 	end

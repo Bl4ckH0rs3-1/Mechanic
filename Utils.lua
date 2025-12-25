@@ -9,6 +9,36 @@ local Utils = {}
 ns.Utils = Utils
 
 --------------------------------------------------------------------------------
+-- Constants & Colors
+--------------------------------------------------------------------------------
+
+Utils.Colors = {
+	-- Category color constants (from Console.lua)
+	Categories = {
+		["[Secret]"] = "|cffaa00ff", -- Purple - critical for Midnight
+		["[Trigger]"] = "|cff00ccff", -- Cyan - action initiation
+		["[Event]"] = "|cff88ff88", -- Light green - system events
+		["[Validation]"] = "|cffffff00", -- Yellow - test validation
+		["[Perf]"] = "|cffff8800", -- Orange - performance warnings
+		["[Core]"] = "|cff8888ff", -- Light blue - core lifecycle
+		["[Region]"] = "|cffaaaaaa", -- Grey - UI/Region updates
+		["[API]"] = "|cff00ffcc", -- Teal - API calls
+		["[Cooldown]"] = "|cffffcc00", -- Yellow-orange - Cooldowns
+		["[Load]"] = "|cffccff00", -- Lime - Load conditions
+		["[Error]"] = "|cffff4444", -- Soft red - captured errors
+	},
+	-- Status color mapping (from Tests.lua)
+	Status = {
+		pass = "|cff00ff00", -- Green
+		warn = "|cffffff00", -- Yellow
+		fail = "|cffff0000", -- Red
+		pending = "|cffffcc00", -- Yellow-orange
+		default = "|cffffffff", -- White
+		not_run = "|cff888888", -- Grey
+	}
+}
+
+--------------------------------------------------------------------------------
 -- Environment Detection
 --------------------------------------------------------------------------------
 
@@ -56,6 +86,84 @@ function Utils:GetInterfaceString()
 end
 
 --------------------------------------------------------------------------------
+-- System & UI Helpers
+--------------------------------------------------------------------------------
+
+--- Robustly opens the settings panel for an addon.
+---@param categoryName string|table The category name or object
+function Utils:OpenSettings(categoryName)
+	if InCombatLockdown() then
+		print("|cffff4444[Mechanic Error]|r Settings cannot be opened while in combat.")
+		return
+	end
+
+	if Settings and Settings.OpenToCategory then
+		Settings.OpenToCategory(categoryName)
+	elseif InterfaceOptionsFrame_OpenToCategory then
+		InterfaceOptionsFrame_OpenToCategory(categoryName)
+	end
+end
+
+--- Returns the current mouse focus frame across all WoW versions.
+---@return Frame|nil focus
+function Utils:GetMouseFocus()
+	if C_UI and C_UI.GetMouseFocus then
+		return C_UI.GetMouseFocus()
+	elseif _G.GetMouseFocus then
+		return _G.GetMouseFocus()
+	else
+		local foci = GetMouseFoci()
+		return foci and foci[1]
+	end
+end
+
+--- Generates a header with environment information for copy/paste.
+---@param profile table The addon profile containing inclusion settings
+---@return string|nil header
+function Utils:GetEnvironmentHeader(profile)
+	if not profile or not profile.includeEnvHeader then
+		return nil
+	end
+
+	local lines = {
+		"=== Mechanic Export ===",
+	}
+
+	-- WoW version + build
+	table.insert(lines, string.format("WoW: %s | Interface: %s", self:GetVersionString(), self:GetInterfaceString()))
+
+	-- Character info (optional)
+	if profile.includeCharacterInfo then
+		local name = UnitName("player")
+		local realm = GetRealmName()
+		local _, class = UnitClass("player")
+		local spec = GetSpecialization()
+		local specName = spec and select(2, GetSpecializationInfo(spec)) or "None"
+		table.insert(lines, string.format("Character: %s-%s (%s, %s)", name, realm, class, specName))
+	end
+
+	-- Timestamp (optional)
+	if profile.includeTimestamp then
+		table.insert(lines, string.format("Exported: %s", date("%Y-%m-%d %H:%M:%S")))
+	end
+
+	-- Registered addons
+	local MechanicLib = LibStub("MechanicLib-1.0", true)
+	if MechanicLib then
+		local registered = {}
+		for name, caps in pairs(MechanicLib:GetRegistered()) do
+			local ver = caps.version or "?"
+			table.insert(registered, string.format("%s %s", name, ver))
+		end
+		if #registered > 0 then
+			table.insert(lines, string.format("Registered: %s", table.concat(registered, ", ")))
+		end
+	end
+
+	return table.concat(lines, "\n")
+end
+
+--------------------------------------------------------------------------------
 -- Formatting Helpers
 --------------------------------------------------------------------------------
 
@@ -77,6 +185,25 @@ function Utils:FormatDuration(seconds)
 	local mins = math.floor(seconds / 60)
 	local secs = math.floor(seconds % 60)
 	return string.format("%dm %ds", mins, secs)
+end
+
+--------------------------------------------------------------------------------
+-- Performance & Metrics
+--------------------------------------------------------------------------------
+
+--- Returns standard performance metrics (FPS, Latency, Lua Memory).
+---@return table metrics {fps, latencyHome, latencyWorld, luaMemory}
+function Utils:GetExtendedMetrics()
+	local fps = GetFramerate()
+	local _, _, latencyHome, latencyWorld = GetNetStats()
+	local luaMemory = collectgarbage("count") -- KB
+
+	return {
+		fps = fps,
+		latencyHome = latencyHome,
+		latencyWorld = latencyWorld,
+		luaMemory = luaMemory,
+	}
 end
 
 --------------------------------------------------------------------------------
@@ -134,6 +261,56 @@ function Utils:ColorizeLocals(locals)
 	-- Highlight numbers
 	result = result:gsub("= (%-?[%d%.]+)", "= |cffff7fff%1|r")
 	return result
+end
+
+--- Formats a BugGrabber error object into a colorized string.
+---@param err table The error object from BugGrabber
+---@return string formattedText
+function Utils:FormatError(err)
+	local lines = {}
+
+	-- Count and message
+	table.insert(lines, string.format("|cffffffff%dx|r %s", err.counter or 1, err.message))
+	table.insert(lines, "")
+
+	-- Stack trace
+	if err.stack then
+		table.insert(lines, "|cff888888Stack:|r")
+		for line in err.stack:gmatch("[^\n]+") do
+			table.insert(lines, string.format("  %s", self:ColorizeStackLine(line)))
+		end
+		table.insert(lines, "")
+	end
+
+	-- Locals
+	if err.locals then
+		table.insert(lines, "|cff888888Locals:|r")
+		table.insert(lines, self:ColorizeLocals(err.locals))
+	end
+
+	return table.concat(lines, "\n")
+end
+
+--------------------------------------------------------------------------------
+-- Table Helpers
+--------------------------------------------------------------------------------
+
+--- Performs a deep copy of a table.
+---@param orig table The table to copy
+---@return table copy
+function Utils:DeepCopy(orig)
+	local orig_type = type(orig)
+	local copy
+	if orig_type == "table" then
+		copy = {}
+		for orig_key, orig_value in next, orig, nil do
+			copy[self:DeepCopy(orig_key)] = self:DeepCopy(orig_value)
+		end
+		setmetatable(copy, self:DeepCopy(getmetatable(orig)))
+	else -- number, string, boolean, etc
+		copy = orig
+	end
+	return copy
 end
 
 return Utils

@@ -11,16 +11,21 @@ All notable changes to !Mechanic will be documented in this file.
 ## [1.1.6] - 2025-12-25
 
 ### Added
-- Created `Utils.lua` to centralize pure functions for environment detection, memory/duration formatting, and error analysis. This improves code reusability and testability across all UI modules.
+- **Utility Consolidation**: Created a centralized `Utils.lua` and migrated shared logic from all UI modules to eliminate duplication.
+- Added `Mechanic.Utils.Colors` for standardized category and status colors across the addon.
+- Added `Utils:GetExtendedMetrics()` for unified FPS, Latency, and Lua memory tracking.
+- Added `Utils:FormatError()` for standardized BugGrabber error formatting.
+- Added `Utils:DeepCopy()` table helper.
 
 ### Fixed
-- Performance tab: Export view now correctly refreshes content when switching navigation items (e.g., General -> Addon) while export mode is active.
-- Performance tab: Export view now supports detailed addon sub-metrics instead of always showing the general addon list.
-- Performance tab: Export view no longer overlaps with addon-specific metrics when navigating while export mode is active. The export box now properly hides all content frames and raises its frame level above the content area.
+- **Console**: Fixed a bug in `DedupAdjacent` where `lastEntry` was incorrectly polluting its own state instead of using the local key buffer.
+- **Performance**: Export view now correctly refreshes content when switching navigation items.
+- **Inspect**: Standardized `GetMouseFocus` across WoW versions and moved it to `Utils`.
 
 ### Changed
-- Refactored `GetEnvironmentHeader` and the main frame status bar to use shared utility functions, ensuring consistent formatting for WoW version and interface strings (e.g., `120001 (Beta)`).
-- Beta compatibility fixes for MultiLineEditBox (GetTextHeight error), Inspect tab performance optimizations (avoiding CreateFrame in OnUpdate), and API database documentation updates for Midnight.
+- **Core**: Refactored `GetEnvironmentHeader`, `OpenSettings`, and `SlashCommand("gc")` to use shared utility functions.
+- **UI**: Updated `Console`, `Errors`, `Performance`, `Tests`, and `Inspect` tabs to use the new `Utils` module for all formatting and color constants.
+- Removed redundant validation logic from `Core.lua` and standardized registration checks.
 
 ## [1.1.6] - 2025-12-24
 

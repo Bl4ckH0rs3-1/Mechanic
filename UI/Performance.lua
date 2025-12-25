@@ -501,26 +501,13 @@ end
 -- Extended Metrics
 --------------------------------------------------------------------------------
 
-function PerformanceModule:GetExtendedMetrics()
-	local fps = GetFramerate()
-	local _, _, latencyHome, latencyWorld = GetNetStats()
-	local luaMemory = collectgarbage("count") -- KB
-
-	return {
-		fps = fps,
-		latencyHome = latencyHome,
-		latencyWorld = latencyWorld,
-		luaMemory = luaMemory,
-	}
-end
-
 function PerformanceModule:UpdateExtendedMetrics()
 	-- Guard: UI elements may not exist yet during early initialization
 	if not self.fpsLabel then
 		return
 	end
 
-	local metrics = self:GetExtendedMetrics()
+	local metrics = Mechanic.Utils:GetExtendedMetrics()
 
 	self.fpsLabel:SetText(string.format("FPS: %.0f", metrics.fps))
 	self.latencyLabel:SetText(string.format("Latency: %dms / %dms", metrics.latencyHome, metrics.latencyWorld))
@@ -904,7 +891,7 @@ function PerformanceModule:GetCopyText(includeHeader)
 		if header then
 			table.insert(lines, header)
 		end
-		local metrics = self:GetExtendedMetrics()
+		local metrics = Mechanic.Utils:GetExtendedMetrics()
 		table.insert(
 			lines,
 			string.format(
