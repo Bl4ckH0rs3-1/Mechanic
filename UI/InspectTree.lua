@@ -117,6 +117,18 @@ function InspectModule:GetOrCreateTreeNode(index)
 		InspectModule:SetSelectedFrame(s.frame)
 	end)
 
+	node:SetScript("OnEnter", function(s)
+		InspectModule:ShowHighlight(s.frame)
+	end)
+
+	node:SetScript("OnLeave", function(s)
+		if InspectModule.selectedFrame then
+			InspectModule:ShowHighlight(InspectModule.selectedFrame)
+		else
+			InspectModule:HideHighlight()
+		end
+	end)
+
 	self.treeNodes[index] = node
 	return node
 end

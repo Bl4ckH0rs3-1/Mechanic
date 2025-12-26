@@ -159,6 +159,73 @@ function InspectModule:TogglePickMode()
 	end
 end
 
+function InspectModule:GetOrCreateHighlight()
+	if self.pickHighlight then
+		return self.pickHighlight
+	end
+
+	local highlight = CreateFrame("Frame", "MechanicPickHighlight", UIParent)
+	highlight:SetFrameStrata("TOOLTIP")
+	highlight:SetFrameLevel(4900)
+	highlight:EnableMouse(false) -- CRITICAL: Don't block GetMouseFoci()
+
+	local edgeSize = 3
+	for _, edge in ipairs({ "Top", "Bottom", "Left", "Right" }) do
+		local tex = highlight:CreateTexture(nil, "OVERLAY")
+		tex:SetColorTexture(1, 0.82, 0, 1) -- Gold color
+		highlight[edge .. "Edge"] = tex
+	end
+
+	highlight.TopEdge:SetHeight(edgeSize)
+	highlight.TopEdge:SetPoint("TOPLEFT")
+	highlight.TopEdge:SetPoint("TOPRIGHT")
+	highlight.BottomEdge:SetHeight(edgeSize)
+	highlight.BottomEdge:SetPoint("BOTTOMLEFT")
+	highlight.BottomEdge:SetPoint("BOTTOMRIGHT")
+	highlight.LeftEdge:SetWidth(edgeSize)
+	highlight.LeftEdge:SetPoint("TOPLEFT", highlight.TopEdge, "BOTTOMLEFT")
+	highlight.LeftEdge:SetPoint("BOTTOMLEFT", highlight.BottomEdge, "TOPLEFT")
+	highlight.RightEdge:SetWidth(edgeSize)
+	highlight.RightEdge:SetPoint("TOPRIGHT", highlight.TopEdge, "BOTTOMRIGHT")
+	highlight.RightEdge:SetPoint("BOTTOMRIGHT", highlight.BottomEdge, "TOPRIGHT")
+
+	local label = highlight:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	label:SetPoint("TOP", highlight, "BOTTOM", 0, -4)
+	highlight.label = label
+
+	self.pickHighlight = highlight
+	return highlight
+end
+
+function InspectModule:ShowHighlight(frame, name)
+	if not frame or not frame.GetPoint or not frame:IsVisible() then
+		self:HideHighlight()
+		return
+	end
+
+	local highlight = self:GetOrCreateHighlight()
+	highlight:ClearAllPoints()
+	highlight:SetPoint("TOPLEFT", frame, "TOPLEFT", -3, 3)
+	highlight:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 3, -3)
+	highlight:Show()
+
+	if name then
+		highlight.label:SetText("|cffFFD100" .. name .. "|r")
+	else
+		local frameName = (frame.GetDebugName and frame:GetDebugName())
+			or (frame.GetName and frame:GetName())
+			or (frame.GetObjectType and frame:GetObjectType())
+			or tostring(frame)
+		highlight.label:SetText("|cffFFD100" .. frameName .. "|r")
+	end
+end
+
+function InspectModule:HideHighlight()
+	if self.pickHighlight then
+		self.pickHighlight:Hide()
+	end
+end
+
 function InspectModule:StartPicking()
 	local self = InspectModule
 	
@@ -187,38 +254,7 @@ function InspectModule:StartPicking()
 	end
 	
 	-- 2. Gold Highlight Border (mouse-disabled, positioned by OnUpdate)
-	if not self.pickHighlight then
-		local highlight = CreateFrame("Frame", "MechanicPickHighlight", UIParent)
-		highlight:SetFrameStrata("TOOLTIP")
-		highlight:SetFrameLevel(4900)
-		highlight:EnableMouse(false)  -- CRITICAL: Don't block GetMouseFoci()
-		
-		local edgeSize = 3
-		for _, edge in ipairs({"Top", "Bottom", "Left", "Right"}) do
-			local tex = highlight:CreateTexture(nil, "OVERLAY")
-			tex:SetColorTexture(1, 0.82, 0, 1)  -- Gold color
-			highlight[edge.."Edge"] = tex
-		end
-		
-		highlight.TopEdge:SetHeight(edgeSize)
-		highlight.TopEdge:SetPoint("TOPLEFT")
-		highlight.TopEdge:SetPoint("TOPRIGHT")
-		highlight.BottomEdge:SetHeight(edgeSize)
-		highlight.BottomEdge:SetPoint("BOTTOMLEFT")
-		highlight.BottomEdge:SetPoint("BOTTOMRIGHT")
-		highlight.LeftEdge:SetWidth(edgeSize)
-		highlight.LeftEdge:SetPoint("TOPLEFT", highlight.TopEdge, "BOTTOMLEFT")
-		highlight.LeftEdge:SetPoint("BOTTOMLEFT", highlight.BottomEdge, "TOPLEFT")
-		highlight.RightEdge:SetWidth(edgeSize)
-		highlight.RightEdge:SetPoint("TOPRIGHT", highlight.TopEdge, "BOTTOMRIGHT")
-		highlight.RightEdge:SetPoint("BOTTOMRIGHT", highlight.BottomEdge, "TOPRIGHT")
-		
-		local label = highlight:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-		label:SetPoint("TOP", highlight, "BOTTOM", 0, -4)
-		highlight.label = label
-		
-		self.pickHighlight = highlight
-	end
+	self:GetOrCreateHighlight()
 	
 	-- 3. Event frame for GLOBAL_MOUSE_DOWN (no mouse interaction, just events)
 	if not self.pickEventFrame then
@@ -258,17 +294,9 @@ function InspectModule:StartPicking()
 		end
 		
 		if target then
-			self.pickHighlight:ClearAllPoints()
-			self.pickHighlight:SetPoint("TOPLEFT", target, "TOPLEFT", -3, 3)
-			self.pickHighlight:SetPoint("BOTTOMRIGHT", target, "BOTTOMRIGHT", 3, -3)
-			self.pickHighlight:Show()
-			local name = (target.GetDebugName and target:GetDebugName())
-				or (target.GetName and target:GetName())
-				or (target.GetObjectType and target:GetObjectType())
-				or tostring(target)
-			self.pickHighlight.label:SetText("|cffFFD100" .. name .. "|r")
+			self:ShowHighlight(target)
 		else
-			self.pickHighlight:Hide()
+			self:HideHighlight()
 		end
 	end)
 	
@@ -436,6 +464,13 @@ function InspectModule:SetSelectedFrame(frame, path)
 	local displayPath = path or (ns.FrameResolver and ns.FrameResolver:GetFramePath(frame))
 	self.pathInput:SetText(displayPath or "<anonymous>")
 
+	-- Show highlight on the selected frame
+	if frame and frame.IsObjectType and frame:IsObjectType("Frame") then
+		self:ShowHighlight(frame)
+	else
+		self:HideHighlight()
+	end
+
 	-- Developer feedback: Inspecting a plain table
 	if
 		frame
@@ -557,6 +592,7 @@ function InspectModule:OnHide()
 	if self.pickMode then
 		self:TogglePickMode()
 	end
+	self:HideHighlight()
 end
 
 return InspectModule
