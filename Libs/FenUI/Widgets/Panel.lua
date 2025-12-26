@@ -132,7 +132,7 @@ function PanelMixin:CreateSafeZone()
     
     -- The SafeZone is a logical frame that represents the "safe" usable area
     -- within the Blizzard metal border art.
-    self.safeZone = CreateFrame("Frame", nil, self)
+    self.safeZone = _G.CreateFrame("Frame", nil, self)
     
     -- NOTE: Blizzard Metal Border Safe-Zones
     -- Standard ButtonFrameTemplate has:
@@ -157,7 +157,7 @@ end
 function PanelMixin:CreateCloseButton()
     if self.closeButton then return end
     
-    self.closeButton = CreateFrame("Button", nil, self, "UIPanelCloseButton")
+    self.closeButton = _G.CreateFrame("Button", nil, self, "UIPanelCloseButton")
     
     -- NOTE: Close Button Positioning (WoW Coordinate System)
     -- TOPRIGHT Anchor:
@@ -240,7 +240,7 @@ end
 
 function PanelMixin:GetContentFrame()
     if not self.contentFrame then
-        self.contentFrame = CreateFrame("Frame", nil, self)
+        self.contentFrame = _G.CreateFrame("Frame", nil, self)
         local safeZone = self.safeZone
         local headerH = FenUI:GetLayout("headerHeight")
         local footerH = FenUI:GetLayout("footerHeight")
@@ -304,6 +304,7 @@ end
 ---@param parent Frame Parent frame
 ---@param config table|string Configuration table or just a title string
 ---@return Frame panel
+-- luacheck: ignore 122
 function FenUI:CreatePanel(parent, config)
     -- Allow simple string as title
     if type(config) == "string" then
@@ -323,7 +324,7 @@ function FenUI:CreatePanel(parent, config)
         -- NOTE: Explicit nil check for background to respect `false` (disable background)
         -- Using `or` would convert `false` to "surfacePanel" which is incorrect
         local bgConfig = (config.background == nil) and "surfacePanel" or config.background
-        panel = FenUI:CreateLayout(parent or UIParent, {
+        panel = FenUI:CreateLayout(parent or _G.UIParent, {
             name = config.name,
             width = config.width or 400,
             height = config.height or 300,
@@ -335,7 +336,7 @@ function FenUI:CreatePanel(parent, config)
         })
     else
         -- Fallback to direct frame creation (backwards compatibility)
-        panel = CreateFrame("Frame", config.name, parent or UIParent, "BackdropTemplate")
+        panel = _G.CreateFrame("Frame", config.name, parent or _G.UIParent, "BackdropTemplate")
         panel:SetSize(config.width or 400, config.height or 300)
         FenUI:ApplyLayout(panel, layoutName, textureKit)
         
@@ -376,8 +377,8 @@ local PanelBuilder = {}
 PanelBuilder.__index = PanelBuilder
 
 function PanelBuilder:new(parent)
-    local builder = setmetatable({}, PanelBuilder)
-    builder._parent = parent or UIParent
+    local builder = _G.setmetatable({}, PanelBuilder)
+    builder._parent = parent or _G.UIParent
     builder._config = {}
     builder._slots = {}
     return builder
@@ -487,6 +488,7 @@ end
 --- Start building a panel with fluent API
 ---@param parent Frame|nil Parent frame
 ---@return PanelBuilder builder
+-- luacheck: ignore 122
 function FenUI.Panel(parent)
     return PanelBuilder:new(parent)
 end

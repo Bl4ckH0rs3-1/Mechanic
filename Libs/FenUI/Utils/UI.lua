@@ -86,8 +86,9 @@ function Utils:ShowMenu(menuList, anchor)
     if not menuList or #menuList == 0 then return end
 
     -- 1. Modern Client (11.0+) - MenuUtil
-    if _G.MenuUtil and _G.MenuUtil.CreateContextMenu then
-        MenuUtil.CreateContextMenu(UIParent, function(owner, rootDescription)
+    local mu = _G.MenuUtil
+    if mu and mu.CreateContextMenu then
+        mu.CreateContextMenu(UIParent, function(owner, rootDescription)
             for _, info in ipairs(menuList) do
                 if info.isTitle then
                     rootDescription:CreateTitle(info.text)
@@ -101,6 +102,7 @@ function Utils:ShowMenu(menuList, anchor)
                     local btn = rootDescription:CreateButton(info.text, info.func)
                     if info.notCheckable == false or info.checked ~= nil then
                         -- Checkbox/Radio support if needed
+                        -- luacheck: ignore 542
                     end
                 end
             end
@@ -109,11 +111,12 @@ function Utils:ShowMenu(menuList, anchor)
     end
 
     -- 2. Legacy Fallback - EasyMenu
-    if _G.EasyMenu then
+    local em = _G.EasyMenu
+    if em then
         if not self.menuFrame then
             self.menuFrame = CreateFrame("Frame", "FenUIMenuFrame", UIParent, "UIDropDownMenuTemplate")
         end
-        EasyMenu(menuList, self.menuFrame, anchor or "cursor", 0, 0, "MENU")
+        em(menuList, self.menuFrame, anchor or "cursor", 0, 0, "MENU")
         return
     end
 

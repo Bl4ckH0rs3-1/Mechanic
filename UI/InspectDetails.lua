@@ -3,6 +3,7 @@
 
 local ADDON_NAME, ns = ...
 local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
+local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME, true)
 local InspectModule = Mechanic.Inspect
 
 function InspectModule:InitializeDetails(parent)
@@ -20,28 +21,33 @@ function InspectModule:InitializeDetails(parent)
 end
 
 function InspectModule:UpdateDetails(frame)
-	if not self.detailsContent then return end
-	
+	if not self.detailsContent then
+		return
+	end
+
 	-- Clear old sections
+	local L = LibStub("AceLocale-3.0"):GetLocale("!Mechanic")
 	for _, section in ipairs(self.detailSections) do
 		section:Hide()
 	end
-	
-	if not frame or type(frame) ~= "table" then return end
+
+	if not frame or type(frame) ~= "table" then
+		return
+	end
 
 	local yOffset = 0
 
 	-- 1. Header Section
 	yOffset = self:AddDetailHeader(frame, yOffset)
-	
+
 	-- 2. Geometry Section (Frames only)
 	if frame.GetObjectType and frame.GetSize then
 		yOffset = self:AddDetailGeometry(frame, yOffset)
 	end
-	
+
 	-- 3. Properties Section
 	yOffset = self:AddDetailProperties(frame, yOffset)
-	
+
 	-- 4. Scripts Section (Frames only)
 	if frame.HasScript then
 		yOffset = self:AddDetailScripts(frame, yOffset)
@@ -52,21 +58,23 @@ end
 
 function InspectModule:AddDetailHeader(frame, yOffset)
 	local section = self:GetOrCreateDetailSection("Header", yOffset)
-	
+
 	local name = frame.GetName and frame:GetName() or "<anonymous>"
 	section.title:SetText(name)
-	
+
 	local info
 	if frame.GetObjectType then
-		info = string.format("Type: %s | Level: %d | Strata: %s", 
-			frame:GetObjectType(), 
-			frame.GetFrameLevel and frame:GetFrameLevel() or 0, 
-			frame.GetFrameStrata and frame:GetFrameStrata() or "N/A")
+		info = string.format(
+			"Type: %s | Level: %d | Strata: %s",
+			frame:GetObjectType(),
+			frame.GetFrameLevel and frame:GetFrameLevel() or 0,
+			frame.GetFrameStrata and frame:GetFrameStrata() or "N/A"
+		)
 	else
 		info = "Type: Table (Global)"
 	end
 	section.content:SetText(info)
-	
+
 	local height = 40
 	section:SetHeight(height)
 	section:Show()
@@ -75,13 +83,19 @@ end
 
 function InspectModule:AddDetailGeometry(frame, yOffset)
 	local section = self:GetOrCreateDetailSection("Geometry", yOffset)
-	section.title:SetText("Geometry")
-	
+	section.title:SetText(L["Geometry"])
+
 	local w, h = frame:GetSize()
-	local info = string.format("Size: %.1f x %.1f\nScale: %.2f\nAlpha: %.2f\nVisible: %s", 
-		w, h, frame:GetScale(), frame:GetAlpha(), tostring(frame:IsVisible()))
+	local info = string.format(
+		"Size: %.1f x %.1f\nScale: %.2f\nAlpha: %.2f\nVisible: %s",
+		w,
+		h,
+		frame:GetScale(),
+		frame:GetAlpha(),
+		tostring(frame:IsVisible())
+	)
 	section.content:SetText(info)
-	
+
 	local height = 80
 	section:SetHeight(height)
 	section:Show()
@@ -90,25 +104,31 @@ end
 
 function InspectModule:AddDetailProperties(frame, yOffset)
 	local section = self:GetOrCreateDetailSection("Properties", yOffset)
-	section.title:SetText("Common Properties")
-	
+	section.title:SetText(L["Common Properties"])
+
 	local props = {}
-	if type(frame.GetText) == "function" then table.insert(props, string.format("Text: %s", tostring(frame:GetText()))) end
-	if type(frame.GetValue) == "function" then table.insert(props, string.format("Value: %s", tostring(frame:GetValue()))) end
-	if type(frame.GetMinMaxValues) == "function" then 
-		local min, max = frame:GetMinMaxValues()
-		table.insert(props, string.format("Min/Max: %.1f - %.1f", min, max)) 
+	if type(frame.GetText) == "function" then
+		table.insert(props, string.format("Text: %s", tostring(frame:GetText())))
 	end
-	
+	if type(frame.GetValue) == "function" then
+		table.insert(props, string.format("Value: %s", tostring(frame:GetValue())))
+	end
+	if type(frame.GetMinMaxValues) == "function" then
+		local min, max = frame:GetMinMaxValues()
+		table.insert(props, string.format("Min/Max: %.1f - %.1f", min, max))
+	end
+
 	-- For plain tables, show some members
 	if not frame.GetObjectType then
 		local formatted = Mechanic.Utils:FormatValue(frame, { plain = true })
 		table.insert(props, formatted)
 	end
-	
-	if #props == 0 then table.insert(props, "None") end
+
+	if #props == 0 then
+		table.insert(props, "None")
+	end
 	section.content:SetText(table.concat(props, "\n"))
-	
+
 	local height = 20 + (section.content:GetStringHeight() or 14)
 	section:SetHeight(height)
 	section:Show()
@@ -117,23 +137,33 @@ end
 
 function InspectModule:AddDetailScripts(frame, yOffset)
 	local section = self:GetOrCreateDetailSection("Scripts", yOffset)
-	section.title:SetText("Scripts")
-	
+	section.title:SetText(L["Scripts"])
+
 	local scripts = {
-		"OnUpdate", "OnEvent", "OnShow", "OnHide", "OnEnter", "OnLeave", 
-		"OnMouseDown", "OnMouseUp", "OnClick", "OnValueChanged"
+		"OnUpdate",
+		"OnEvent",
+		"OnShow",
+		"OnHide",
+		"OnEnter",
+		"OnLeave",
+		"OnMouseDown",
+		"OnMouseUp",
+		"OnClick",
+		"OnValueChanged",
 	}
-	
+
 	local active = {}
 	for _, script in ipairs(scripts) do
 		if frame:HasScript(script) and frame:GetScript(script) then
 			table.insert(active, string.format("%s: [function]", script))
 		end
 	end
-	
-	if #active == 0 then table.insert(active, "None") end
+
+	if #active == 0 then
+		table.insert(active, "None")
+	end
 	section.content:SetText(table.concat(active, "\n"))
-	
+
 	local height = 20 + (#active * 14)
 	section:SetHeight(height)
 	section:Show()
@@ -144,24 +174,23 @@ function InspectModule:GetOrCreateDetailSection(name, yOffset)
 	local section = Mechanic.Utils:GetOrCreateWidget(self.detailsContent, "section_" .. name, function(p)
 		local s = CreateFrame("Frame", nil, p)
 		s:SetPoint("RIGHT", p, "RIGHT", 0, 0)
-		
+
 		s.title = s:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 		s.title:SetPoint("TOPLEFT", 0, 0)
-		
+
 		s.content = s:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 		s.content:SetPoint("TOPLEFT", 4, -16)
 		s.content:SetJustifyH("LEFT")
 		s.content:SetWidth(p:GetWidth() - 8)
-		
+
 		return s
 	end)
 
 	section:SetPoint("TOPLEFT", self.detailsContent, "TOPLEFT", 0, yOffset)
 	self.detailSections[name] = section
-	if not tContains(self.detailSections, section) then
+	if not _G.tContains(self.detailSections, section) then
 		table.insert(self.detailSections, section)
 	end
-	
+
 	return section
 end
-

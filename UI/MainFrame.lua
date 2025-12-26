@@ -3,6 +3,7 @@
 
 local ADDON_NAME, ns = ...
 local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
+local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME, true)
 
 function Mechanic:CreateMainFrame()
 	if self.frame then
@@ -13,7 +14,7 @@ function Mechanic:CreateMainFrame()
 
 	local frame = FenUI:CreatePanel(UIParent, {
 		name = "MechanicMainFrame",
-		title = "Mechanic", -- Removed !
+		title = L["Mechanic"], -- Removed !
 		width = self.db.profile.size.width,
 		height = self.db.profile.size.height,
 		movable = true,
@@ -58,13 +59,13 @@ function Mechanic:CreateMainFrame()
 	-- Tab group
 	local tabs = FenUI:CreateTabGroup(frame.safeZone, {
 		tabs = {
-			{ key = "console", text = "Console" },
-			{ key = "errors", text = "Errors" },
-			{ key = "tests", text = "Tests" },
-			{ key = "tools", text = "Tools" },
-			{ key = "api", text = "API" },
-			{ key = "inspect", text = "Inspect" },
-			{ key = "perf", text = "Performance" },
+			{ key = "inspect", text = L["Inspect"] },
+			{ key = "console", text = L["Console"] },
+			{ key = "errors", text = L["Errors"] },
+			{ key = "tests", text = L["Tests"] },
+			{ key = "perf", text = L["Performance"] },
+			{ key = "tools", text = L["Tools"] },
+			{ key = "api", text = L["API"] },
 		},
 		-- onChange set later after initial selection to prevent overwriting saved state during init
 	})
@@ -78,7 +79,7 @@ function Mechanic:CreateMainFrame()
 
 	-- Reload button on status bar
 	local reloadBtn = FenUI:CreateButton(statusBar, {
-		text = "Reload UI",
+		text = L["Reload UI"],
 		width = 90,
 		height = 20,
 		onClick = function()
@@ -87,9 +88,19 @@ function Mechanic:CreateMainFrame()
 	})
 	reloadBtn:SetPoint("RIGHT", -8, 0)
 
+	-- "Register Mechanic" toggle checkbox (dogfooding)
+	local registerSelfCheckbox = FenUI:CreateCheckbox(statusBar, {
+		label = L["Register Mechanic"] or "Register Mechanic",
+		checked = self.db.profile.registerSelf,
+		onChange = function(_, checked)
+			self:SetRegisterSelf(checked)
+		end,
+	})
+	registerSelfCheckbox:SetPoint("RIGHT", reloadBtn, "LEFT", -16, 0)
+	frame.registerSelfCheckbox = registerSelfCheckbox
+
 	-- Select initial tab
 	local initialTab = self.db.profile.activeTab or "console"
-	print(string.format("|cff00ff00[MechDebug]|r MainFrame restoring: %s", tostring(initialTab)))
 
 	-- 1. Set the hook first so future manual clicks work
 	tabs.hooks.onChange = function(key)
@@ -103,43 +114,62 @@ function Mechanic:CreateMainFrame()
 	self:OnTabChanged(initialTab)
 
 	self.initializing = false -- Setup complete, now saves will work
+
+	-- Initial badge state
+	self:UpdateErrorBadge()
 end
 
 function Mechanic:OnTabChanged(key)
-	if not self.initializing and self.db.profile.activeTab == key then return end
-	
+	if not self.initializing and self.db.profile.activeTab == key then
+		return
+	end
+
 	if not self.initializing then
 		self.db.profile.activeTab = key
-		print(string.format("|cff00ff00[MechDebug]|r MainFrame SAVED: %s", tostring(key)))
-	else
-		print(string.format("|cffffaa00[MechDebug]|r MainFrame restoring (no save): %s", tostring(key)))
 	end
 
 	-- Hide all module frames
 	if self.Console and self.Console.frame then
 		self.Console.frame:Hide()
+		if self.Console.OnHide then
+			self.Console:OnHide()
+		end
 	end
 	if self.Errors and self.Errors.frame then
 		self.Errors.frame:Hide()
+		if self.Errors.OnHide then
+			self.Errors:OnHide()
+		end
 	end
 	if self.Tests and self.Tests.frame then
 		self.Tests.frame:Hide()
+		if self.Tests.OnHide then
+			self.Tests:OnHide()
+		end
 	end
 	if self.Tools and self.Tools.frame then
 		self.Tools.frame:Hide()
-		self.Tools:OnHide()
+		if self.Tools.OnHide then
+			self.Tools:OnHide()
+		end
 	end
 	if self.API and self.API.frame then
 		self.API.frame:Hide()
-		self.API:OnHide()
+		if self.API.OnHide then
+			self.API:OnHide()
+		end
 	end
 	if self.Inspect and self.Inspect.frame then
 		self.Inspect.frame:Hide()
-		self.Inspect:OnHide()
+		if self.Inspect.OnHide then
+			self.Inspect:OnHide()
+		end
 	end
 	if self.Perf and self.Perf.frame then
 		self.Perf.frame:Hide()
-		self.Perf:OnHide()
+		if self.Perf.OnHide then
+			self.Perf:OnHide()
+		end
 	end
 
 	-- Show selected module
@@ -149,6 +179,9 @@ function Mechanic:OnTabChanged(key)
 		end
 		if self.Console and self.Console.frame then
 			self.Console.frame:Show()
+			if self.Console.OnShow then
+				self.Console:OnShow()
+			end
 		end
 	elseif key == "errors" then
 		if not self.Errors or not self.Errors.frame then
@@ -156,6 +189,9 @@ function Mechanic:OnTabChanged(key)
 		end
 		if self.Errors and self.Errors.frame then
 			self.Errors.frame:Show()
+			if self.Errors.OnShow then
+				self.Errors:OnShow()
+			end
 		end
 	elseif key == "tests" then
 		if not self.Tests or not self.Tests.frame then
@@ -163,6 +199,9 @@ function Mechanic:OnTabChanged(key)
 		end
 		if self.Tests and self.Tests.frame then
 			self.Tests.frame:Show()
+			if self.Tests.OnShow then
+				self.Tests:OnShow()
+			end
 		end
 	elseif key == "tools" then
 		if not self.Tools or not self.Tools.frame then
@@ -170,7 +209,9 @@ function Mechanic:OnTabChanged(key)
 		end
 		if self.Tools and self.Tools.frame then
 			self.Tools.frame:Show()
-			self.Tools:OnShow()
+			if self.Tools.OnShow then
+				self.Tools:OnShow()
+			end
 		end
 	elseif key == "api" then
 		if not self.API or not self.API.frame then
@@ -178,7 +219,9 @@ function Mechanic:OnTabChanged(key)
 		end
 		if self.API and self.API.frame then
 			self.API.frame:Show()
-			self.API:OnShow()
+			if self.API.OnShow then
+				self.API:OnShow()
+			end
 		end
 	elseif key == "inspect" then
 		if not self.Inspect or not self.Inspect.frame then
@@ -186,7 +229,9 @@ function Mechanic:OnTabChanged(key)
 		end
 		if self.Inspect and self.Inspect.frame then
 			self.Inspect.frame:Show()
-			self.Inspect:OnShow()
+			if self.Inspect.OnShow then
+				self.Inspect:OnShow()
+			end
 		end
 	elseif key == "perf" then
 		if not self.Perf or not self.Perf.frame then
@@ -194,7 +239,9 @@ function Mechanic:OnTabChanged(key)
 		end
 		if self.Perf and self.Perf.frame then
 			self.Perf.frame:Show()
-			self.Perf:OnShow()
+			if self.Perf.OnShow then
+				self.Perf:OnShow()
+			end
 		end
 	end
 end

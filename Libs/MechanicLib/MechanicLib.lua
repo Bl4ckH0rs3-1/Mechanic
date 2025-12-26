@@ -6,7 +6,7 @@
 --
 -- Implementation: Phase 1 (PLAN/01-foundation.plan.md)
 
-local MAJOR, MINOR = "MechanicLib-1.0", 2
+local MAJOR, MINOR = "MechanicLib-1.0", 3
 local MechanicLib = LibStub:NewLibrary(MAJOR, MINOR)
 if not MechanicLib then return end
 
@@ -157,5 +157,23 @@ end
 ---@return table registered Map of addonName -> capabilities
 function MechanicLib:GetRegistered()
     return self.registered
+end
+
+--- Check if an addon has a specific capability.
+---@param addonName string The addon's name
+---@param capability string The capability name to check
+---@return boolean hasCapability True if the addon has the capability
+function MechanicLib:HasCapability(addonName, capability)
+    local caps = self.registered[addonName]
+    return caps ~= nil and caps[capability] ~= nil
+end
+
+--- Get a specific capability from a registered addon.
+---@param addonName string The addon's name
+---@param capability string The capability name
+---@return any capability The capability data or function
+function MechanicLib:GetCapability(addonName, capability)
+    local caps = self.registered[addonName]
+    return caps and caps[capability]
 end
 

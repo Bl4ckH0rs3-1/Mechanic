@@ -3,12 +3,13 @@
 
 local ADDON_NAME, ns = ...
 local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
+local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME, true)
 local InspectModule = Mechanic.Inspect
 
 function InspectModule:InitializeWatch(parent)
 	local title = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	title:SetPoint("TOPLEFT", 8, -8)
-	title:SetText("Watch List")
+	title:SetText(L["Watch List"])
 
 	local scrollFrame = CreateFrame("ScrollFrame", nil, parent, "UIPanelScrollFrameTemplate")
 	scrollFrame:SetPoint("TOPLEFT", 4, -30)
@@ -24,7 +25,7 @@ function InspectModule:InitializeWatch(parent)
 	for i = 1, 20 do
 		self:GetOrCreateWatchNode(i)
 	end
-	
+
 	-- Live Update Timer
 	self.watchTicker = C_Timer.NewTicker(0.5, function()
 		if parent:IsVisible() then
@@ -34,10 +35,14 @@ function InspectModule:InitializeWatch(parent)
 end
 
 function InspectModule:RefreshWatchList()
-	if not self.watchContent then return end
+	if not self.watchContent then
+		return
+	end
 
 	local MechanicLib = LibStub("MechanicLib-1.0", true)
-	if not MechanicLib then return end
+	if not MechanicLib then
+		return
+	end
 
 	local watchList = MechanicLib:GetWatchList()
 	local sortedKeys = {}
@@ -56,9 +61,9 @@ function InspectModule:RefreshWatchList()
 		local node = self:GetOrCreateWatchNode(i)
 		node:SetPoint("TOPLEFT", self.watchContent, "TOPLEFT", 0, -yOffset)
 		node:SetPoint("RIGHT", self.watchContent, "RIGHT", 0, 0)
-		
+
 		node.label:SetText(data.label)
-		
+
 		local frame = type(data.target) == "string" and ns.FrameResolver:ResolvePath(data.target) or data.target
 		local value = "???"
 		if frame then
@@ -70,11 +75,11 @@ function InspectModule:RefreshWatchList()
 				value = frame:IsVisible() and "Visible" or "Hidden"
 			end
 		end
-		
+
 		node.value:SetText(value)
 		node.frame = frame
 		node.path = type(data.target) == "string" and data.target or nil
-		
+
 		node:Show()
 		yOffset = yOffset + 34
 	end
@@ -83,7 +88,9 @@ function InspectModule:RefreshWatchList()
 end
 
 function InspectModule:GetOrCreateWatchNode(index)
-	if self.watchNodes[index] then return self.watchNodes[index] end
+	if self.watchNodes[index] then
+		return self.watchNodes[index]
+	end
 
 	local node = CreateFrame("Button", nil, self.watchContent)
 	node:SetHeight(32)
@@ -112,4 +119,3 @@ function InspectModule:GetOrCreateWatchNode(index)
 	self.watchNodes[index] = node
 	return node
 end
-

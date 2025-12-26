@@ -3,7 +3,7 @@
 
 local ADDON_NAME, ns = ...
 local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
-local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
+local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME, true)
 local TestsModule = {}
 Mechanic.Tests = TestsModule
 
@@ -32,7 +32,7 @@ function Mechanic:InitializeTests()
 	toolbar:SetPoint("TOPRIGHT", 0, 0)
 
 	local runSelectedBtn = toolbar:AddButton({
-		text = "Run Selected",
+		text = L["Run Selected"],
 		width = 110,
 		onClick = function()
 			TestsModule:RunSelected()
@@ -40,7 +40,7 @@ function Mechanic:InitializeTests()
 	})
 
 	local runAllBtn = toolbar:AddButton({
-		text = "Run All Auto",
+		text = L["Run All Auto"],
 		width = 110,
 		onClick = function()
 			TestsModule:RunAllAuto()
@@ -50,16 +50,16 @@ function Mechanic:InitializeTests()
 	toolbar:AddSpacer("flex")
 
 	local exportBtn = toolbar:AddButton({
-		text = "Export",
-		width = 70,
+		text = L["Export Button"],
+		width = 90,
 		onClick = function()
-			TestsModule:ToggleExportMode()
+			TestsModule:Export()
 		end,
 	})
 	TestsModule.exportButton = exportBtn
 
 	local clearBtn = toolbar:AddButton({
-		text = "Clear",
+		text = L["Clear"],
 		width = 60,
 		onClick = function()
 			TestsModule:ClearResults()
@@ -80,10 +80,10 @@ function Mechanic:InitializeTests()
 	-- Tree Panel (replacing AceGUI-TreeGroup)
 	local tree = FenUI:CreateTree(frame, {
 		onSelect = function(value)
-		local parts = { strsplit(":", value) }
-		if #parts == 2 then
-			TestsModule:OnTestSelected(parts[1], parts[2])
-		end
+			local parts = { strsplit(":", value) }
+			if #parts == 2 then
+				TestsModule:OnTestSelected(parts[1], parts[2])
+			end
 		end,
 	})
 	tree:SetPoint("TOPLEFT", toolbar, "BOTTOMLEFT", 0, -4)
@@ -128,20 +128,17 @@ function Mechanic:InitializeTests()
 	detailsBox:SetPoint("BOTTOMRIGHT", -8, 8)
 	TestsModule.detailsBox = detailsBox
 
-	-- Export Mode: Full-tab text display (hidden by default)
-	local exportBox = FenUI:CreateMultiLineEditBox(frame, {
-		readOnly = true,
-		background = "surfaceInset",
-		autoScroll = false,
-	})
-	exportBox:SetPoint("TOPLEFT", toolbar, "BOTTOMLEFT", 0, -4)
-	exportBox:SetPoint("BOTTOMRIGHT", testSummaryBar, "TOPRIGHT", 0, 4)
-	exportBox:Hide()
-	TestsModule.exportBox = exportBox
-
+	-- Export Mode: Removed internal exportBox in favor of global dialog
 	TestsModule:RefreshTree()
 	TestsModule:UpdateSummary()
 end
+
+function TestsModule:OnShow()
+	self:RefreshTree()
+	self:UpdateSummary()
+end
+
+function TestsModule:OnHide() end
 
 function TestsModule:RefreshTree()
 	if not self.frame or not self.tree then
@@ -160,31 +157,34 @@ function TestsModule:BuildTree()
 
 	local textParts = {}
 
-	for addonName, capabilities in pairs(MechanicLib:GetRegistered()) do
-		if capabilities.tests then
+	for addonName in pairs(MechanicLib:GetRegistered()) do
+		if MechanicLib:HasCapability(addonName, "tests") then
+			local tests = MechanicLib:GetCapability(addonName, "tests")
 			local addonNode = {
 				text = addonName,
 				value = addonName,
 				children = {},
+				expanded = true,
 			}
 
 			-- Get categories
-			if capabilities.tests.getCategories then
-				local categories = capabilities.tests.getCategories()
+			if tests.getCategories then
+				local categories = tests.getCategories()
 				for _, category in ipairs(categories) do
 					local categoryNode = {
 						text = category,
 						value = string.format("%s:%s", addonName, category),
 						children = {},
+						expanded = true,
 					}
 
 					-- Get tests in category
-					if capabilities.tests.getAll then
-						local allTests = capabilities.tests.getAll()
+					if tests.getAll then
+						local allTests = tests.getAll()
 						for _, entry in ipairs(allTests) do
 							local test = entry.def or entry -- Support both {def={...}} and direct {...}
 							if test and test.id and test.category == category then
-								local result = capabilities.tests.getResult and capabilities.tests.getResult(test.id)
+								local result = tests.getResult and tests.getResult(test.id)
 								local icon = self:GetStatusIcon(result)
 
 								wipe(textParts)
@@ -228,15 +228,19 @@ function TestsModule:OnTestSelected(addonName, testId)
 	self.selectedTest = testId
 
 	local MechanicLib = LibStub("MechanicLib-1.0", true)
-	local capabilities = MechanicLib and MechanicLib:GetRegistered()[addonName]
-	if not capabilities or not capabilities.tests then
+	if not MechanicLib or not MechanicLib:HasCapability(addonName, "tests") then
+		return
+	end
+
+	local tests = MechanicLib:GetCapability(addonName, "tests")
+	if not tests then
 		return
 	end
 
 	-- Find test definition
 	local testDef = nil
-	if capabilities.tests.getAll then
-		for _, entry in ipairs(capabilities.tests.getAll()) do
+	if tests.getAll then
+		for _, entry in ipairs(tests.getAll()) do
 			local test = entry.def or entry
 			if test and test.id == testId then
 				testDef = test
@@ -250,7 +254,7 @@ function TestsModule:OnTestSelected(addonName, testId)
 	end
 
 	-- Get result
-	local result = capabilities.tests.getResult and capabilities.tests.getResult(testId)
+	local result = tests.getResult and tests.getResult(testId)
 
 	-- Update display
 	self:UpdateDetailsPanel(testDef, result)
@@ -264,7 +268,8 @@ function TestsModule:UpdateDetailsPanel(testDef, result)
 	if result then
 		local statusColor = result.passed == true and STATUS_COLORS.pass
 			or (result.passed == false and STATUS_COLORS.fail or STATUS_COLORS.pending)
-		local statusText = result.passed == true and L["PASSED"] or (result.passed == false and L["FAILED"] or L["PENDING"])
+		local statusText = result.passed == true and L["PASSED"]
+			or (result.passed == false and L["FAILED"] or L["PENDING"])
 		self.statusLabel:SetText(string.format(L["Status: %s%s|r"], statusColor, statusText))
 
 		if result.duration then
@@ -338,12 +343,14 @@ function TestsModule:RunSelected()
 	end
 
 	local MechanicLib = LibStub("MechanicLib-1.0", true)
-	local capabilities = MechanicLib and MechanicLib:GetRegistered()[self.selectedAddon]
-	if capabilities and capabilities.tests and capabilities.tests.run then
-		capabilities.tests.run(self.selectedTest)
-		self:RefreshTree()
-		self:OnTestSelected(self.selectedAddon, self.selectedTest)
-		self:UpdateSummary()
+	if MechanicLib and MechanicLib:HasCapability(self.selectedAddon, "tests") then
+		local tests = MechanicLib:GetCapability(self.selectedAddon, "tests")
+		if tests and tests.run then
+			tests.run(self.selectedTest)
+			self:RefreshTree()
+			self:OnTestSelected(self.selectedAddon, self.selectedTest)
+			self:UpdateSummary()
+		end
 	end
 end
 
@@ -354,15 +361,18 @@ function TestsModule:RunAllAuto()
 	end
 
 	local totalPassed, totalTests = 0, 0
-	for addonName, capabilities in pairs(MechanicLib:GetRegistered()) do
-		if capabilities.tests and capabilities.tests.runAll then
-			local passed, total = capabilities.tests.runAll()
-			totalPassed = totalPassed + passed
-			totalTests = totalTests + total
+	for addonName in pairs(MechanicLib:GetRegistered()) do
+		if MechanicLib:HasCapability(addonName, "tests") then
+			local tests = MechanicLib:GetCapability(addonName, "tests")
+			if tests and tests.runAll then
+				local passed, total = tests.runAll()
+				totalPassed = totalPassed + passed
+				totalTests = totalTests + total
+			end
 		end
 	end
 
-	Mechanic:Print(string.format("Tests complete: %d/%d passed", totalPassed, totalTests))
+	Mechanic:Print(string.format(L["Tests complete: %d/%d passed"], totalPassed, totalTests))
 	self:RefreshTree()
 	self:UpdateSummary()
 end
@@ -373,9 +383,12 @@ function TestsModule:ClearResults()
 		return
 	end
 
-	for addonName, capabilities in pairs(MechanicLib:GetRegistered()) do
-		if capabilities.tests and capabilities.tests.clearResults then
-			capabilities.tests.clearResults()
+	for addonName in pairs(MechanicLib:GetRegistered()) do
+		if MechanicLib:HasCapability(addonName, "tests") then
+			local tests = MechanicLib:GetCapability(addonName, "tests")
+			if tests and tests.clearResults then
+				tests.clearResults()
+			end
 		end
 	end
 	self:RefreshTree()
@@ -396,20 +409,23 @@ function TestsModule:UpdateSummary()
 		return
 	end
 
-	for addonName, capabilities in pairs(MechanicLib:GetRegistered()) do
-		if capabilities.tests and capabilities.tests.getAll then
-			for _, entry in ipairs(capabilities.tests.getAll()) do
-				local test = entry.def or entry
-				if test and test.id then
-				total = total + 1
-					local result = capabilities.tests.getResult and capabilities.tests.getResult(test.id)
-				if result then
-					if result.passed == true then
-						passed = passed + 1
-					elseif result.passed == false then
-						failed = failed + 1
-					else
-						pending = pending + 1
+	for addonName in pairs(MechanicLib:GetRegistered()) do
+		if MechanicLib:HasCapability(addonName, "tests") then
+			local tests = MechanicLib:GetCapability(addonName, "tests")
+			if tests.getAll then
+				for _, entry in ipairs(tests.getAll()) do
+					local test = entry.def or entry
+					if test and test.id then
+						total = total + 1
+						local result = tests.getResult and tests.getResult(test.id)
+						if result then
+							if result.passed == true then
+								passed = passed + 1
+							elseif result.passed == false then
+								failed = failed + 1
+							else
+								pending = pending + 1
+							end
 						end
 					end
 				end
@@ -418,45 +434,20 @@ function TestsModule:UpdateSummary()
 	end
 
 	self.summaryLabel:SetText(
-		string.format("Total: %d | Passed: %d | Failed: %d | Pending: %d", total, passed, failed, pending)
+		string.format(L["Total: %d | Passed: %d | Failed: %d | Pending: %d"], total, passed, failed, pending)
 	)
 end
 
-function TestsModule:ToggleExportMode()
-	self.exportMode = not self.exportMode
-
-	if self.exportMode then
-		-- Hide tree/details, show export box
-		if self.tree then
-			self.tree:Hide()
-		end
-		if self.detailsFrame then
-			self.detailsFrame:Hide()
-		end
-		if self.exportBox then
-			local text = self:GetCopyText(Mechanic.db.profile.includeEnvHeader)
-			self.exportBox:SetText(text)
-			self.exportBox:Show()
-			self.exportBox:ScrollToTop()
-		end
-		if self.exportButton then
-			self.exportButton:SetText(L["Tree View"])
-		end
-	else
-		-- Hide export box, show tree/details
-		if self.exportBox then
-			self.exportBox:Hide()
-		end
-		if self.tree then
-			self.tree:Show()
-		end
-		if self.detailsFrame then
-			self.detailsFrame:Show()
-		end
-		if self.exportButton then
-			self.exportButton:SetText(L["Export"])
-		end
-	end
+function TestsModule:Export()
+	local navName = self.selectedAddon or (L["All"] or "All")
+	local title = string.format(
+		"%s : %s : %s",
+		tostring(L["Tests"] or "Tests"),
+		tostring(navName or "All"),
+		tostring(L["Export"] or "Export")
+	)
+	local text = self:GetCopyText(Mechanic.db.profile.includeEnvHeader)
+	Mechanic.Utils:ShowExportDialog(title, text)
 end
 
 function TestsModule:GetCopyText(includeHeader)
@@ -470,20 +461,23 @@ function TestsModule:GetCopyText(includeHeader)
 			-- Recalculate for summary
 			local MechanicLib = LibStub("MechanicLib-1.0", true)
 			if MechanicLib then
-				for _, caps in pairs(MechanicLib:GetRegistered()) do
-					if caps.tests and caps.tests.getAll then
-						for _, entry in ipairs(caps.tests.getAll()) do
-							local test = entry.def or entry
-							if test and test.id then
-							total = total + 1
-								local res = caps.tests.getResult and caps.tests.getResult(test.id)
-							if res then
-								if res.passed == true then
-									passed = passed + 1
-								elseif res.passed == false then
-									failed = failed + 1
-								else
-									pending = pending + 1
+				for addonName in pairs(MechanicLib:GetRegistered()) do
+					if MechanicLib:HasCapability(addonName, "tests") then
+						local tests = MechanicLib:GetCapability(addonName, "tests")
+						if tests.getAll then
+							for _, entry in ipairs(tests.getAll()) do
+								local test = entry.def or entry
+								if test and test.id then
+									total = total + 1
+									local res = tests.getResult and tests.getResult(test.id)
+									if res then
+										if res.passed == true then
+											passed = passed + 1
+										elseif res.passed == false then
+											failed = failed + 1
+										else
+											pending = pending + 1
+										end
 									end
 								end
 							end
@@ -493,7 +487,13 @@ function TestsModule:GetCopyText(includeHeader)
 			end
 			table.insert(
 				lines,
-				string.format("Result: %d/%d passed, %d failed, %d pending", passed, total, failed, pending)
+				string.format(
+					L["Result: %d/%d passed, %d failed, %d pending"] or "Result: %d/%d passed, %d failed, %d pending",
+					passed or 0,
+					total or 0,
+					failed or 0,
+					pending or 0
+				)
 			)
 			table.insert(lines, "---")
 		end
@@ -501,43 +501,74 @@ function TestsModule:GetCopyText(includeHeader)
 
 	local MechanicLib = LibStub("MechanicLib-1.0", true)
 	if MechanicLib then
-		for addonName, capabilities in pairs(MechanicLib:GetRegistered()) do
-			if capabilities.tests and capabilities.tests.getCategories then
-				local categories = capabilities.tests.getCategories()
-				for _, category in ipairs(categories) do
-					table.insert(lines, string.format("%s > %s", addonName, category))
+		for addonName in pairs(MechanicLib:GetRegistered()) do
+			if MechanicLib:HasCapability(addonName, "tests") then
+				local tests = MechanicLib:GetCapability(addonName, "tests")
+				if tests.getCategories then
+					local categories = tests.getCategories()
+					for _, category in ipairs(categories) do
+						table.insert(
+							lines,
+							string.format(
+								L["%s > %s"] or "%s > %s",
+								tostring(addonName or "Unknown"),
+								tostring(category or "Unknown")
+							)
+						)
 
-					if capabilities.tests.getAll then
-						for _, entry in ipairs(capabilities.tests.getAll()) do
-							local test = entry.def or entry
-							if test and test.id and test.category == category then
-								local result = capabilities.tests.getResult and capabilities.tests.getResult(test.id)
-								local status = "[----]"
-								local detail = ""
+						if tests.getAll then
+							for _, entry in ipairs(tests.getAll()) do
+								local test = entry.def or entry
+								if test and test.id and test.category == category then
+									local result = tests.getResult and tests.getResult(test.id)
+									local status = "[----]"
+									local detail = ""
 
-								if result then
-									if result.passed == true then
-										status = "[PASS]"
-										detail = result.duration and string.format(" (%.3fs)", result.duration) or ""
-									elseif result.passed == false then
-										status = "[FAIL]"
-										detail = result.message and string.format(" - %s", result.message) or ""
-									else
-										status = "[PEND]"
-										detail = result.message and string.format(" - %s", result.message) or ""
+									if result then
+										if result.passed == true then
+											status = "[PASS]"
+											detail = result.duration and string.format(" (%.3fs)", result.duration)
+												or ""
+										elseif result.passed == false then
+											status = "[FAIL]"
+											detail = result.message
+													and string.format(
+														" - %s",
+														tostring(result.message or "Unknown Error")
+													)
+												or ""
+										else
+											status = "[PEND]"
+											detail = result.message
+													and string.format(" - %s", tostring(result.message or "Pending"))
+												or ""
+										end
 									end
-								end
 
-								table.insert(lines, string.format("  %s %s%s", status, test.name, detail))
-
-								-- NEW: Include details array in copy per Phase 5
-								if result and result.details and #result.details > 0 then
-									for _, d in ipairs(result.details) do
-										local statusTag = d.status and string.upper(d.status) or "INFO"
-										table.insert(
-											lines,
-											string.format("    [%s] %s: %s", statusTag, d.label, d.value)
+									table.insert(
+										lines,
+										string.format(
+											"  %s %s%s",
+											tostring(status),
+											tostring(test.name or "Unknown"),
+											tostring(detail or "")
 										)
+									)
+
+									-- NEW: Include details array in copy per Phase 5
+									if result and result.details and #result.details > 0 then
+										for _, d in ipairs(result.details) do
+											local statusTag = d.status and string.upper(d.status) or "INFO"
+											table.insert(
+												lines,
+												string.format(
+													"    [%s] %s: %s",
+													tostring(statusTag),
+													tostring(d.label or "Detail"),
+													tostring(d.value or "nil")
+												)
+											)
+										end
 									end
 								end
 							end

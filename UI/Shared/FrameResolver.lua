@@ -126,4 +126,3 @@ function FrameResolver:GetChildren(frame)
 end
 
 return FrameResolver
-

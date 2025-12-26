@@ -1,124 +1,91 @@
 --------------------------------------------------------------------------------
 -- FenUI - Tree Widget
 --
--- A hierarchical tree view with selection support.
+-- A simple tree view for hierarchical data.
 --------------------------------------------------------------------------------
 
+local FenUI = FenUI
 local WidgetMixin = {}
 
 function WidgetMixin:Init(config)
     self.config = config or {}
     self.nodes = {}
-    self.pool = {}
-    self.selectedNode = nil
-
-    -- Use standard FenUI Layout as the base
-    local layout = FenUI:CreateLayout(self, {
-        background = "surfacePanel",
-        border = "Inset",
-        padding = 0,
+    self.scrollFrame = FenUI:CreateScrollInset(self, {
+        background = "surfaceInset",
     })
-    layout:SetAllPoints()
-    self.layout = layout
-
-    -- Scroll Frame
-    local scrollFrame = CreateFrame("ScrollFrame", nil, self, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT", 4, -4)
-    scrollFrame:SetPoint("BOTTOMRIGHT", -24, 4)
-    self.scrollFrame = scrollFrame
-
-    local content = CreateFrame("Frame", nil, scrollFrame)
-    content:SetSize(scrollFrame:GetWidth(), 1)
-    scrollFrame:SetScrollChild(content)
-    self.content = content
-
-    -- Sync width
-    scrollFrame:SetScript("OnSizeChanged", function(_, w, h)
-        content:SetWidth(w)
-    end)
-
-    if self.config.data then
-        self:SetData(self.config.data)
-    end
-end
-
-function WidgetMixin:GetNodeButton()
-    local btn = table.remove(self.pool)
-    if not btn then
-        btn = CreateFrame("Button", nil, self.content)
-        btn:SetHeight(20)
-        btn:SetNormalFontObject("GameFontHighlightSmall")
-        btn:SetHighlightTexture("Interface\\Buttons\\UI-ListItems-Highlight")
-        btn:GetHighlightTexture():SetAlpha(0.2)
-        
-        btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        btn.text:SetPoint("LEFT", 4, 0)
-        btn.text:SetPoint("RIGHT", -4, 0)
-        btn.text:SetJustifyH("LEFT")
-
-        btn:SetScript("OnClick", function()
-            self:SelectNode(btn.nodeData)
-        end)
-    end
-    btn:Show()
-    return btn
+    self.scrollFrame:SetAllPoints()
+    
+    self.content = self.scrollFrame:GetScrollChild()
+    self.content:SetWidth(self.scrollFrame:GetWidth())
+    
+    self.rows = {}
+    self.rowPool = {}
 end
 
 function WidgetMixin:SetData(data)
-    self:Clear()
     self.data = data
-    self:Render()
+    self:Refresh()
 end
 
-function WidgetMixin:Clear()
-    for _, btn in ipairs(self.nodes) do
-        btn:Hide()
-        table.insert(self.pool, btn)
+function WidgetMixin:Refresh()
+    -- Clear current rows
+    for _, row in ipairs(self.rows) do
+        row:Hide()
+        table.insert(self.rowPool, row)
     end
-    wipe(self.nodes)
-end
-
-function WidgetMixin:Render()
-    if not self.data then return end
-
+    wipe(self.rows)
+    
     local yOffset = 0
-    local function RenderLevel(items, level)
-        for _, item in ipairs(items) do
-            local btn = self:GetNodeButton()
-            btn:SetPoint("TOPLEFT", level * 12, -yOffset)
-            btn:SetPoint("TOPRIGHT", 0, -yOffset)
-            
-            local U = FenUI.Utils
-            btn.text:SetText(U and U:SanitizeText(item.text) or (item.text == true and tostring(item.value) or item.text))
-            btn.nodeData = item
-            
-            table.insert(self.nodes, btn)
-            yOffset = yOffset + 20
-
-            if item.children and #item.children > 0 then
-                RenderLevel(item.children, level + 1)
+    local function addNode(node, depth)
+        local row = self:GetRow()
+        row:SetPoint("TOPLEFT", depth * 16, -yOffset)
+        row:SetPoint("TOPRIGHT", 0, -yOffset)
+        row:SetText(node.text)
+        row.value = node.value
+        row:Show()
+        
+        table.insert(self.rows, row)
+        yOffset = yOffset + 20
+        
+        local expanded = node.expanded
+        if expanded == nil then expanded = true end -- Default to expanded
+        
+        if node.children and expanded then
+            for _, child in ipairs(node.children) do
+                addNode(child, depth + 1)
             end
         end
     end
-
-    RenderLevel(self.data, 0)
+    
+    if self.data then
+        for _, node in ipairs(self.data) do
+            addNode(node, 0)
+        end
+    end
+    
     self.content:SetHeight(yOffset)
 end
 
-function WidgetMixin:SelectNode(nodeData)
-    self.selectedNode = nodeData
-    if self.config.onSelect then
-        self.config.onSelect(nodeData.value, nodeData)
-    end
-    
-    -- Visual highlight
-    for _, btn in ipairs(self.nodes) do
-        if btn.nodeData == nodeData then
-            btn:LockHighlight()
-        else
-            btn:UnlockHighlight()
+function WidgetMixin:GetRow()
+    local row = table.remove(self.rowPool)
+    if not row then
+        row = CreateFrame("Button", nil, self.content)
+        row:SetHeight(20)
+        
+        row.text = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        row.text:SetPoint("LEFT", 4, 0)
+        
+        row:SetScript("OnClick", function(r)
+            if self.config.onSelect then
+                self.config.onSelect(r.value)
+            end
+        end)
+        
+        function row:SetText(t)
+            self.text:SetText(t)
         end
     end
+    return row
 end
 
 -- Factory function
@@ -131,4 +98,3 @@ function FenUI:CreateTree(parent, config)
     
     return frame
 end
-

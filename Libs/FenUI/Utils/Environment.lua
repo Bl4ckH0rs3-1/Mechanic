@@ -80,18 +80,18 @@ Utils.Cap = Utils.Cap or {}
 function Utils:DetectCapabilities()
     local Cap = self.Cap
 
-    Cap.HasSecondsFormatter = (type(SecondsFormatter) ~= "nil")
-    Cap.HasHealCalculator = (type(CreateUnitHealPredictionCalculator) ~= "nil")
+    Cap.HasSecondsFormatter = (type(_G.SecondsFormatter) ~= "nil")
+    Cap.HasHealCalculator = (type(_G.CreateUnitHealPredictionCalculator) ~= "nil")
 
     if not self.IS_MIDNIGHT then
         Cap.IsAuraLegacy = true
     else
-        Cap.IsAuraLegacy = (C_UnitAuras and type(C_UnitAuras.GetAuraDurationRemaining) ~= "nil")
+        Cap.IsAuraLegacy = (_G.C_UnitAuras and type(_G.C_UnitAuras.GetAuraDurationRemaining) ~= "nil")
     end
 
-    Cap.HasBooleanColor = (C_CurveUtil and type(C_CurveUtil.EvaluateColorFromBoolean) ~= "nil")
-    Cap.HasDurationUtil = (C_DurationUtil and type(C_DurationUtil.CreateDuration) ~= "nil")
-    Cap.HasSecrecyQueries = (type(GetSpellAuraSecrecy) ~= "nil")
+    Cap.HasBooleanColor = (_G.C_CurveUtil and type(_G.C_CurveUtil.EvaluateColorFromBoolean) ~= "nil")
+    Cap.HasDurationUtil = (_G.C_DurationUtil and type(_G.C_DurationUtil.CreateDuration) ~= "nil")
+    Cap.HasSecrecyQueries = (type(_G.GetSpellAuraSecrecy) ~= "nil")
 
     if not self.IS_MIDNIGHT then
         Cap.IsRoyal = false

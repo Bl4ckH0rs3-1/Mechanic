@@ -4,6 +4,7 @@
 -- A standard text input field with styling.
 --------------------------------------------------------------------------------
 
+local FenUI = FenUI
 local WidgetMixin = {}
 
 function WidgetMixin:Init(config)
@@ -75,4 +76,3 @@ function FenUI:CreateInput(parent, config)
     
     return frame
 end
-

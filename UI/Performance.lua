@@ -6,7 +6,7 @@
 
 local ADDON_NAME, ns = ...
 local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
-local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
+local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME, true)
 local PerformanceModule = {}
 Mechanic.Perf = PerformanceModule
 
@@ -19,14 +19,38 @@ PerformanceModule.sortDesc = true
 PerformanceModule.visible = false
 PerformanceModule.exportMode = false
 PerformanceModule.navDirty = true
+PerformanceModule.selectedAddon = "general"
+
+-- Register static popup for CPU profiling
+_G.StaticPopupDialogs["MECHANIC_CPU_PROFILING"] = {
+	text = L["CPU profiling requires a UI reload. Continue?"],
+	button1 = L["Reload"],
+	button2 = L["Cancel"],
+	OnAccept = function(_, data)
+		_G.SetCVar("scriptProfile", data.enable and "1" or "0")
+		_G.ReloadUI()
+	end,
+	timeout = 0,
+	whileDead = true,
+	hideOnEscape = true,
+	preferredIndex = 3,
+}
 
 -- Column definitions for addon list
 local COLUMNS = {
-	{ key = "name", label = "Addon", width = 180 },
-	{ key = "memory", label = "Memory", width = 80 },
-	{ key = "memoryPercent", label = "%", width = 50 },
-	{ key = "cpu", label = "CPU ms/s", width = 80 },
-	{ key = "cpuPercent", label = "%", width = 50 },
+	{ key = "name", label = L["Addon"], width = 180 },
+	{ key = "memory", label = L["Memory"], width = 80 },
+	{ key = "memoryPercent", label = L["%"], width = 50 },
+	{ key = "cpu", label = L["CPU ms/s"], width = 80 },
+	{ key = "cpuPercent", label = L["%"], width = 50 },
+}
+
+-- Column definitions for sub-metrics
+local SUB_COLUMNS = {
+	{ key = "name", label = L["Metric"], width = 180 },
+	{ key = "ms", label = L["ms/s"], width = 80 },
+	{ key = "percent", label = L["%"], width = 50 },
+	{ key = "description", label = L["Description"], width = 200 },
 }
 
 --------------------------------------------------------------------------------
@@ -68,58 +92,51 @@ function Mechanic:InitializePerformance()
 	toolbar:SetPoint("TOPRIGHT", 0, 0)
 	PerformanceModule.toolbar = toolbar
 
-	-- Auto-Refresh Toggle
-	local autoRefreshBtn = toolbar:AddButton({
-		text = L["Auto-Refresh: ON"],
-		width = 135,
-		onClick = function()
-			PerformanceModule:ToggleAutoRefresh()
-		end,
-	})
-	PerformanceModule.autoRefreshButton = autoRefreshBtn
-
-	-- Add icon to auto-refresh button (using Atlas)
-	local autoRefreshIcon = autoRefreshBtn:CreateTexture(nil, "OVERLAY", nil, 7)
-	autoRefreshIcon:SetSize(16, 16)
-	autoRefreshIcon:SetPoint("LEFT", 6, 0)
-	autoRefreshIcon:SetAtlas("actionbar-icon-continuetracking")
-	autoRefreshBtn.icon = autoRefreshIcon
-	
-	-- Initial state for icon color
-	if self.autoRefresh then
-		autoRefreshIcon:SetVertexColor(0, 1, 0) -- Green
-	else
-		autoRefreshIcon:SetVertexColor(1, 0, 0) -- Red
-		autoRefreshBtn:SetText(L["Auto-Refresh: OFF"])
-	end
-
 	-- Reset Stats
 	local resetBtn = toolbar:AddButton({
-		text = L["Reset"],
+		text = L["Reset Button"],
 		width = 60,
 		onClick = function()
 			PerformanceModule:ResetStats()
 		end,
 	})
 
-	-- CPU Profiling Toggle
-	local cpuBtn = toolbar:AddButton({
-		text = L["CPU Profiling: OFF"],
-		width = 130,
-		onClick = function()
+	toolbar:AddSpacer(8)
+
+	-- Auto-Refresh Checkbox
+	local autoRefreshCheck = FenUI:CreateCheckbox(toolbar, {
+		label = L["Auto-Refresh"],
+		checked = PerformanceModule.autoRefresh,
+		width = 120,
+		onChange = function(_, checked)
+			PerformanceModule:ToggleAutoRefresh()
+		end,
+	})
+	toolbar:AddFrame(autoRefreshCheck)
+	PerformanceModule.autoRefreshCheck = autoRefreshCheck
+
+	toolbar:AddSpacer(8)
+
+	-- CPU Profiling Checkbox
+	local cpuProfilingCheck = FenUI:CreateCheckbox(toolbar, {
+		label = L["CPU Profiling"],
+		checked = GetCVarBool("scriptProfile"),
+		width = 120,
+		onChange = function(_, checked)
 			PerformanceModule:ToggleCPUProfiling()
 		end,
 	})
-	PerformanceModule.cpuButton = cpuBtn
+	toolbar:AddFrame(cpuProfilingCheck)
+	PerformanceModule.cpuProfilingCheck = cpuProfilingCheck
 
 	toolbar:AddSpacer("flex")
 
 	-- Export Button
 	local exportBtn = toolbar:AddButton({
-		text = L["Export"],
-		width = 70,
+		text = L["Export Button"],
+		width = 90,
 		onClick = function()
-			PerformanceModule:ToggleExportMode()
+			PerformanceModule:Export()
 		end,
 	})
 	PerformanceModule.exportButton = exportBtn
@@ -160,107 +177,93 @@ function Mechanic:InitializePerformance()
 
 	local footerLabel = footerBar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	footerLabel:SetPoint("LEFT", 0, 0)
-	footerLabel:SetText(L["Tracking: %s | Total Memory: %s"])
+	footerLabel:SetText(
+		string.format(L["Tracking: %s | Total Memory: %s"] or "Tracking: %s | Total Memory: %s", "0m 0s", "0 KB")
+	)
 	PerformanceModule.footerLabel = footerLabel
 
 	-- Header row for addon list
 	local headerRow = CreateFrame("Frame", nil, generalContent)
 	headerRow:SetHeight(24)
 	headerRow:SetPoint("TOPLEFT", metricsRow, "BOTTOMLEFT", 0, -4)
-	headerRow:SetPoint("TOPRIGHT", metricsRow, "BOTTOMRIGHT", 0, -4)
-	PerformanceModule:CreateHeaderRow(headerRow)
+	headerRow:SetPoint("TOPRIGHT", -27, 0) -- Adjusted for scrollbar
+	PerformanceModule:CreateHeaderRow(headerRow, COLUMNS)
 	PerformanceModule.headerRow = headerRow
 
-	-- Addon list (scrollable)
+	-- Addon List (ScrollFrame)
 	local scrollFrame = CreateFrame("ScrollFrame", nil, generalContent, "UIPanelScrollFrameTemplate")
-	scrollFrame:SetPoint("TOPLEFT", headerRow, "BOTTOMLEFT", 0, -2)
-	scrollFrame:SetPoint("BOTTOMRIGHT", footerBar, "TOPRIGHT", -24, 4)
-
-	local listContent = CreateFrame("Frame", nil, scrollFrame)
-	listContent:SetSize(1, 1)
-	scrollFrame:SetScrollChild(listContent)
-	PerformanceModule.listContent = listContent
+	scrollFrame:SetPoint("TOPLEFT", headerRow, "BOTTOMLEFT", 0, -4)
+	scrollFrame:SetPoint("BOTTOMRIGHT", footerBar, "TOPRIGHT", -27, 4) -- Adjusted for scrollbar
 	PerformanceModule.scrollFrame = scrollFrame
 
-	-- Pre-create row pool
-	PerformanceModule.rowPool = {}
+	local content = CreateFrame("Frame", nil, scrollFrame)
+	content:SetSize(scrollFrame:GetWidth(), 1)
+	scrollFrame:SetScrollChild(content)
+	PerformanceModule.content = content
 
-	-- Store references to table UI for export toggle
-	PerformanceModule.generalContent = generalContent
-	PerformanceModule.metricsRow = metricsRow
-	PerformanceModule.headerRowFrame = headerRow
-	PerformanceModule.footerBarFrame = footerBar
-
-	-- Export Mode: Full-tab text display (hidden by default)
-	-- This should probably be in contentArea so it covers everything
-	local exportBox = FenUI:CreateMultiLineEditBox(contentArea, {
-		readOnly = true,
-		background = "surfaceInset",
-		autoScroll = false,
-	})
-	exportBox:SetPoint("TOPLEFT", toolbar, "BOTTOMLEFT", 0, -4)
-	exportBox:SetPoint("BOTTOMRIGHT", 0, 0)
-	exportBox:Hide()
-	PerformanceModule.exportBox = exportBox
-
-	-- Initialize state
-	PerformanceModule.trackingStart = GetTime()
-	PerformanceModule:UpdateCPUButtonState()
-
-	-- Start auto-refresh if enabled
-	if Mechanic.db.profile.autoRefresh then
-		PerformanceModule.autoRefresh = true
-		autoRefreshBtn:SetText("   Auto-Refresh: ON")
-		if autoRefreshBtn.icon then
-			autoRefreshBtn.icon:SetVertexColor(0, 1, 0)
-		end
-	else
-		PerformanceModule.autoRefresh = false
-		autoRefreshBtn:SetText("   Auto-Refresh: OFF")
-		if autoRefreshBtn.icon then
-			autoRefreshBtn.icon:SetVertexColor(1, 0, 0)
-		end
-	end
-
-	frame:SetScript("OnShow", function()
-		if PerformanceModule.navDirty then
-			PerformanceModule:RefreshNavItems()
-		end
-		PerformanceModule:OnShow()
+	-- Sync width
+	scrollFrame:SetScript("OnSizeChanged", function(_, w, h)
+		content:SetWidth(w)
 	end)
 
-	-- Initial nav items setup
-	PerformanceModule:RefreshNavItems()
-
-	-- Manually trigger initial selection now that ALL UI elements are created
-	local initialKey = PerformanceModule.layout:GetSelectedKey()
-	if initialKey then
-		PerformanceModule:OnNavSelected(initialKey)
+	-- Addon list rows
+	PerformanceModule.addonRows = {}
+	for i = 1, 20 do -- Pre-create some rows
+		local row = PerformanceModule:CreateAddonRow(content, COLUMNS)
+		row:Hide()
+		table.insert(PerformanceModule.addonRows, row)
 	end
+
+	-- --- Addon Details View UI ---
+	PerformanceModule.addonDetailFrames = {}
+
+	-- Initial state
+	PerformanceModule:OnEnable()
+end
+
+function PerformanceModule:OnShow()
+	self.visible = true
+	self:RefreshNavItems()
+
+	-- Sync selected addon with layout's restored selection
+	local layoutKey = self.layout:GetSelectedKey()
+	if layoutKey and layoutKey ~= self.selectedAddon then
+		self.selectedAddon = layoutKey
+	end
+
+	-- Update display for current selection (general or addon detail)
+	self:UpdateDisplay()
+	self:StartAutoRefresh()
+	self:UpdateCPUButtonState()
+	self:EnableEventTracking()
+end
+
+function PerformanceModule:OnHide()
+	self.visible = false
+	self:StopAutoRefresh()
+	self:DisableEventTracking()
 end
 
 function PerformanceModule:GetNavItems()
 	local items = {
-		{ key = "general", text = "General" },
+		{ key = "general", text = L["General"] or "General" },
 	}
 
-	-- Add addons with performance capability
 	local MechanicLib = LibStub("MechanicLib-1.0", true)
 	if MechanicLib then
 		local registered = MechanicLib:GetRegistered()
-		local hasAddonItems = false
 		local sortedNames = {}
 		for name in pairs(registered) do
 			table.insert(sortedNames, name)
 		end
 		table.sort(sortedNames)
 
+		local hasAddonItems = false
 		for _, addonName in ipairs(sortedNames) do
-			local capabilities = registered[addonName]
-			if capabilities.performance and capabilities.performance.getSubMetrics then
+			-- Only add if addon has performance metrics AND is currently loaded
+			if C_AddOns.IsAddOnLoaded(addonName) and MechanicLib:HasCapability(addonName, "performance") then
 				if not hasAddonItems then
-					-- Add header before first addon item
-					table.insert(items, { key = "header_addons", text = "Addons", isHeader = true })
+					table.insert(items, { key = "header_addons", text = L["Addons Tab"], isHeader = true })
 					hasAddonItems = true
 				end
 				table.insert(items, {
@@ -275,443 +278,588 @@ function PerformanceModule:GetNavItems()
 end
 
 function PerformanceModule:RefreshNavItems()
-	local items = self:GetNavItems()
-
-	if self.layout then
-		self.layout:SetItems(items)
-		self.navDirty = false
-	end
+	self.layout:SetItems(self:GetNavItems())
+	self.navDirty = false
 end
 
 function PerformanceModule:OnNavSelected(key)
-	-- If in export mode, update the text box and return
-	if self.exportMode then
-		-- Re-hide content frames as layout:Select() shows them
-		if self.layout and self.layout.contentFrames then
-			for _, frame in pairs(self.layout.contentFrames) do
-				frame:Hide()
-			end
-		end
-
-		if self.exportBox then
-			local text = self:GetCopyText(Mechanic.db.profile.includeEnvHeader)
-			self.exportBox:SetText(text)
-			self.exportBox:ScrollToTop()
-		end
-		return
-	end
-	
-	if key == "general" then
-		self:Refresh()
-	else
-		self:ShowAddonMetrics(key)
-	end
+	self.selectedAddon = key
+	self:UpdateDisplay()
 end
 
-function PerformanceModule:ShowAddonMetrics(addonName)
-	local contentFrame = self.layout:GetContentFrame(addonName)
-
-	-- Get sub-metrics from addon
-	local MechanicLib = LibStub("MechanicLib-1.0", true)
-	local capabilities = MechanicLib and MechanicLib:GetRegistered()[addonName]
-	if not capabilities or not capabilities.performance then
-		return
-	end
-
-	local ok, subMetrics = pcall(capabilities.performance.getSubMetrics)
-	if not ok or not subMetrics then
-		return
-	end
-
-	-- Render sub-metrics table
-	self:RenderSubMetrics(contentFrame, addonName, subMetrics)
-end
-
-function PerformanceModule:RenderSubMetrics(parent, addonName, metrics)
-	-- Clear previous content
-	for _, child in ipairs({ parent:GetChildren() }) do
-		child:Hide()
-	end
-
-	-- Header
-	local header = parent.header
-	if not header then
-		header = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-		header:SetPoint("TOPLEFT", 8, -40) -- Below toolbar area
-		parent.header = header
-	end
-	header:SetText(string.format("%s - Performance Breakdown", addonName))
-	header:Show()
-
-	-- Metrics table
-	local yOffset = -72
-	local totalMs = 0
-
-	-- Calculate total for percentages
-	for _, metric in ipairs(metrics) do
-		totalMs = totalMs + (metric.msPerSec or 0)
-	end
-
-	for i, metric in ipairs(metrics) do
-		local row = self:GetOrCreateMetricRow(parent, i)
-		row:SetPoint("TOPLEFT", 8, yOffset)
-		row:SetPoint("RIGHT", -8, 0)
-
-		row.nameLabel:SetText(metric.name)
-		row.valueLabel:SetText(string.format("%.2f ms/s", metric.msPerSec or 0))
-
-		local pct = totalMs > 0 and ((metric.msPerSec or 0) / totalMs * 100) or 0
-		row.pctLabel:SetText(string.format("%.1f%%", pct))
-
-		if metric.description then
-			row.descLabel:SetText(string.format("|cff888888%s|r", metric.description))
-		else
-			row.descLabel:SetText("")
-		end
-
-		row:Show()
-		yOffset = yOffset - 24
-	end
-
-	-- Hide remaining rows in pool for this parent if any
-	if parent.metricRows then
-		for i = #metrics + 1, #parent.metricRows do
-			parent.metricRows[i]:Hide()
-		end
-	end
-
-	-- Total row
-	local totalRow = parent.totalRow
-	if not totalRow then
-		totalRow = CreateFrame("Frame", nil, parent)
-		totalRow:SetHeight(24)
-
-		local sep = totalRow:CreateTexture(nil, "BACKGROUND")
-		sep:SetPoint("TOPLEFT", 0, -2)
-		sep:SetPoint("TOPRIGHT", 0, -2)
-		sep:SetHeight(1)
-		sep:SetColorTexture(1, 1, 1, 0.2)
-
-		local label = totalRow:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-		label:SetPoint("LEFT", 0, 0)
-		label:SetText("Total:")
-		totalRow.label = label
-
-		local value = totalRow:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-		value:SetPoint("LEFT", 150, 0)
-		totalRow.value = value
-
-		parent.totalRow = totalRow
-	end
-
-	totalRow:SetPoint("TOPLEFT", 8, yOffset - 8)
-	totalRow:SetPoint("RIGHT", -8, 0)
-	totalRow.value:SetText(string.format("%.2f ms/s", totalMs))
-	totalRow:Show()
-end
-
-function PerformanceModule:GetOrCreateMetricRow(parent, index)
-	parent.metricRows = parent.metricRows or {}
-
-	if parent.metricRows[index] then
-		return parent.metricRows[index]
-	end
-
+function PerformanceModule:CreateAddonRow(parent, columns)
 	local row = CreateFrame("Frame", nil, parent)
-	row:SetHeight(22)
-
-	local nameLabel = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-	nameLabel:SetPoint("LEFT", 0, 0)
-	nameLabel:SetWidth(140)
-	nameLabel:SetJustifyH("LEFT")
-	row.nameLabel = nameLabel
-
-	local valueLabel = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-	valueLabel:SetPoint("LEFT", 150, 0)
-	valueLabel:SetWidth(80)
-	valueLabel:SetJustifyH("RIGHT")
-	row.valueLabel = valueLabel
-
-	local pctLabel = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-	pctLabel:SetPoint("LEFT", 240, 0)
-	pctLabel:SetWidth(50)
-	pctLabel:SetJustifyH("RIGHT")
-	row.pctLabel = pctLabel
-
-	local descLabel = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	descLabel:SetPoint("LEFT", 300, 0)
-	descLabel:SetJustifyH("LEFT")
-	row.descLabel = descLabel
-
-	parent.metricRows[index] = row
-	return row
-end
-
-function PerformanceModule:CreateHeaderRow(parent)
-	local xOffset = 8
-	for _, col in ipairs(COLUMNS) do
-		local btn = CreateFrame("Button", nil, parent)
-		btn:SetSize(col.width, 20)
-		btn:SetPoint("LEFT", xOffset, 0)
-
-		local text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-		text:SetPoint("LEFT")
-		text:SetText(col.label)
-		btn.text = text
-
-		btn:SetScript("OnClick", function()
-			self:OnColumnHeaderClick(col.key)
-		end)
-
-		btn:SetScript("OnEnter", function(self)
-			self.text:SetTextColor(1, 1, 1)
-		end)
-		btn:SetScript("OnLeave", function(self)
-			self.text:SetTextColor(1, 0.82, 0)
-		end)
-
-		xOffset = xOffset + col.width + 8
-	end
-end
-
-function PerformanceModule:OnColumnHeaderClick(columnKey)
-	if self.sortColumn == columnKey then
-		self.sortDesc = not self.sortDesc
-	else
-		self.sortColumn = columnKey
-		self.sortDesc = true
-	end
-	self:RefreshList()
-end
-
---------------------------------------------------------------------------------
--- Tab Visibility
---------------------------------------------------------------------------------
-
-function PerformanceModule:OnShow()
-	Mechanic:OnLog("System", "Performance module OnShow", "[Perf]")
-	self.visible = true
-	self.trackingStart = self.trackingStart or GetTime()
-	
-	self:Refresh()
-	if self.autoRefresh then
-		self:StartAutoRefresh()
-	end
-end
-
-function PerformanceModule:OnHide()
-	self.visible = false
-	self:StopAutoRefresh()
-end
-
---------------------------------------------------------------------------------
--- Extended Metrics
---------------------------------------------------------------------------------
-
-function PerformanceModule:UpdateExtendedMetrics()
-	-- Guard: UI elements may not exist yet during early initialization
-	if not self.fpsLabel then
-		return
-	end
-
-	local metrics = Mechanic.Utils:GetExtendedMetrics()
-
-	self.fpsLabel:SetText(string.format("FPS: %.0f", metrics.fps))
-	self.latencyLabel:SetText(string.format("Latency: %dms / %dms", metrics.latencyHome, metrics.latencyWorld))
-	self.memoryLabel:SetText(string.format("Lua Memory: %s", Mechanic.Utils:FormatMemory(metrics.luaMemory)))
-end
-
---------------------------------------------------------------------------------
--- Addon Performance Data
---------------------------------------------------------------------------------
-
-function PerformanceModule:GetAddonData()
-	-- Refresh memory data
-	UpdateAddOnMemoryUsage()
-
-	local cpuEnabled = GetCVarBool("scriptProfile")
-	if cpuEnabled then
-		UpdateAddOnCPUUsage()
-	end
-
-	local addons = {}
-	local totalMemory = 0
-	local totalCPU = 0
-	local numAddons = C_AddOns.GetNumAddOns()
-	local duration = GetTime() - (self.trackingStart or GetTime())
-
-	for i = 1, numAddons do
-		if C_AddOns.IsAddOnLoaded(i) then
-			local name = C_AddOns.GetAddOnInfo(i)
-			
-			-- Skip hidden addons (Developer Filter)
-			if not Mechanic.db.profile.hiddenAddons[name] then
-				local memory = GetAddOnMemoryUsage(i) -- KB
-				local cpu = 0
-
-				if cpuEnabled then
-					cpu = GetAddOnCPUUsage(i) -- ms total
-					-- Convert to ms/s
-					if duration > 0 then
-						cpu = cpu / duration
-					end
-				end
-
-				totalMemory = totalMemory + memory
-				totalCPU = totalCPU + cpu
-
-				table.insert(addons, {
-					name = name,
-					memory = memory,
-					cpu = cpu,
-				})
-			end
-		end
-	end
-
-	-- Calculate percentages
-	for _, addon in ipairs(addons) do
-		addon.memoryPercent = totalMemory > 0 and (addon.memory / totalMemory * 100) or 0
-		addon.cpuPercent = totalCPU > 0 and (addon.cpu / totalCPU * 100) or 0
-	end
-
-	-- Sort by current column
-	local sortKey = self.sortColumn
-	local sortDesc = self.sortDesc
-	table.sort(addons, function(a, b)
-		local valA = a[sortKey] or 0
-		local valB = b[sortKey] or 0
-		if type(valA) == "string" then
-			if sortDesc then
-				return valA > valB
-			else
-				return valA < valB
-			end
-		else
-			if sortDesc then
-				return valA > valB
-			else
-				return valA < valB
-			end
-		end
-	end)
-
-	return addons, totalMemory, totalCPU, duration
-end
-
---------------------------------------------------------------------------------
--- List Display
---------------------------------------------------------------------------------
-
-function PerformanceModule:RefreshList()
-	-- Guard: UI elements may not exist yet during early initialization
-	if not self.rowPool or not self.scrollFrame then
-		return
-	end
-
-	local addons, totalMemory, totalCPU, duration = self:GetAddonData()
-	local cpuEnabled = GetCVarBool("scriptProfile")
-
-	-- Clear existing rows
-	for _, row in ipairs(self.rowPool) do
-		row:Hide()
-	end
-
-	-- Create rows
-	local yOffset = 0
-	local contentWidth = self.scrollFrame:GetWidth() - 24
-	for i, addon in ipairs(addons) do
-		local row = self:GetOrCreateRow(i)
-		row:SetPoint("TOPLEFT", self.listContent, "TOPLEFT", 0, -yOffset)
-		row:SetSize(contentWidth, 20)
-		row:Show()
-
-		-- Update row data
-		self:UpdateRow(row, addon, cpuEnabled)
-
-		yOffset = yOffset + 22
-	end
-
-	-- Update scroll content size
-	self.listContent:SetSize(contentWidth, yOffset)
-
-	-- Update footer
-	self.footerLabel:SetText(
-		string.format("Tracking: %s | Total Memory: %s", Mechanic.Utils:FormatDuration(duration), Mechanic.Utils:FormatMemory(totalMemory))
-	)
-end
-
-function PerformanceModule:GetOrCreateRow(index)
-	if self.rowPool[index] then
-		return self.rowPool[index]
-	end
-
-	local row = CreateFrame("Frame", nil, self.listContent)
 	row:SetHeight(20)
 
-	-- Alternate background
-	local bg = row:CreateTexture(nil, "BACKGROUND")
-	bg:SetAllPoints()
-	if index % 2 == 0 then
-		bg:SetColorTexture(1, 1, 1, 0.03)
-	else
-		bg:SetColorTexture(0, 0, 0, 0)
-	end
-
-	-- Create labels for each column
-	row.labels = {}
-	local xOffset = 8
-	for _, col in ipairs(COLUMNS) do
+	local labels = {}
+	local xOffset = 0
+	for _, col in ipairs(columns) do
 		local label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 		label:SetPoint("LEFT", xOffset, 0)
 		label:SetWidth(col.width)
 		label:SetJustifyH("LEFT")
-		row.labels[col.key] = label
-		xOffset = xOffset + col.width + 8
+		labels[col.key] = label
+		xOffset = xOffset + col.width + 4
+	end
+	row.labels = labels
+
+	-- Only main list rows handle sorting via click
+	if columns == COLUMNS then
+		row:SetScript("OnMouseDown", function(_, button)
+			if button == "LeftButton" then
+				local x = GetCursorPosition()
+				local currentX = row:GetLeft()
+				for _, col in ipairs(columns) do
+					if x >= currentX and x < currentX + col.width then
+						PerformanceModule:SortBy(col.key)
+						break
+					end
+					currentX = currentX + col.width + 4
+				end
+			end
+		end)
 	end
 
-	self.rowPool[index] = row
 	return row
 end
 
-function PerformanceModule:UpdateRow(row, addon, cpuEnabled)
-	row.labels.name:SetText(addon.name)
-	row.labels.memory:SetText(Mechanic.Utils:FormatMemory(addon.memory))
-	row.labels.memoryPercent:SetText(string.format("%.1f%%", addon.memoryPercent))
-
-	if cpuEnabled then
-		row.labels.cpu:SetText(string.format("%.2f", addon.cpu))
-		row.labels.cpuPercent:SetText(string.format("%.1f%%", addon.cpuPercent))
-	else
-		row.labels.cpu:SetText("-")
-		row.labels.cpuPercent:SetText("-")
+function PerformanceModule:CreateHeaderRow(parent, columns)
+	parent.labels = {}
+	local xOffset = 0
+	for _, col in ipairs(columns) do
+		local headerLabel = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		headerLabel:SetPoint("LEFT", xOffset, 0)
+		headerLabel:SetWidth(col.width)
+		headerLabel:SetJustifyH("LEFT")
+		headerLabel:SetText(col.label or "")
+		parent.labels[col.key] = headerLabel
+		xOffset = xOffset + col.width + 4
 	end
 end
 
---------------------------------------------------------------------------------
--- Refresh & Auto-Refresh
---------------------------------------------------------------------------------
+function PerformanceModule:UpdateDisplay()
+	-- Hide all managed content frames
+	for _, frame in pairs(self.layout.contentFrames) do
+		frame:Hide()
+	end
+
+	-- Hide all addon detail frames (which are managed locally)
+	for _, frame in pairs(self.addonDetailFrames) do
+		frame:Hide()
+	end
+
+	-- Show selected content frame
+	local currentContentFrame = self.layout:GetContentFrame(self.selectedAddon)
+	if currentContentFrame then
+		currentContentFrame:Show()
+	end
+
+	if self.selectedAddon == "general" then
+		self.generalContent:Show()
+		self.toolbar:Show()
+		self:Refresh()
+	else
+		self.generalContent:Hide()
+		self.toolbar:Show()
+		self:ShowAddonDetails(self.selectedAddon)
+	end
+end
+
+function PerformanceModule:Export()
+	local navName = self.selectedAddon
+	if not navName or navName == "general" then
+		navName = L["General"] or "General"
+	end
+
+	local title = string.format(
+		"%s : %s : %s",
+		tostring(L["Performance"] or "Performance"),
+		tostring(navName or "General"),
+		tostring(L["Export"] or "Export")
+	)
+
+	local text = self:GetCopyText(Mechanic.db.profile.includeEnvHeader)
+	Mechanic.Utils:ShowExportDialog(title, text)
+end
 
 function PerformanceModule:Refresh()
-	local selected = self.layout:GetSelectedKey()
-	if selected == "general" then
-		self:UpdateExtendedMetrics()
-		self:RefreshList()
-	elseif selected then
-		self:ShowAddonMetrics(selected)
+	if not self.visible then
+		return
 	end
+
+	local metrics = Mechanic.Utils:GetExtendedMetrics()
+	self.fpsLabel:SetText(string.format(L["FPS: %.0f"] or "FPS: %.0f", metrics.fps or 0))
+	self.latencyLabel:SetText(
+		string.format(
+			L["Latency: %dms / %dms"] or "Latency: %dms / %dms",
+			metrics.latencyHome or 0,
+			metrics.latencyWorld or 0
+		)
+	)
+	self.memoryLabel:SetText(
+		string.format(L["Lua Memory: %s"] or "Lua Memory: %s", Mechanic.Utils:FormatMemory(metrics.luaMemory or 0))
+	)
+
+	local elapsed = GetTime() - (self.trackingStart or GetTime())
+	local formattedElapsed = Mechanic.Utils:FormatDuration(elapsed)
+	self.footerLabel:SetText(
+		string.format(
+			L["Tracking: %s | Total Memory: %s | CPU Profiling: %s"]
+				or "Tracking: %s | Total Memory: %s | CPU Profiling: %s",
+			tostring(formattedElapsed or "0s"),
+			Mechanic.Utils:FormatMemory(metrics.luaMemory or 0),
+			GetCVarBool("scriptProfile") and (L["ON"] or "ON") or (L["OFF"] or "OFF")
+		)
+	)
+
+	self:UpdateAddonList()
+	self:UpdateCPUButtonState()
 end
+
+function PerformanceModule:UpdateAddonList()
+	local addonMemory = {}
+	local totalMemory = 0
+	local numAddons = C_AddOns.GetNumAddOns()
+
+	UpdateAddOnMemoryUsage()
+	for i = 1, numAddons do
+		if C_AddOns.IsAddOnLoaded(i) then
+			local name = C_AddOns.GetAddOnInfo(i)
+			local mem = GetAddOnMemoryUsage(i)
+			addonMemory[name] = mem
+			totalMemory = totalMemory + mem
+		end
+	end
+
+	local addonCPU = {}
+	local totalCPU = 0
+	if GetCVarBool("scriptProfile") then
+		UpdateAddOnCPUUsage()
+		for i = 1, numAddons do
+			if C_AddOns.IsAddOnLoaded(i) then
+				local name = C_AddOns.GetAddOnInfo(i)
+				local cpu = GetAddOnCPUUsage(i)
+				addonCPU[name] = cpu
+				totalCPU = totalCPU + cpu
+			end
+		end
+	end
+
+	local data = {}
+	for addonName, mem in pairs(addonMemory) do
+		local cpu = addonCPU[addonName] or 0
+		table.insert(data, {
+			name = addonName,
+			memory = mem,
+			memoryPercent = totalMemory > 0 and (mem / totalMemory) * 100 or 0,
+			cpu = cpu,
+			cpuPercent = totalCPU > 0 and (cpu / totalCPU) * 100 or 0,
+		})
+	end
+
+	-- Sort data
+	table.sort(data, function(a, b)
+		local valA = a[self.sortColumn]
+		local valB = b[self.sortColumn]
+
+		if valA == valB then
+			return false
+		end
+
+		local aGreater
+		if type(valA) == "string" then
+			valB = tostring(valB or "")
+			aGreater = valA > valB
+		else
+			valA = tonumber(valA) or 0
+			valB = tonumber(valB) or 0
+			aGreater = valA > valB
+		end
+
+		if self.sortDesc then
+			return aGreater
+		else
+			return not aGreater
+		end
+	end)
+
+	for _, col in ipairs(COLUMNS) do
+		local headerLabel = self.headerRow and self.headerRow.labels and self.headerRow.labels[col.key]
+		if headerLabel then
+			local sortIndicator = ""
+			if self.sortColumn == col.key then
+				sortIndicator = self.sortDesc and " |A:common-icon-downarrow:14:14|a"
+					or " |A:common-icon-uparrow:14:14|a"
+			end
+			headerLabel:SetText(tostring(col.label or "") .. sortIndicator)
+		end
+	end
+
+	-- Update rows
+	local yOffset = 0
+	for i, rowData in ipairs(data) do
+		local row = self.addonRows[i]
+		if not row then
+			row = self:CreateAddonRow(self.content, COLUMNS)
+			table.insert(self.addonRows, row)
+		end
+		row:SetPoint("TOPLEFT", 0, -yOffset)
+		row:SetPoint("TOPRIGHT", 0, -yOffset)
+		row.labels.name:SetText(tostring(rowData.name or "Unknown"))
+		row.labels.memory:SetText(Mechanic.Utils:FormatMemory(rowData.memory or 0))
+		row.labels.memoryPercent:SetText(string.format("%.1f%%", tonumber(rowData.memoryPercent) or 0))
+		if GetCVarBool("scriptProfile") then
+			row.labels.cpu:SetText(string.format("%.2f", tonumber(rowData.cpu) or 0))
+			row.labels.cpuPercent:SetText(string.format("%.1f%%", tonumber(rowData.cpuPercent) or 0))
+		else
+			row.labels.cpu:SetText(L["-"] or "-")
+			row.labels.cpuPercent:SetText(L["-"] or "-")
+		end
+		row:Show()
+		yOffset = yOffset + 20
+	end
+
+	-- Hide unused rows
+	for i = #data + 1, #self.addonRows do
+		self.addonRows[i]:Hide()
+	end
+
+	self.content:SetHeight(yOffset)
+end
+
+function PerformanceModule:SortBy(column)
+	if self.sortColumn == column then
+		self.sortDesc = not self.sortDesc
+	else
+		self.sortColumn = column
+		self.sortDesc = true -- Default to descending for new column
+	end
+	self:UpdateAddonList()
+end
+
+function PerformanceModule:ShowAddonDetails(addonName)
+	local detailFrame = self.layout:GetContentFrame(addonName)
+	if not self.addonDetailFrames[addonName] then
+		self.addonDetailFrames[addonName] = detailFrame
+
+		local title = detailFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+		title:SetPoint("TOPLEFT", 8, -40)
+		title:SetText(
+			string.format(
+				L["%s - Performance Breakdown"] or "%s - Performance Breakdown",
+				tostring(addonName or "Unknown")
+			)
+		)
+
+		local infoText = detailFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		infoText:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -4)
+		infoText:SetText(L["No sub-metrics available for this addon."])
+		detailFrame.infoText = infoText
+
+		-- Sub-metrics table setup
+		local headerRow = CreateFrame("Frame", nil, detailFrame)
+		headerRow:SetHeight(24)
+		headerRow:SetPoint("TOPLEFT", infoText, "BOTTOMLEFT", 0, -8)
+		headerRow:SetPoint("TOPRIGHT", -27, 0) -- Adjusted for scrollbar
+		self:CreateHeaderRow(headerRow, SUB_COLUMNS)
+		detailFrame.headerRow = headerRow
+
+		local scrollFrame = CreateFrame("ScrollFrame", nil, detailFrame, "UIPanelScrollFrameTemplate")
+		scrollFrame:SetPoint("TOPLEFT", headerRow, "BOTTOMLEFT", 0, -4)
+		scrollFrame:SetPoint("BOTTOMRIGHT", -27, 8) -- Adjusted for scrollbar
+		detailFrame.scrollFrame = scrollFrame
+
+		local content = CreateFrame("Frame", nil, scrollFrame)
+		content:SetSize(scrollFrame:GetWidth(), 1)
+		scrollFrame:SetScrollChild(content)
+		detailFrame.content = content
+		detailFrame.rows = {}
+
+		-- Sync width
+		scrollFrame:SetScript("OnSizeChanged", function(_, w)
+			content:SetWidth(w)
+		end)
+
+		detailFrame.totalLabel = detailFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		detailFrame.totalLabel:SetPoint("BOTTOMLEFT", 8, 8)
+	end
+
+	-- Request sub-metrics from addon if it supports it
+	local MechanicLib = LibStub("MechanicLib-1.0", true)
+	if MechanicLib and MechanicLib:HasCapability(addonName, "performance") then
+		local perf = MechanicLib:GetCapability(addonName, "performance")
+		if perf and perf.getSubMetrics then
+			local breakdown = perf.getSubMetrics()
+			if breakdown and #breakdown > 0 then
+				detailFrame.infoText:SetText("") -- Clear default message
+				detailFrame.headerRow:Show()
+				detailFrame.scrollFrame:Show()
+				detailFrame.infoText:Hide()
+
+				-- Calculate total
+				local totalMs = 0
+				for _, metric in ipairs(breakdown) do
+					totalMs = totalMs + (metric.ms or metric.msPerSec or metric.cpu or 0)
+				end
+
+				-- Update rows
+				local yOffset = 0
+				for i, metric in ipairs(breakdown) do
+					local row = detailFrame.rows[i]
+					if not row then
+						row = self:CreateAddonRow(detailFrame.content, SUB_COLUMNS)
+						table.insert(detailFrame.rows, row)
+					end
+					row:SetPoint("TOPLEFT", 0, -yOffset)
+					row:SetPoint("TOPRIGHT", 0, -yOffset)
+
+					local ms = tonumber(metric.ms or metric.msPerSec or metric.cpu) or 0
+					local percent = totalMs > 0 and (ms / totalMs) * 100 or 0
+
+					row.labels.name:SetText(tostring(metric.name or "Unknown"))
+					row.labels.ms:SetText(string.format("%.2f", ms))
+					row.labels.percent:SetText(string.format("%.1f%%", percent))
+					row.labels.description:SetText(tostring(metric.description or ""))
+					row:Show()
+					yOffset = yOffset + 20
+				end
+
+				-- Hide unused rows
+				for i = #breakdown + 1, #detailFrame.rows do
+					detailFrame.rows[i]:Hide()
+				end
+
+				detailFrame.content:SetHeight(yOffset)
+				detailFrame.totalLabel:SetText(string.format(L["Total: %.2f ms/s"] or "Total: %.2f ms/s", totalMs or 0))
+				detailFrame.totalLabel:Show()
+			else
+				detailFrame.headerRow:Hide()
+				detailFrame.scrollFrame:Hide()
+				detailFrame.totalLabel:Hide()
+				detailFrame.infoText:Show()
+				detailFrame.infoText:SetText(L["No sub-metrics available for this addon."] or "No metrics available")
+			end
+		else
+			detailFrame.headerRow:Hide()
+			detailFrame.scrollFrame:Hide()
+			detailFrame.totalLabel:Hide()
+			detailFrame.infoText:Show()
+			detailFrame.infoText:SetText(L["Addon does not provide sub-metrics."] or "No sub-metrics available")
+		end
+	else
+		detailFrame.headerRow:Hide()
+		detailFrame.scrollFrame:Hide()
+		detailFrame.totalLabel:Hide()
+		detailFrame.infoText:Show()
+		local msg = L["Addon performance tracking not available."] or "Addon performance tracking not available."
+		if addonName == "!Mechanic" then
+			msg = (L["!Mechanic is initializing..."] or "!Mechanic is initializing...") .. "\n" .. msg
+		end
+		detailFrame.infoText:SetText(msg)
+	end
+
+	detailFrame:Show()
+end
+
+function PerformanceModule:FormatBreakdown(breakdown)
+	local lines = {}
+	table.insert(lines, L["Metric             | ms/s     | %     | Description"])
+	table.insert(lines, L["-------------------|----------|-------|-----------------------------"])
+
+	local totalMs = 0
+	for _, metric in ipairs(breakdown) do
+		totalMs = totalMs + (metric.ms or metric.msPerSec or metric.cpu or 0)
+	end
+
+	for _, metric in ipairs(breakdown) do
+		local ms = metric.ms or metric.msPerSec or metric.cpu or 0
+		local percent = totalMs > 0 and (ms / totalMs) * 100 or 0
+		table.insert(
+			lines,
+			string.format(
+				"%-18s | %-8.2f | %-5.1f | %s",
+				tostring(metric.name or "Unknown"),
+				ms,
+				percent,
+				tostring(metric.description or "")
+			)
+		)
+	end
+
+	table.insert(
+		lines,
+		L["-------------------|----------|-------|-----------------------------"]
+			or "-------------------|----------|-------|-----------------------------"
+	)
+	table.insert(lines, string.format(L["Total: %.2f ms/s"] or "Total: %.2f ms/s", totalMs or 0))
+
+	return table.concat(lines, "\n")
+end
+
+function PerformanceModule:GetCopyText(includeHeader)
+	local lines = {}
+
+	if includeHeader then
+		local header = Mechanic:GetEnvironmentHeader()
+		if header then
+			table.insert(lines, header)
+			table.insert(
+				lines,
+				string.format(
+					L["Tracking: %s | Total Memory: %s | CPU Profiling: %s"]
+						or "Tracking: %s | Total Memory: %s | CPU Profiling: %s",
+					tostring(Mechanic.Utils:FormatDuration(GetTime() - (self.trackingStart or GetTime()))),
+					tostring(Mechanic.Utils:FormatMemory(collectgarbage("count"))),
+					GetCVarBool("scriptProfile") and (L["ON"] or "ON") or (L["OFF"] or "OFF")
+				)
+			)
+			table.insert(lines, "---")
+		end
+	end
+
+	-- Handle specific addon export if selected
+	if self.selectedAddon and self.selectedAddon ~= "general" then
+		local MechanicLib = LibStub("MechanicLib-1.0", true)
+		if MechanicLib and MechanicLib:HasCapability(self.selectedAddon, "performance") then
+			local perf = MechanicLib:GetCapability(self.selectedAddon, "performance")
+			if perf and perf.getSubMetrics then
+				local breakdown = perf.getSubMetrics()
+				if breakdown and #breakdown > 0 then
+					table.insert(
+						lines,
+						string.format(
+							L["%s - Performance Breakdown"] or "%s - Performance Breakdown",
+							tostring(self.selectedAddon)
+						)
+					)
+					table.insert(lines, "")
+					table.insert(lines, self:FormatBreakdown(breakdown))
+					return table.concat(lines, "\n")
+				end
+			end
+		end
+	end
+
+	-- Default global export
+	local addonMemory = {}
+	local totalMemory = 0
+	local numAddons = C_AddOns.GetNumAddOns()
+	UpdateAddOnMemoryUsage()
+	for i = 1, numAddons do
+		if C_AddOns.IsAddOnLoaded(i) then
+			local name = C_AddOns.GetAddOnInfo(i)
+			local mem = GetAddOnMemoryUsage(i)
+			addonMemory[name] = mem
+			totalMemory = totalMemory + mem
+		end
+	end
+
+	local addonCPU = {}
+	local totalCPU = 0
+	local cpuEnabled = GetCVarBool("scriptProfile")
+	if cpuEnabled then
+		UpdateAddOnCPUUsage()
+		for i = 1, numAddons do
+			if C_AddOns.IsAddOnLoaded(i) then
+				local name = C_AddOns.GetAddOnInfo(i)
+				local cpu = GetAddOnCPUUsage(i)
+				addonCPU[name] = cpu
+				totalCPU = totalCPU + cpu
+			end
+		end
+	end
+
+	local data = {}
+	for addonName, mem in pairs(addonMemory) do
+		local cpu = addonCPU[addonName] or 0
+		table.insert(data, {
+			name = addonName,
+			memory = mem,
+			memoryPercent = totalMemory > 0 and (mem / totalMemory) * 100 or 0,
+			cpu = cpu,
+			cpuPercent = totalCPU > 0 and (cpu / totalCPU) * 100 or 0,
+		})
+	end
+
+	-- Sort data using current UI sort
+	table.sort(data, function(a, b)
+		local valA = a[self.sortColumn]
+		local valB = b[self.sortColumn]
+
+		if valA == valB then
+			return false
+		end
+
+		local aGreater
+		if type(valA) == "string" then
+			valB = tostring(valB or "")
+			aGreater = valA > valB
+		else
+			valA = tonumber(valA) or 0
+			valB = tonumber(valB) or 0
+			aGreater = valA > valB
+		end
+
+		if self.sortDesc then
+			return aGreater
+		else
+			return not aGreater
+		end
+	end)
+
+	if cpuEnabled then
+		table.insert(
+			lines,
+			L["Addon              | Memory   | %     | CPU ms/s | %"]
+				or "Addon              | Memory   | %     | CPU ms/s | %"
+		)
+		table.insert(
+			lines,
+			L["-------------------|----------|-------|----------|-------"]
+				or "-------------------|----------|-------|----------|-------"
+		)
+		for _, rowData in ipairs(data) do
+			table.insert(
+				lines,
+				string.format(
+					"%-18s | %-8s | %-5.1f | %-8.2f | %-5.1f",
+					tostring(rowData.name or "Unknown"),
+					tostring(Mechanic.Utils:FormatMemory(rowData.memory or 0)),
+					rowData.memoryPercent or 0,
+					rowData.cpu or 0,
+					rowData.cpuPercent or 0
+				)
+			)
+		end
+	else
+		table.insert(lines, L["Addon              | Memory   | %"] or "Addon              | Memory   | %")
+		table.insert(lines, L["-------------------|----------|------"] or "-------------------|----------|------")
+		for _, rowData in ipairs(data) do
+			table.insert(
+				lines,
+				string.format(
+					"%-18s | %-8s | %-5.1f",
+					tostring(rowData.name or "Unknown"),
+					tostring(Mechanic.Utils:FormatMemory(rowData.memory or 0)),
+					rowData.memoryPercent or 0
+				)
+			)
+		end
+	end
+
+	return table.concat(lines, "\n")
+end
+
+--------------------------------------------------------------------------------
+-- Auto-Refresh
+--------------------------------------------------------------------------------
 
 function PerformanceModule:StartAutoRefresh()
 	if self.refreshTimer then
 		return
 	end
-
-	local interval = Mechanic.db.profile.refreshInterval or 1.0
-	self.refreshTimer = C_Timer.NewTicker(interval, function()
-		if self.visible then
-			self:Refresh()
-		end
+	self.refreshTimer = C_Timer.NewTicker(Mechanic.db.profile.refreshInterval or 1, function()
+		self:Refresh()
 	end)
 end
 
@@ -728,18 +876,12 @@ function PerformanceModule:ToggleAutoRefresh()
 
 	if self.autoRefresh then
 		self:StartAutoRefresh()
-		self.autoRefreshButton:SetText(L["Auto-Refresh: ON"])
-		if self.autoRefreshButton.icon then
-			self.autoRefreshButton.icon:SetAtlas("actionbar-icon-continuetracking")
-			self.autoRefreshButton.icon:SetVertexColor(0, 1, 0) -- Green
-		end
 	else
 		self:StopAutoRefresh()
-		self.autoRefreshButton:SetText(L["Auto-Refresh: OFF"])
-		if self.autoRefreshButton.icon then
-			self.autoRefreshButton.icon:SetAtlas("actionbar-icon-continuetracking")
-			self.autoRefreshButton.icon:SetVertexColor(1, 0, 0) -- Red
-		end
+	end
+
+	if self.autoRefreshCheck then
+		self.autoRefreshCheck:SetChecked(self.autoRefresh)
 	end
 end
 
@@ -749,10 +891,8 @@ end
 
 function PerformanceModule:UpdateCPUButtonState()
 	local cpuEnabled = GetCVarBool("scriptProfile")
-	if cpuEnabled then
-		self.cpuButton:SetText(L["CPU Profiling: ON"])
-	else
-		self.cpuButton:SetText(L["CPU Profiling: OFF"])
+	if self.cpuProfilingCheck then
+		self.cpuProfilingCheck:SetChecked(cpuEnabled, true)
 	end
 end
 
@@ -764,6 +904,11 @@ function PerformanceModule:ToggleCPUProfiling()
 	StaticPopup_Show("MECHANIC_CPU_PROFILING", nil, nil, {
 		enable = new,
 	})
+
+	-- Revert checkbox state until reload
+	if self.cpuProfilingCheck then
+		self.cpuProfilingCheck:SetChecked(current)
+	end
 end
 
 --------------------------------------------------------------------------------
@@ -818,206 +963,8 @@ function PerformanceModule:DisableEventTracking()
 	if self.eventFrame then
 		self.eventFrame:UnregisterAllEvents()
 	end
-	self.eventCounts = {}
 end
 
-function PerformanceModule:GetEventFrequency()
-	local duration = GetTime() - (self.eventTrackingStart or GetTime())
-	if duration < 1 then
-		duration = 1
-	end
-
-	local events = {}
-	for event, data in pairs(self.eventCounts) do
-		table.insert(events, {
-			event = event,
-			count = data.count,
-			perMinute = (data.count / duration) * 60,
-		})
-	end
-
-	table.sort(events, function(a, b)
-		return a.count > b.count
-	end)
-	return events
+function PerformanceModule:OnEnable()
+	-- Initial registration or setup if needed
 end
-
---------------------------------------------------------------------------------
--- Export Mode Toggle
---------------------------------------------------------------------------------
-
-function PerformanceModule:ToggleExportMode()
-	self.exportMode = not self.exportMode
-
-	if self.exportMode then
-		-- Hide ALL content frames (not just generalContent) to prevent overlap
-		if self.layout and self.layout.contentFrames then
-			for _, frame in pairs(self.layout.contentFrames) do
-				frame:Hide()
-			end
-		end
-		if self.exportBox then
-			local text = self:GetCopyText(Mechanic.db.profile.includeEnvHeader)
-			self.exportBox:SetText(text)
-			self.exportBox:Show()
-			self.exportBox:ScrollToTop()
-			-- Ensure export box is above content frames
-			self.exportBox:SetFrameLevel(self.layout.contentArea:GetFrameLevel() + 10)
-		end
-		if self.exportButton then
-			self.exportButton:SetText("Table View")
-		end
-	else
-		-- Hide export box, show the currently selected content frame
-		if self.exportBox then
-			self.exportBox:Hide()
-		end
-		-- Show the currently selected nav item's content
-		local selectedKey = self.layout:GetSelectedKey()
-		if selectedKey and self.layout.contentFrames[selectedKey] then
-			self.layout.contentFrames[selectedKey]:Show()
-		end
-		if self.exportButton then
-			self.exportButton:SetText("Export")
-		end
-		-- Refresh content for current selection
-		self:OnNavSelected(selectedKey)
-	end
-end
-
---------------------------------------------------------------------------------
--- Copy Text Generation
---------------------------------------------------------------------------------
-
-function PerformanceModule:GetCopyText(includeHeader)
-	local lines = {}
-	local selectedKey = self.layout and self.layout:GetSelectedKey() or "general"
-
-	if includeHeader then
-		local header = Mechanic:GetEnvironmentHeader()
-		if header then
-			table.insert(lines, header)
-		end
-		local metrics = Mechanic.Utils:GetExtendedMetrics()
-		table.insert(
-			lines,
-			string.format(
-				"FPS: %.0f | Latency: %dms / %dms | Duration: %s",
-				metrics.fps,
-				metrics.latencyHome,
-				metrics.latencyWorld,
-				Mechanic.Utils:FormatDuration(GetTime() - (self.trackingStart or GetTime()))
-			)
-		)
-
-		local _, totalMemory = self:GetAddonData()
-		local cpuEnabled = GetCVarBool("scriptProfile")
-		table.insert(
-			lines,
-			string.format(
-				"Total Memory: %s | CPU Profiling: %s",
-				Mechanic.Utils:FormatMemory(totalMemory),
-				cpuEnabled and "ON" or "OFF"
-			)
-		)
-		table.insert(lines, "---")
-	end
-
-	if selectedKey == "general" then
-		-- Addon table
-		local addons = self:GetAddonData()
-		local cpuEnabled = GetCVarBool("scriptProfile")
-
-		if cpuEnabled then
-			table.insert(lines, "Addon              | Memory   | %     | CPU ms/s | %")
-			table.insert(lines, "-------------------|----------|-------|----------|-------")
-		else
-			table.insert(lines, "Addon              | Memory   | %")
-			table.insert(lines, "-------------------|----------|------")
-		end
-
-		for _, addon in ipairs(addons) do
-			if cpuEnabled then
-				table.insert(
-					lines,
-				string.format(
-					"%-18s | %8s | %5.1f%% | %8.2f | %5.1f%%",
-					addon.name:sub(1, 18),
-					Mechanic.Utils:FormatMemory(addon.memory),
-					addon.memoryPercent,
-					addon.cpu,
-					addon.cpuPercent
-				)
-			)
-		else
-			table.insert(
-				lines,
-				string.format(
-					"%-18s | %8s | %5.1f%%",
-					addon.name:sub(1, 18),
-					Mechanic.Utils:FormatMemory(addon.memory),
-					addon.memoryPercent
-				)
-			)
-		end
-		end
-	else
-		-- Addon-specific sub-metrics
-		table.insert(lines, string.format("Addon: %s - Performance Breakdown", selectedKey))
-		table.insert(lines, "")
-
-		local MechanicLib = LibStub("MechanicLib-1.0", true)
-		local capabilities = MechanicLib and MechanicLib:GetRegistered()[selectedKey]
-		local ok, metrics = false, nil
-		if capabilities and capabilities.performance then
-			ok, metrics = pcall(capabilities.performance.getSubMetrics)
-		end
-
-		if ok and metrics then
-			local totalMs = 0
-			for _, m in ipairs(metrics) do
-				totalMs = totalMs + (m.msPerSec or 0)
-			end
-
-			table.insert(lines, "Metric             | ms/s     | %     | Description")
-			table.insert(lines, "-------------------|----------|-------|-----------------------------")
-			for _, m in ipairs(metrics) do
-				local pct = totalMs > 0 and ((m.msPerSec or 0) / totalMs * 100) or 0
-				table.insert(
-					lines,
-					string.format(
-						"%-18s | %8.2f | %5.1f%% | %s",
-						m.name:sub(1, 18),
-						m.msPerSec or 0,
-						pct,
-						m.description or ""
-					)
-				)
-			end
-			table.insert(lines, "-------------------|----------|-------|-----------------------------")
-			table.insert(lines, string.format("Total:             | %8.2f |", totalMs))
-		else
-			table.insert(lines, "No sub-metrics available for this addon.")
-		end
-	end
-
-	return table.concat(lines, "\n")
-end
-
---------------------------------------------------------------------------------
--- Static Popup for CPU Profiling
---------------------------------------------------------------------------------
-
-StaticPopupDialogs["MECHANIC_CPU_PROFILING"] = {
-	text = "CPU profiling requires a UI reload. Continue?",
-	button1 = "Reload",
-	button2 = "Cancel",
-	OnAccept = function(self, data)
-		SetCVar("scriptProfile", data.enable and "1" or "0")
-		ReloadUI()
-	end,
-	timeout = 0,
-	whileDead = true,
-	hideOnEscape = true,
-	preferredIndex = 3,
-}

@@ -7,6 +7,7 @@
 --------------------------------------------------------------------------------
 
 local ADDON_NAME, ns = ...
+local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME, true)
 local Utils = {}
 ns.Utils = Utils
 
@@ -18,15 +19,42 @@ local F = FenUI and FenUI.Utils
 --------------------------------------------------------------------------------
 
 -- Inherit shared colors and provide local overrides/additions
-Utils.Colors = F and F.Colors or { Categories = {}, Status = {}, Impact = {} }
+Utils.Colors = setmetatable({}, {
+	__index = function(_, k)
+		local colors = (FenUI and FenUI.Utils and FenUI.Utils.Colors and FenUI.Utils.Colors[k])
+		if colors then
+			return colors
+		end
+		-- Return robust defaults if FenUI is missing
+		if k == "Impact" then
+			return { HIGH = "|cffff4444", CONDITIONAL = "|cffffaa00", RESTRICTED = "|cffffff00", LOW = "|cff00ff00" }
+		elseif k == "Status" then
+			return {
+				pass = "|cff00ff00",
+				warn = "|cffffff00",
+				fail = "|cffff0000",
+				pending = "|cffffcc00",
+				default = "|cffffffff",
+				not_run = "|cff888888",
+			}
+		end
+		return {}
+	end,
+})
 
 --------------------------------------------------------------------------------
 -- Environment & System
 --------------------------------------------------------------------------------
 
-function Utils:GetClientType() return F and F:GetClientType() or "Retail" end
-function Utils:GetVersionString() return F and F:GetVersionString() or "Unknown" end
-function Utils:GetInterfaceString() return F and F:GetInterfaceString() or "Unknown" end
+function Utils:GetClientType()
+	return F and F:GetClientType() or "Retail"
+end
+function Utils:GetVersionString()
+	return F and F:GetVersionString() or "Unknown"
+end
+function Utils:GetInterfaceString()
+	return F and F:GetInterfaceString() or "Unknown"
+end
 
 --- Robustly opens the settings panel for an addon.
 ---@param categoryName string|table The category name or object
@@ -49,32 +77,35 @@ end
 
 --- Generic widget factory to ensure single instance per parent.
 function Utils:GetOrCreateWidget(parent, key, creator)
-    return F and F:GetOrCreateWidget(parent, key, creator) or creator(parent)
+	return F and F:GetOrCreateWidget(parent, key, creator) or creator(parent)
 end
 
 --- Returns the current mouse focus frame across all WoW versions.
 function Utils:GetMouseFocus()
-    return F and F:GetMouseFocus() or _G.GetMouseFocus()
+	return F and F:GetMouseFocus() or _G.GetMouseFocus()
 end
 
 --- Wrapper for Blizzard EasyMenu.
 ---@param menuList table Array of menu definitions
 ---@param anchor string|table Anchor point or frame (default: "cursor")
 function Utils:ShowMenu(menuList, anchor)
-    if F and F.ShowMenu then
-        F:ShowMenu(menuList, anchor)
-        return
-    end
-
-	if not self.menuFrame then
-		self.menuFrame = CreateFrame("Frame", "MechanicUtilsMenu", UIParent, "UIDropDownMenuTemplate")
+	-- Delegate to FenUI.Utils.ShowMenu for cross-version compatibility
+	local F = FenUI and FenUI.Utils
+	if F and F.ShowMenu then
+		F:ShowMenu(menuList, anchor)
+		return
 	end
-    
-    if EasyMenu then
-	    EasyMenu(menuList, self.menuFrame, anchor or "cursor", 0, 0, "MENU")
-    else
-        print("|cffff4444[Mechanic Error]|r EasyMenu is not available in this WoW version.")
-    end
+
+	-- Fallback if FenUI.Utils is not available or ShowMenu is missing
+	if _G.EasyMenu then
+		if not self.menuFrame then
+			self.menuFrame = CreateFrame("Frame", "MechanicUtilsMenu", UIParent, "UIDropDownMenuTemplate")
+		end
+		EasyMenu(menuList, self.menuFrame, anchor or "cursor", 0, 0, "MENU")
+	else
+		-- Last resort: log to console if no menu system is available
+		print("|cffff4444[Mechanic Error]|r No menu system available (EasyMenu and MenuUtil both missing).")
+	end
 end
 
 --- Resolves a string path to either a frame or a global table.
@@ -88,16 +119,22 @@ function Utils:ResolveFrameOrTable(input)
 	-- Try FrameResolver first
 	if ns.FrameResolver then
 		local frame = ns.FrameResolver:ResolvePath(input)
-		if frame then return frame end
+		if frame then
+			return frame
+		end
 	end
 
 	-- Fallback to global traversal
 	local parts = { strsplit(".", input) }
 	local current = _G
 	for _, part in ipairs(parts) do
-		if type(current) ~= "table" then return nil end
+		if type(current) ~= "table" then
+			return nil
+		end
 		current = current[part]
-		if not current then return nil end
+		if not current then
+			return nil
+		end
 	end
 
 	return current
@@ -120,21 +157,99 @@ function Utils:GetEnvironmentHeader(profile)
 	}
 
 	-- WoW version + build
-	table.insert(lines, string.format("WoW: %s | Interface: %s", self:GetVersionString(), self:GetInterfaceString()))
+	table.insert(
+		lines,
+		string.format(
+			"WoW: %s | Interface: %s",
+			tostring(self:GetVersionString() or "Unknown"),
+			tostring(self:GetInterfaceString() or "Unknown")
+		)
+	)
 
 	-- Character info (optional)
 	if profile.includeCharacterInfo then
 		local name = UnitName("player")
 		local realm = GetRealmName()
 		local _, class = UnitClass("player")
-		local spec = GetSpecialization()
+		local spec = C_SpecializationInfo.GetSpecialization()
 		local specName = spec and select(2, GetSpecializationInfo(spec)) or "None"
-		table.insert(lines, string.format("Character: %s-%s (%s, %s)", name, realm, class, specName))
+		table.insert(
+			lines,
+			string.format(
+				"Character: %s-%s (%s, %s)",
+				tostring(name or "Unknown"),
+				tostring(realm or "Unknown"),
+				tostring(class or "Unknown"),
+				tostring(specName or "None")
+			)
+		)
+	end
+
+	-- Location info (Zone, Map ID, Coords, Instance state)
+	local zone = _G.GetRealZoneText()
+	local subzone = _G.GetSubZoneText()
+	local mapID = _G.C_Map.GetBestMapForUnit("player")
+	local coords = ""
+	if mapID then
+		local pos = _G.C_Map.GetPlayerMapPosition(mapID, "player")
+		if pos then
+			local x, y = pos:GetXY()
+			coords = string.format(" @ %.1f, %.1f", (x or 0) * 100, (y or 0) * 100)
+		end
+	end
+
+	local inInstance, instanceType = _G.IsInInstance()
+	local name, type, difficultyID, difficultyName, maxPlayers, dynamicDifficulty, isDynamic, instanceID, instanceGroupSize, lfgID =
+		_G.GetInstanceInfo()
+
+	local locationInfo = string.format("Location: %s", tostring(zone or "Unknown"))
+	if subzone and subzone ~= "" and subzone ~= zone then
+		locationInfo = locationInfo .. string.format(" (%s)", tostring(subzone or ""))
+	end
+	if mapID then
+		locationInfo = locationInfo .. string.format(" [Map %d]%s", mapID or 0, tostring(coords or ""))
+	end
+	table.insert(lines, locationInfo)
+
+	if inInstance then
+		table.insert(
+			lines,
+			string.format(
+				"Instance: %s [%s] - %s (ID %s)",
+				tostring(name or "Unknown"),
+				tostring(instanceType or "none"):upper(),
+				tostring(difficultyName or "Unknown"),
+				tostring(instanceID or "?")
+			)
+		)
+	end
+
+	-- State info
+	local state = {}
+	if _G.InCombatLockdown() then
+		table.insert(state, "COMBAT")
+	end
+	if _G.IsInRaid() then
+		table.insert(state, "RAID")
+	elseif _G.IsInGroup() then
+		table.insert(state, "GROUP")
+	end
+
+	-- Add more specific state context
+	if _G.UnitAffectingCombat("player") then
+		table.insert(state, "AFFECTING_COMBAT")
+	end
+	if _G.UnitInVehicle("player") then
+		table.insert(state, "IN_VEHICLE")
+	end
+
+	if #state > 0 then
+		table.insert(lines, string.format("State: %s", tostring(table.concat(state, ", ") or "None")))
 	end
 
 	-- Timestamp (optional)
 	if profile.includeTimestamp then
-		table.insert(lines, string.format("Exported: %s", date("%Y-%m-%d %H:%M:%S")))
+		table.insert(lines, string.format("Exported: %s", tostring(date("%Y-%m-%d %H:%M:%S") or "Unknown")))
 	end
 
 	-- Registered addons
@@ -143,26 +258,97 @@ function Utils:GetEnvironmentHeader(profile)
 		local registered = {}
 		for name, caps in pairs(MechanicLib:GetRegistered()) do
 			local ver = caps.version or "?"
-			table.insert(registered, string.format("%s %s", name, ver))
+			table.insert(registered, string.format("%s %s", tostring(name or "Unknown"), tostring(ver or "?")))
 		end
 		if #registered > 0 then
-			table.insert(lines, string.format("Registered: %s", table.concat(registered, ", ")))
+			table.sort(registered)
+			table.insert(lines, string.format("Registered: %s", tostring(table.concat(registered, ", ") or "None")))
 		end
 	end
 
 	return table.concat(lines, "\n")
 end
 
+--- Displays an export dialog with the provided content.
+---@param title string The dialog title
+---@param content string The content to display for copying
+function Utils:ShowExportDialog(title, content)
+	if not self.exportDialog then
+		local dialog = FenUI:CreatePanel(UIParent, {
+			name = "MechanicExportDialog",
+			title = L["Export"],
+			width = 600,
+			height = 450,
+			movable = true,
+			resizable = true,
+			closable = true,
+		})
+		dialog:SetFrameStrata("DIALOG")
+		dialog:SetPoint("CENTER")
+
+		-- Add instructions
+		local help = dialog.safeZone:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		help:SetPoint("TOPLEFT", 8, -4)
+		help:SetText(L["Press Ctrl+C to copy the text below."])
+
+		-- Multi-line edit box for content
+		local editBox = FenUI:CreateMultiLineEditBox(dialog.safeZone, {
+			readOnly = true,
+			background = "surfaceInset",
+			autoScroll = false,
+		})
+		editBox:SetPoint("TOPLEFT", 0, -24)
+		editBox:SetPoint("BOTTOMRIGHT", 0, 36)
+		dialog.editBox = editBox
+
+		-- Close button at bottom
+		local closeBtn = FenUI:CreateButton(dialog.safeZone, {
+			text = L["Close"] or "Close",
+			width = 100,
+			onClick = function()
+				dialog:Hide()
+			end,
+		})
+		closeBtn:SetText(L["Close"] or "Close")
+		closeBtn:SetPoint("BOTTOM", 0, 8)
+
+		self.exportDialog = dialog
+	end
+
+	self.exportDialog:SetTitle(title)
+	self.exportDialog.editBox:SetText(content)
+	self.exportDialog.editBox:ScrollToTop()
+	self.exportDialog:Show()
+
+	-- Auto-focus the edit box for quick copying
+	C_Timer.After(0.1, function()
+		self.exportDialog.editBox.editBox:SetFocus()
+		self.exportDialog.editBox.editBox:HighlightText()
+	end)
+end
+
 --------------------------------------------------------------------------------
 -- Formatting & Metrics
 --------------------------------------------------------------------------------
 
-function Utils:FormatMemory(kb) return F and F:FormatMemory(kb) or tostring(kb) end
-function Utils:FormatDuration(seconds) return F and F:FormatDuration(seconds) or tostring(seconds) end
-function Utils:FormatValue(value, options) return F and F:FormatValue(value, options) or tostring(value) end
-function Utils:CountSecrets(results) return F and F:CountSecrets(results) or 0 end
-function Utils:DeepCopy(orig) return F and F:DeepCopy(orig) or orig end
-function Utils:SafeCall(func, ...) return F and F:SafeCall(func, ...) or pcall(func, ...) end
+function Utils:FormatMemory(kb)
+	return F and F:FormatMemory(kb) or tostring(kb)
+end
+function Utils:FormatDuration(seconds)
+	return F and F:FormatDuration(seconds) or tostring(seconds)
+end
+function Utils:FormatValue(value, options)
+	return F and F:FormatValue(value, options) or tostring(value)
+end
+function Utils:CountSecrets(results)
+	return F and F:CountSecrets(results) or 0
+end
+function Utils:DeepCopy(orig)
+	return F and F:DeepCopy(orig) or orig
+end
+function Utils:SafeCall(func, ...)
+	return F and F:SafeCall(func, ...) or pcall(func, ...)
+end
 
 --- Returns standard performance metrics (FPS, Latency, Lua Memory).
 ---@return table metrics {fps, latencyHome, latencyWorld, luaMemory}
@@ -185,15 +371,21 @@ end
 
 --- Detects the source addon from an error message or stack trace
 function Utils:DetectErrorSource(errorMsg)
-	if not errorMsg then return nil end
-	
+	if not errorMsg then
+		return nil
+	end
+
 	-- Look for addon name in path (e.g., "ActionHud\Core.lua" or "ActionHud/Core.lua")
 	local addon = errorMsg:match("([%w_!]+)[/\\]")
-	if addon then return addon end
+	if addon then
+		return addon
+	end
 
 	-- Look for Interface/AddOns path (forward slash)
 	addon = errorMsg:match("Interface/AddOns/([%w_!]+)/")
-	if addon then return addon end
+	if addon then
+		return addon
+	end
 
 	return nil
 end
@@ -215,7 +407,9 @@ end
 
 --- Colorizes Lua locals string for UI display
 function Utils:ColorizeLocals(locals)
-	if not locals then return "" end
+	if not locals then
+		return ""
+	end
 	local result = locals
 	-- Highlight variable names
 	result = result:gsub("(%s-)([%a_][%a_%d]*) = ", "%1|cffffff80%2|r = ")
@@ -228,17 +422,20 @@ end
 
 --- Formats a BugGrabber error object into a colorized string.
 function Utils:FormatError(err)
+	if not err then
+		return "Unknown Error"
+	end
 	local lines = {}
 
 	-- Count and message
-	table.insert(lines, string.format("|cffffffff%dx|r %s", err.counter or 1, err.message))
+	table.insert(lines, string.format("|cffffffff%dx|r %s", err.counter or 1, tostring(err.message or "Unknown Error")))
 	table.insert(lines, "")
 
 	-- Stack trace
 	if err.stack then
 		table.insert(lines, "|cff888888Stack:|r")
 		for line in err.stack:gmatch("[^\n]+") do
-			table.insert(lines, string.format("  %s", self:ColorizeStackLine(line)))
+			table.insert(lines, string.format("  %s", tostring(self:ColorizeStackLine(line) or line)))
 		end
 		table.insert(lines, "")
 	end
@@ -246,7 +443,7 @@ function Utils:FormatError(err)
 	-- Locals
 	if err.locals then
 		table.insert(lines, "|cff888888Locals:|r")
-		table.insert(lines, self:ColorizeLocals(err.locals))
+		table.insert(lines, tostring(self:ColorizeLocals(err.locals) or ""))
 	end
 
 	return table.concat(lines, "\n")

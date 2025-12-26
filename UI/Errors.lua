@@ -3,7 +3,7 @@
 
 local ADDON_NAME, ns = ...
 local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
-local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
+local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME, true)
 local ErrorsModule = {}
 Mechanic.Errors = ErrorsModule
 
@@ -11,6 +11,7 @@ ErrorsModule.paused = false
 ErrorsModule.currentSession = nil -- BugGrabber session ID
 ErrorsModule.currentIndex = 0 -- Current error index
 ErrorsModule.errors = {} -- Filtered error list
+ErrorsModule.selectedSource = "all"
 
 function Mechanic:InitializeErrors()
 	if ErrorsModule.frame then
@@ -56,7 +57,7 @@ function Mechanic:InitializeErrors()
 
 	-- Navigation
 	local prevBtn = toolbar:AddButton({
-		text = "<",
+		text = L["<"],
 		width = 30,
 		onClick = function()
 			ErrorsModule:Navigate(-1)
@@ -74,7 +75,7 @@ function Mechanic:InitializeErrors()
 	ErrorsModule.countLabel = countLabel
 
 	local nextBtn = toolbar:AddButton({
-		text = ">",
+		text = L[">"],
 		width = 30,
 		onClick = function()
 			ErrorsModule:Navigate(1)
@@ -86,7 +87,7 @@ function Mechanic:InitializeErrors()
 
 	-- Pause Button
 	local pauseBtn = toolbar:AddButton({
-		text = "⏸ Pause",
+		text = L["Pause"] or "Pause",
 		width = 80,
 		onClick = function()
 			ErrorsModule:TogglePause()
@@ -98,7 +99,7 @@ function Mechanic:InitializeErrors()
 
 	-- Actions
 	local consoleBtn = toolbar:AddButton({
-		text = "To Console",
+		text = L["To Console"],
 		width = 90,
 		onClick = function()
 			ErrorsModule:SendToConsole()
@@ -106,10 +107,20 @@ function Mechanic:InitializeErrors()
 	})
 
 	local wipeBtn = toolbar:AddButton({
-		text = "Wipe",
+		text = L["Wipe"],
 		width = 60,
 		onClick = function()
 			ErrorsModule:WipeSession()
+		end,
+	})
+
+	toolbar:AddSpacer(8)
+
+	local exportBtn = toolbar:AddButton({
+		text = L["Export Button"],
+		width = 90,
+		onClick = function()
+			ErrorsModule:Export()
 		end,
 	})
 
@@ -124,16 +135,18 @@ function Mechanic:InitializeErrors()
 
 	-- Initial state
 	ErrorsModule:OnEnable()
-
-	frame:SetScript("OnShow", function()
-		ErrorsModule:RefreshSourceList()
-		ErrorsModule:UpdateDisplay()
-	end)
 end
+
+function ErrorsModule:OnShow()
+	self:RefreshSourceList()
+	self:UpdateDisplay()
+end
+
+function ErrorsModule:OnHide() end
 
 function ErrorsModule:RefreshSourceList()
 	local items = {
-		{ key = "all", text = string.format("%s (%d)", L["All"], #self.errors) },
+		{ key = "all", text = string.format("%s (%d)", L["All Sessions"] or "All Sessions", #self.errors) },
 	}
 
 	-- Group errors by detected addon
@@ -152,7 +165,7 @@ function ErrorsModule:RefreshSourceList()
 	for _, source in ipairs(sources) do
 		table.insert(items, {
 			key = source,
-			text = string.format("%s (%d)", source, sourceCounts[source]),
+			text = string.format("%s (%d)", tostring(source or "Unknown"), sourceCounts[source] or 0),
 		})
 	end
 
@@ -271,6 +284,11 @@ function ErrorsModule:Navigate(delta)
 		self.currentIndex = newIndex
 		self:UpdateDisplay()
 	end
+
+	-- Ensure dropdown text updates on navigation if session changed
+	if self.sessionDropdown then
+		self.sessionDropdown:SetValue(self.currentSession)
+	end
 end
 
 function ErrorsModule:UpdateDisplay()
@@ -291,14 +309,14 @@ function ErrorsModule:UpdateDisplay()
 	self.editBox:SetText(text)
 
 	-- Update navigation
-	self.countLabel:SetText(string.format(L["%d/%d"], self.currentIndex, #self.errors))
+	self.countLabel:SetText(string.format(L["%d/%d"] or "%d/%d", self.currentIndex or 0, #self.errors))
 	self.prevButton:SetEnabled(self.currentIndex > 1)
 	self.nextButton:SetEnabled(self.currentIndex < #self.errors)
 end
 
 function ErrorsModule:TogglePause()
 	self.paused = not self.paused
-	self.pauseButton:SetText(self.paused and L["▶ Resume"] or L["⏸ Pause"])
+	self.pauseButton:SetText(self.paused and (L["Resume"] or "Resume") or (L["Pause"] or "Pause"))
 
 	if not self.paused then
 		self:RefreshErrors()
@@ -331,6 +349,22 @@ function ErrorsModule:SendToConsole()
 	end
 end
 
+function ErrorsModule:Export()
+	local navName = self.selectedSource or "all"
+	if navName == "all" then
+		navName = L["All Sessions"] or "All Sessions"
+	end
+
+	local title = string.format(
+		"%s : %s : %s",
+		tostring(L["Errors"] or "Errors"),
+		tostring(navName or "All Sessions"),
+		tostring(L["Export"] or "Export")
+	)
+	local text = self:GetCopyText(Mechanic.db.profile.includeEnvHeader)
+	Mechanic.Utils:ShowExportDialog(title, text)
+end
+
 function ErrorsModule:GetCopyText(includeHeader)
 	local lines = {}
 
@@ -341,9 +375,9 @@ function ErrorsModule:GetCopyText(includeHeader)
 			table.insert(
 				lines,
 				string.format(
-					L["Session: %s | Error: %d/%d"],
-					tostring(self.currentSession),
-					self.currentIndex,
+					L["Session: %s | Error: %d/%d"] or "Session: %s | Error: %d/%d",
+					tostring(self.currentSession or "all"),
+					self.currentIndex or 0,
 					#self.errors
 				)
 			)
@@ -360,16 +394,15 @@ function ErrorsModule:GetCopyText(includeHeader)
 end
 
 function ErrorsModule:ShowInstallMessage()
-	local message = [[
-|cffff4411!BugGrabber Required|r
-
-The Errors module requires !BugGrabber to capture Lua errors.
-
-Download from:
-- CurseForge: curseforge.com/wow/addons/bug-grabber
-- WoWInterface: wowinterface.com/downloads/info5883
-
-After installing, type /reload
-]]
+	local message = string.format(
+		"|cffff4411%s|r\n\n%s\n\n%s\n- CurseForge: curseforge.com/wow/addons/bug-grabber\n- WoWInterface: wowinterface.com/downloads/info5883\n\n%s",
+		tostring(L["!BugGrabber Required"] or "!BugGrabber Required"),
+		tostring(
+			L["The Errors module requires !BugGrabber to capture Lua errors."]
+				or "The Errors module requires !BugGrabber to capture Lua errors."
+		),
+		tostring(L["Download from:"] or "Download from:"),
+		tostring(L["After installing, type /reload"] or "After installing, type /reload")
+	)
 	self.editBox:SetText(message)
 end

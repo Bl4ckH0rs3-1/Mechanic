@@ -5,6 +5,7 @@
 -- used by Console, Errors, Tools, and Performance modules.
 
 local ADDON_NAME, ns = ...
+local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME, true)
 local SplitNavLayout = {}
 ns.SplitNavLayout = SplitNavLayout
 
@@ -40,15 +41,11 @@ function SplitNavLayout:Create(parent, config)
 	-- Load selected key from storage if available
 	if layout.storageKey and layout.addonProfile and layout.addonProfile.activeSubTabs then
 		layout.selectedKey = layout.addonProfile.activeSubTabs[layout.storageKey]
-		if layout.selectedKey then
-			print(string.format("|cff00ffff[MechDebug]|r SplitNav '%s' RESTORED: %s", layout.storageKey, tostring(layout.selectedKey)))
-		end
 	end
 
 	-- Fallback to default key
 	if not layout.selectedKey then
 		layout.selectedKey = config.defaultKey
-		-- print(string.format("|cff00ffff[MechDebug]|r SplitNav '%s' using fallback: %s", tostring(layout.storageKey), tostring(layout.selectedKey)))
 	end
 
 	local navWidth = config.navWidth or NAV_WIDTH
@@ -89,13 +86,13 @@ function SplitNavLayout:Create(parent, config)
 	-- Methods
 	function layout:SetItems(items)
 		self.items = items
-		
+
 		-- We used to validate and clear selectedKey here if it wasn't in the list.
-		-- However, this caused issues during initialization where addons hadn't 
+		-- However, this caused issues during initialization where addons hadn't
 		-- registered yet, causing restored selections to be lost.
 		-- Now we keep the selectedKey; if it's not in the list, no highlight will show,
 		-- but it will stay saved so that when the addon registers later, it works.
-		
+
 		self:RefreshNav()
 	end
 
@@ -119,7 +116,7 @@ function SplitNavLayout:Create(parent, config)
 				header:SetPoint("TOPRIGHT", self.navContent, "TOPRIGHT", 0, -yOffset)
 				header:SetText(item.text)
 				header:Show()
-				
+
 				yOffset = yOffset + header:GetHeight() + 2
 				headerIndex = headerIndex + 1
 			else
@@ -129,7 +126,7 @@ function SplitNavLayout:Create(parent, config)
 				btn:SetHeight(NAV_ITEM_HEIGHT)
 				btn.text:SetText(item.text)
 				btn.key = item.key
-				
+
 				btn:Enable()
 				btn.text:SetTextColor(1, 0.82, 0)
 
@@ -140,7 +137,7 @@ function SplitNavLayout:Create(parent, config)
 		end
 
 		self.navContent:SetHeight(math.max(1, yOffset))
-		
+
 		self:UpdateButtonStates()
 
 		-- Ensure content frame for selected key is shown
@@ -195,7 +192,7 @@ function SplitNavLayout:Create(parent, config)
 			text = "Header",
 			spacing = "md",
 		})
-		
+
 		self.headers[index] = header
 		return header
 	end
@@ -217,27 +214,13 @@ function SplitNavLayout:Create(parent, config)
 			return
 		end
 
-		-- Debug: Show where Select is being called from (only for perf>general)
-		if key == "general" and self.storageKey == "perf" then
-			local stack = debugstack(2, 3, 0)
-			print(string.format("|cffff0000[MechDebug]|r Select('general') called (current: '%s') from:\n%s", tostring(self.selectedKey), stack))
-		end
-
 		local oldKey = self.selectedKey
 		self.selectedKey = key
-		
-		-- Debug: Track key changes for perf tab
-		if self.storageKey == "perf" and oldKey ~= key then
-			print(string.format("|cffffaa00[MechDebug]|r SplitNav 'perf' selectedKey changed: '%s' -> '%s'", tostring(oldKey), tostring(key)))
-		end
-		
+
 		-- Persist if storage key provided (but NOT during initialization)
 		if self.storageKey and self.addonProfile and not self.initializing then
 			self.addonProfile.activeSubTabs = self.addonProfile.activeSubTabs or {}
 			self.addonProfile.activeSubTabs[self.storageKey] = key
-			print(string.format("|cff00ffff[MechDebug]|r SplitNav '%s' SAVE ATTEMPT: %s", self.storageKey, tostring(key)))
-		elseif self.initializing then
-			print(string.format("|cffff8800[MechDebug]|r SplitNav '%s' Select('%s') BLOCKED (initializing)", self.storageKey or "nil", tostring(key)))
 		end
 
 		self:UpdateButtonStates()
@@ -263,7 +246,7 @@ function SplitNavLayout:Create(parent, config)
 			local frame = CreateFrame("Frame", nil, self.contentArea)
 			frame:SetAllPoints()
 			self.contentFrames[key] = frame
-			
+
 			-- If this is already the selected key, show it immediately
 			if self.selectedKey == key then
 				frame:Show()

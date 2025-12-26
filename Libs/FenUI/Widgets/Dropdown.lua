@@ -4,6 +4,7 @@
 -- A stylized dropdown menu.
 --------------------------------------------------------------------------------
 
+local FenUI = FenUI
 local WidgetMixin = {}
 
 function WidgetMixin:Init(config)
@@ -30,12 +31,13 @@ function WidgetMixin:UpdateMenuList()
     
     for _, item in ipairs(self.items) do
         local isTable = type(item) == "table"
-        local text = isTable and item.text or item
-        local value = isTable and item.value or item
+        -- Use explicit nil check to avoid returning the table itself if text is missing
+        local text = (isTable and item.text ~= nil) and item.text or item
+        local value = (isTable and item.value ~= nil) and item.value or item
         
-        -- Safeguard: If text is still a table (means item.text was nil), fallback to value
-        if type(text) == "table" then
-            text = tostring(value)
+        -- Fallback for tables missing text but having value
+        if text == item and isTable and item.value ~= nil then
+            text = tostring(item.value)
         end
 
         -- Sanitize text for Blizzard SetText (handles AceLocale 'true')
@@ -65,13 +67,7 @@ function WidgetMixin:ToggleMenu()
 
     -- Use the shared ShowMenu utility (bridged or direct)
     if FenUI.Utils and FenUI.Utils.ShowMenu then
-        FenUI.Utils:ShowMenu(self.menuList, self.button)
-    else
-        -- Fallback to EasyMenu
-        if not self.menuFrame then
-            self.menuFrame = CreateFrame("Frame", nil, UIParent, "UIDropDownMenuTemplate")
-        end
-        EasyMenu(self.menuList, self.menuFrame, self.button, 0, 0, "MENU")
+         FenUI.Utils:ShowMenu(self.menuList, self.button)
     end
 end
 
@@ -84,12 +80,12 @@ function WidgetMixin:SetValue(value)
     local U = FenUI.Utils
     for _, item in ipairs(self.items) do
         local isTable = type(item) == "table"
-        local itemValue = isTable and item.value or item
-        local itemText = isTable and item.text or item
+        local itemValue = (isTable and item.value ~= nil) and item.value or item
+        local itemText = (isTable and item.text ~= nil) and item.text or item
         
         if itemValue == value then
-            -- Safeguard: If itemText is still a table (means item.text was nil), fallback to value
-            if type(itemText) == "table" then
+            -- Fallback for tables missing text but having value
+            if itemText == item and isTable and item.value ~= nil then
                 itemText = tostring(itemValue)
             end
 

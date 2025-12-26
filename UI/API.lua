@@ -5,7 +5,7 @@
 
 local ADDON_NAME, ns = ...
 local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
-local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
+local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME, true)
 local APIModule = {}
 Mechanic.API = APIModule
 
@@ -49,6 +49,28 @@ function Mechanic:InitializeAPI()
 	})
 	APIModule.navDirty = false
 
+	-- Toolbar (shared, in contentArea)
+	local contentArea = APIModule.layout.contentArea
+	local toolbar = FenUI:CreateToolbar(contentArea, {
+		height = 32,
+		padding = 4,
+	})
+	toolbar:SetPoint("TOPLEFT", 0, 0)
+	toolbar:SetPoint("TOPRIGHT", 0, 0)
+	APIModule.toolbar = toolbar
+
+	toolbar:AddSpacer("flex")
+
+	-- Export Button
+	local exportBtn = toolbar:AddButton({
+		text = L["Export Button"],
+		width = 90,
+		onClick = function()
+			APIModule:Export()
+		end,
+	})
+	APIModule.exportButton = exportBtn
+
 	-- Select first API by default if nothing was restored from storage
 	local initialKey = APIModule.layout.selectedKey
 	if not initialKey and navItems[1] then
@@ -83,21 +105,23 @@ function APIModule:BuildNavTree()
 				table.insert(apis, {
 					key = apiKey,
 					name = apiDef.name,
-					impact = apiDef.midnightImpact
+					impact = apiDef.midnightImpact,
 				})
 			end
 		end
 
 		-- Sort APIs by name
 		table.sort(apis, function(a, b)
-			return a.name < b.name
+			local nameA = a.name or a.key or ""
+			local nameB = b.name or b.key or ""
+			return nameA < nameB
 		end)
 
 		for _, api in ipairs(apis) do
-			local impactColor = Mechanic.Utils.Colors.Impact[api.impact] or Mechanic.Utils.Colors.Impact.LOW
+			local impactColor = self:GetImpactColor(api.impact)
 			table.insert(items, {
 				key = api.key,
-				text = string.format("  %s%s|r", impactColor, api.name),
+				text = string.format("  %s%s|r", impactColor, api.name or api.key),
 				isAPI = true,
 			})
 		end
@@ -107,7 +131,11 @@ function APIModule:BuildNavTree()
 end
 
 function APIModule:GetImpactColor(impact)
-	return Mechanic.Utils.Colors.Impact[impact] or Mechanic.Utils.Colors.Impact.LOW
+	local colors = Mechanic.Utils.Colors
+	if colors and colors.Impact then
+		return colors.Impact[impact] or colors.Impact.LOW or "|cffffffff"
+	end
+	return "|cffffffff"
 end
 
 --------------------------------------------------------------------------------
@@ -162,7 +190,7 @@ function APIModule:BuildAPIPanel(parent, apiDef)
 	infoLabel:SetPoint("TOPLEFT", 8, yOffset)
 	local catName = ns.APICategoryLookup[apiDef.category] and ns.APICategoryLookup[apiDef.category].name
 		or apiDef.category
-	infoLabel:SetText(string.format(L["Category: %s"], catName))
+	infoLabel:SetText(string.format(L["Category: %s"] or "Category: %s", tostring(catName or "Unknown")))
 	infoLabel:Show()
 	yOffset = yOffset - 18
 
@@ -172,7 +200,13 @@ function APIModule:BuildAPIPanel(parent, apiDef)
 		return p:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	end)
 	impactLabel:SetPoint("TOPLEFT", 8, yOffset)
-	impactLabel:SetText(string.format(L["Midnight Impact: %s%s|r"], impactColor, apiDef.midnightImpact))
+	impactLabel:SetText(
+		string.format(
+			L["Midnight Impact: %s%s|r"] or "Midnight Impact: %s%s|r",
+			tostring(impactColor or "|cffffffff"),
+			tostring(apiDef.midnightImpact or "Unknown")
+		)
+	)
 	impactLabel:Show()
 	yOffset = yOffset - 18
 
@@ -186,7 +220,7 @@ function APIModule:BuildAPIPanel(parent, apiDef)
 		end)
 		noteLabel:SetPoint("TOPLEFT", 8, yOffset)
 		noteLabel:SetPoint("RIGHT", -8, 0)
-		noteLabel:SetText(string.format("|cffaaaaaa%s|r", apiDef.midnightNote))
+		noteLabel:SetText(string.format("|cffaaaaaa%s|r", tostring(apiDef.midnightNote)))
 		noteLabel:Show()
 		yOffset = yOffset - (noteLabel:GetStringHeight() + 8)
 	end
@@ -299,9 +333,9 @@ function APIModule:BuildAPIPanel(parent, apiDef)
 	-- Results display (MultiLineEditBox)
 	local resultsBox = Mechanic.Utils:GetOrCreateWidget(parent, "resultsBox", function(p)
 		return FenUI:CreateMultiLineEditBox(p, {
-		readOnly = true,
-		background = "surfaceInset",
-	})
+			readOnly = true,
+			background = "surfaceInset",
+		})
 	end)
 	resultsBox:SetPoint("TOPLEFT", 8, yOffset)
 	resultsBox:SetPoint("BOTTOMRIGHT", -8, 80)
@@ -333,7 +367,7 @@ function APIModule:BuildAPIPanel(parent, apiDef)
 			and Mechanic.db.profile.apiTests[apiDef.key].notes
 		or ""
 	apiNotesBox:SetText(savedNotes)
-    
+
 	apiNotesBox.editBox:SetScript("OnTextChanged", function(eb)
 		APIModule:SaveNotes(apiDef.key, eb:GetText())
 	end)
@@ -400,7 +434,9 @@ function APIModule:CreateParamInput(parent, param, index, yOffset)
 		-- Quick example buttons for common cases (show first 3)
 		local xOffset = 36
 		for i, example in ipairs(param.examples) do
-			if i > 3 then break end
+			if i > 3 then
+				break
+			end
 			local quickBtn = Mechanic.Utils:GetOrCreateWidget(row, string.format("quickBtn%d", i), function(p)
 				return FenUI:CreateButton(p, {
 					text = string.format("|cff88ccff%s|r", example.label),
@@ -485,7 +521,9 @@ function APIModule:DisplayResults(parent, apiDef, resultData)
 	local statusLabel = parent.statusLabel
 	local resultsBox = parent.resultsBox
 
-	if not statusLabel or not resultsBox then return end
+	if not statusLabel or not resultsBox then
+		return
+	end
 
 	-- Status line
 	local timeStr = date("%H:%M:%S")
@@ -503,19 +541,27 @@ function APIModule:DisplayResults(parent, apiDef, resultData)
 	end
 
 	statusLabel:SetText(
-		string.format("Last Run: %s | Status: %s | Duration: %.2fms", timeStr, statusText, resultData.duration)
+		string.format(
+			"Last Run: %s | Status: %s | Duration: %.2fms",
+			tostring(timeStr or "Unknown"),
+			tostring(statusText or "Unknown"),
+			resultData.duration or 0
+		)
 	)
 
 	-- Results display
 	local lines = {}
 	if not resultData.success then
-		table.insert(lines, string.format("Error: %s", tostring(resultData.results[1])))
+		table.insert(lines, string.format("Error: %s", tostring(resultData.results[1] or "Unknown Error")))
 	else
 		table.insert(lines, "Returns:")
 		for i, retDef in ipairs(apiDef.returns) do
 			local value = resultData.results[i]
 			local valueStr = Mechanic.Utils:FormatValue(value, { fields = retDef.fields })
-			table.insert(lines, string.format("  %s = %s", retDef.name, valueStr))
+			table.insert(
+				lines,
+				string.format("  %s = %s", tostring(retDef.name or "Unknown"), tostring(valueStr or "nil"))
+			)
 		end
 	end
 
@@ -544,35 +590,40 @@ end
 function APIModule:CopyAPIReport(apiDef)
 	local lines = {}
 
-	table.insert(lines, string.format("=== Mechanic API Report: %s ===", apiDef.funcPath))
+	table.insert(lines, string.format("=== Mechanic API Report: %s ===", tostring(apiDef.funcPath or "Unknown")))
 	local header = Mechanic:GetEnvironmentHeader()
-	if header then table.insert(lines, header) end
+	if header then
+		table.insert(lines, header)
+	end
 	table.insert(lines, "---")
 
-	table.insert(lines, string.format("API: %s", apiDef.funcPath))
-	table.insert(lines, string.format("Category: %s", apiDef.category))
-	table.insert(lines, string.format("Midnight Impact: %s", apiDef.midnightImpact))
+	table.insert(lines, string.format("API: %s", tostring(apiDef.funcPath or "Unknown")))
+	table.insert(lines, string.format("Category: %s", tostring(apiDef.category or "Unknown")))
+	table.insert(lines, string.format("Midnight Impact: %s", tostring(apiDef.midnightImpact or "Unknown")))
 	if apiDef.midnightNote then
-		table.insert(lines, string.format("Note: %s", apiDef.midnightNote))
+		table.insert(lines, string.format("Note: %s", tostring(apiDef.midnightNote)))
 	end
 	table.insert(lines, "")
 
 	local resultData = self.lastResults[apiDef.key]
 	if resultData then
 		table.insert(lines, "Last Test:")
-		table.insert(lines, string.format("  Duration: %.2fms", resultData.duration))
+		table.insert(lines, string.format("  Duration: %.2fms", resultData.duration or 0))
 		table.insert(lines, string.format("  Status: %s", (resultData.success and "SUCCESS" or "ERROR")))
 		table.insert(lines, string.format("  Secret Values: %d", Mechanic.Utils:CountSecrets(resultData.results or {})))
 		table.insert(lines, "")
 		table.insert(lines, "Results:")
-		
+
 		if not resultData.success then
-			table.insert(lines, string.format("  Error: %s", tostring(resultData.results[1])))
+			table.insert(lines, string.format("  Error: %s", tostring(resultData.results[1] or "Unknown Error")))
 		else
 			for i, retDef in ipairs(apiDef.returns) do
 				local value = resultData.results[i]
 				local valueStr = Mechanic.Utils:FormatValue(value, { fields = retDef.fields, plain = true })
-				table.insert(lines, string.format("  %s = %s", retDef.name, valueStr))
+				table.insert(
+					lines,
+					string.format("  %s = %s", tostring(retDef.name or "Unknown"), tostring(valueStr or "nil"))
+				)
 			end
 		end
 	else
@@ -595,17 +646,23 @@ function APIModule:GetCategoryReport(categoryKey)
 	local lines = {}
 	local catName = ns.APICategoryLookup[categoryKey] and ns.APICategoryLookup[categoryKey].name or categoryKey
 
-	table.insert(lines, string.format("=== Mechanic API Report: %s ===", catName))
+	table.insert(lines, string.format("=== Mechanic API Report: %s ===", tostring(catName or "Unknown")))
 	local header = Mechanic:GetEnvironmentHeader()
-	if header then table.insert(lines, header) end
+	if header then
+		table.insert(lines, header)
+	end
 	table.insert(lines, "---")
 
 	local passCount, secretCount, errorCount, untestedCount = 0, 0, 0, 0
 	local apis = {}
 	for apiKey, apiDef in pairs(API_DEFINITIONS) do
-		if apiDef.category == categoryKey then table.insert(apis, apiDef) end
+		if apiDef.category == categoryKey then
+			table.insert(apis, apiDef)
+		end
 	end
-	table.sort(apis, function(a, b) return a.name < b.name end)
+	table.sort(apis, function(a, b)
+		return (a.name or a.funcPath or "") < (b.name or b.funcPath or "")
+	end)
 
 	for _, apiDef in ipairs(apis) do
 		local resultData = self.lastResults[apiDef.key]
@@ -623,11 +680,20 @@ function APIModule:GetCategoryReport(categoryKey)
 			status = "PASS"
 			passCount = passCount + 1
 		end
-		table.insert(lines, string.format("[%s] %s", status, apiDef.funcPath))
+		table.insert(lines, string.format("[%s] %s", status, tostring(apiDef.funcPath or "Unknown")))
 	end
 
 	table.insert(lines, "---")
-	table.insert(lines, string.format("Summary: %d PASS, %d SECRET, %d FAIL, %d untested", passCount, secretCount, errorCount, untestedCount))
+	table.insert(
+		lines,
+		string.format(
+			"Summary: %d PASS, %d SECRET, %d FAIL, %d untested",
+			passCount or 0,
+			secretCount or 0,
+			errorCount or 0,
+			untestedCount or 0
+		)
+	)
 
 	return table.concat(lines, "\n")
 end
@@ -642,7 +708,8 @@ function APIModule:SaveAPIResult(apiKey, resultData)
 
 	local saved = Mechanic.db.profile.apiTests[apiKey]
 	saved.lastRun = resultData.timestamp
-	saved.lastResult = resultData.success and (Mechanic.Utils:CountSecrets(resultData.results or {}) > 0 and "secret" or "pass")
+	saved.lastResult = resultData.success
+			and (Mechanic.Utils:CountSecrets(resultData.results or {}) > 0 and "secret" or "pass")
 		or "error"
 	saved.lastParams = resultData.params
 end
@@ -660,10 +727,14 @@ end
 function APIModule:DisplayProtectedError(apiDef)
 	local contentFrame = self.layout:GetContentFrame(apiDef.key)
 	if contentFrame and contentFrame.statusLabel then
-		contentFrame.statusLabel:SetText(string.format("|cffff0000%s|r - %s", L["PROTECTED"], L["Cannot call from addon code"]))
+		contentFrame.statusLabel:SetText(
+			string.format("|cffff0000%s|r - %s", L["PROTECTED"], L["Cannot call from addon code"])
+		)
 	end
 	if contentFrame and contentFrame.resultsBox then
-		contentFrame.resultsBox:SetText(L["This API is protected and cannot be called from addon code in Midnight.\n\nConsider using the reskin strategy with Blizzard frames."])
+		contentFrame.resultsBox:SetText(
+			L["This API is protected and cannot be called from addon code in Midnight.\n\nConsider using the reskin strategy with Blizzard frames."]
+		)
 	end
 end
 
@@ -673,7 +744,12 @@ function APIModule:DisplayMissingFuncError(apiDef)
 		contentFrame.statusLabel:SetText(string.format("|cffff8800%s|r - %s", L["MISSING"], L["Function not found"]))
 	end
 	if contentFrame and contentFrame.resultsBox then
-		contentFrame.resultsBox:SetText(string.format(L["Function not available: %s\n\nThis may be a newer API not yet available in this WoW version."], apiDef.funcPath))
+		contentFrame.resultsBox:SetText(
+			string.format(
+				L["Function not available: %s\n\nThis may be a newer API not yet available in this WoW version."],
+				apiDef.funcPath
+			)
+		)
 	end
 end
 
@@ -701,10 +777,25 @@ end
 
 function APIModule:OnHide() end
 
+function APIModule:Export()
+	local navName = self.selectedAPI or (L["All"] or "All")
+	local title = string.format(
+		"%s : %s : %s",
+		tostring(L["API"] or "API"),
+		tostring(navName or "All"),
+		tostring(L["Export"] or "Export")
+	)
+
+	local text = self:GetCopyText(Mechanic.db.profile.includeEnvHeader)
+	Mechanic.Utils:ShowExportDialog(title, text)
+end
+
 function APIModule:GetCopyText(includeHeader)
 	if self.selectedAPI then
 		local apiDef = API_DEFINITIONS[self.selectedAPI]
-		if apiDef then return self:GetCategoryReport(apiDef.category) end
+		if apiDef then
+			return self:GetCategoryReport(apiDef.category)
+		end
 	end
 	return L["No API selected."]
 end

@@ -241,7 +241,7 @@ function Mechanic:PopulateRegisteredAddonSettings(args)
 		if capabilities.settings then
 			args[addonName] = {
 				type = "group",
-				name = string.format("%s %s", addonName, capabilities.version or ""),
+				name = string.format("%s %s", tostring(addonName or "Unknown"), tostring(capabilities.version or "")),
 				order = order,
 				args = capabilities.settings,
 			}

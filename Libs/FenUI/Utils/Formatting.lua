@@ -25,7 +25,7 @@ function Utils:FormatDuration(seconds, useRoyal)
 
     if useRoyal and self.Cap.HasSecondsFormatter then
         if not self.formatter then
-            self.formatter = CreateSecondsFormatter()
+            self.formatter = _G.CreateSecondsFormatter()
             if self.formatter then
                 self.formatter:SetMinimumComponents(1)
             end

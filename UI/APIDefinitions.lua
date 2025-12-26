@@ -57,7 +57,7 @@ local API_CATEGORIES = {
 		name = "General",
 		description = "Standard WoW APIs",
 		priority = 2,
-	}
+	},
 }
 
 -- Export categories to namespace

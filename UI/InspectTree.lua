@@ -23,12 +23,14 @@ end
 function InspectModule:UpdateTree(selectedFrame)
 	-- For now, a simple list of parent -> self -> children
 	-- A full tree would be more complex, but let's start with a "Contextual Tree"
-	
+
 	for _, node in ipairs(self.treeNodes) do
 		node:Hide()
 	end
-	
-	if not selectedFrame or type(selectedFrame) ~= "table" then return end
+
+	if not selectedFrame or type(selectedFrame) ~= "table" then
+		return
+	end
 
 	local yOffset = 0
 	local nodes = {}
@@ -42,7 +44,7 @@ function InspectModule:UpdateTree(selectedFrame)
 			current = current.GetParent and current:GetParent() or nil
 		end
 	end
-	
+
 	for _, frame in ipairs(ancestors) do
 		table.insert(nodes, { frame = frame, indent = #nodes * 10, type = "ancestor" })
 	end
@@ -64,11 +66,11 @@ function InspectModule:UpdateTree(selectedFrame)
 		local node = self:GetOrCreateTreeNode(i)
 		node:SetPoint("TOPLEFT", self.treeContent, "TOPLEFT", nodeData.indent, -yOffset)
 		node:SetPoint("RIGHT", self.treeContent, "RIGHT", 0, 0)
-		
-		local name = nodeData.frame.GetName and nodeData.frame:GetName() 
+
+		local name = nodeData.frame.GetName and nodeData.frame:GetName()
 			or (nodeData.frame.GetObjectType and ("<" .. nodeData.frame:GetObjectType() .. ">") or "<table>")
 		node.text:SetText(name)
-		
+
 		if nodeData.type == "selected" then
 			node.text:SetTextColor(1, 0.8, 0)
 			node.bg:Show()
@@ -89,7 +91,9 @@ function InspectModule:UpdateTree(selectedFrame)
 end
 
 function InspectModule:GetOrCreateTreeNode(index)
-	if self.treeNodes[index] then return self.treeNodes[index] end
+	if self.treeNodes[index] then
+		return self.treeNodes[index]
+	end
 
 	local node = CreateFrame("Button", nil, self.treeContent)
 	node:SetHeight(20)
@@ -112,4 +116,3 @@ function InspectModule:GetOrCreateTreeNode(index)
 	self.treeNodes[index] = node
 	return node
 end
-

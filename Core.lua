@@ -5,7 +5,7 @@
 -- Implementation tracked in PLAN/01-foundation.plan.md through PLAN/04-migration.plan.md
 
 local ADDON_NAME, ns = ...
-local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
+local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME, true)
 
 local Mechanic = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceConsole-3.0", "AceEvent-3.0")
 _G.Mechanic = Mechanic -- luacheck: ignore W122 -- Global for MechanicLib:IsEnabled() check
@@ -17,8 +17,8 @@ Mechanic.Utils = ns.Utils
 local defaults = {
 	profile = {
 		position = { point = "CENTER", x = 0, y = 0 },
-		size = { width = 800, height = 600 },
-		activeTab = "console",
+		size = { width = 1000, height = 650 },
+		activeTab = "inspect",
 		bufferSize = 1000,
 		showTimestamps = false,
 		includeEnvHeader = true,
@@ -46,20 +46,16 @@ local defaults = {
 		apiTests = {},
 		-- NEW: Inspect & Watch data (Phase 8)
 		inspectWatch = {},
+		-- NEW: Self-registration (dogfooding)
+		registerSelf = false,
+		-- NEW: Persistent Health Log for agent auditing
+		healthLog = {},
 	},
 }
 
 function Mechanic:OnInitialize()
 	-- Initialize database
 	self.db = LibStub("AceDB-3.0"):New("MechanicDB", defaults, true)
-
-	-- Debug logging for database state
-	print("|cffffaa00[MechDebug]|r DB initialized.")
-	if self.db.profile.activeSubTabs then
-		for k, v in pairs(self.db.profile.activeSubTabs) do
-			print(string.format("|cffffaa00[MechDebug]|r SubTab Storage: %s = %s", tostring(k), tostring(v)))
-		end
-	end
 
 	-- Register slash commands
 	self:RegisterSlashCommands()
@@ -105,9 +101,47 @@ function Mechanic:UpdateMinimapIcon()
 	if self.ldbObj.icon ~= icon then
 		self.ldbObj.icon = icon
 	end
+
+	-- Update tab badge if main frame is created
+	self:UpdateErrorBadge()
+end
+
+--- Update the error indicator badge on the main frame tabs.
+function Mechanic:UpdateErrorBadge()
+	if not self.frame or not self.frame.tabs then
+		return
+	end
+
+	local hasErrors = false
+	if self.Errors and self.Errors.errors and #self.Errors.errors > 0 then
+		hasErrors = true
+	elseif _G.BugGrabber and _G.BugGrabber.GetSessionId then
+		local sessionId = _G.BugGrabber:GetSessionId()
+		local db = _G.BugGrabber:GetDB()
+		if db then
+			for i = #db, 1, -1 do
+				if db[i].session == sessionId then
+					hasErrors = true
+					break
+				end
+			end
+		end
+	end
+
+	if hasErrors then
+		self.frame.tabs:SetTabBadge("errors", "atlas:plunderstorm-new-dot-sm", "feedbackError")
+	else
+		self.frame.tabs:SetTabBadge("errors", "atlas:plunderstorm-new-dot-sm", "feedbackSuccess")
+	end
 end
 
 function Mechanic:OnEnable()
+	-- Self-registration (dogfooding) if enabled
+	-- MUST happen before CreateMainFrame to avoid race conditions with persistence
+	if self.db.profile.registerSelf then
+		self:RegisterSelf()
+	end
+
 	-- UI creation will happen here (Phase 1)
 	-- Modules will also be initialized here
 	if self.CreateMainFrame then
@@ -120,10 +154,385 @@ function Mechanic:OnEnable()
 	end
 end
 
+--------------------------------------------------------------------------------
+-- Self-Registration (Dogfooding)
+--------------------------------------------------------------------------------
+
+--- Register !Mechanic with itself via MechanicLib.
+--- This allows it to appear in Performance, Tools, and Tests tabs.
+function Mechanic:RegisterSelf()
+	local MechanicLib = LibStub("MechanicLib-1.0", true)
+	if not MechanicLib then
+		return
+	end
+
+	local version = C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version") or "1.0.0"
+
+	MechanicLib:Register("!Mechanic", {
+		version = version,
+		-- Performance sub-metrics
+		performance = {
+			getSubMetrics = function()
+				return self:GetSelfPerformanceMetrics()
+			end,
+		},
+		-- Diagnostic tools with createPanel
+		tools = {
+			createPanel = function(parent)
+				self:CreateSelfToolsPanel(parent)
+			end,
+		},
+		-- Unit tests
+		tests = {
+			getAll = function()
+				return self:GetSelfTests()
+			end,
+			getCategories = function()
+				return { "Database", "UI" }
+			end,
+			run = function(id)
+				return self:RunSelfTest(id)
+			end,
+		},
+	})
+end
+
+--- Unregister !Mechanic from itself.
+function Mechanic:UnregisterSelf()
+	local MechanicLib = LibStub("MechanicLib-1.0", true)
+	if MechanicLib then
+		MechanicLib:Unregister("!Mechanic")
+	end
+end
+
+--- Create the Tools panel UI for !Mechanic's self-registered tools.
+---@param parent Frame The content frame to populate
+function Mechanic:CreateSelfToolsPanel(parent)
+	-- Define the tools
+	local toolDefinitions = {
+		{
+			name = L["View Health Log"] or "View Health Log",
+			description = L["Export persistent internal error log for agent auditing."]
+				or "Export persistent internal error log for agent auditing.",
+			action = function()
+				self:ExportHealthLog()
+			end,
+		},
+		{
+			name = L["Clear Health Log"] or "Clear Health Log",
+			description = L["Clear all entries from the persistent health log."]
+				or "Clear all entries from the persistent health log.",
+			action = function()
+				wipe(self.db.profile.healthLog)
+				self:Print(L["Health log cleared."] or "Health log cleared.")
+			end,
+		},
+		{
+			name = L["Reset UI Position"] or "Reset UI Position",
+			description = L["Reset the main frame to default size and position."]
+				or "Reset the main frame to default size and position.",
+			action = function()
+				self.db.profile.position = { point = "CENTER", x = 0, y = 0 }
+				self.db.profile.size = { width = 1000, height = 650 }
+				if self.frame then
+					self.frame:ClearAllPoints()
+					self.frame:SetPoint("CENTER", 0, 0)
+					self.frame:SetSize(1000, 650)
+				end
+				self:Print(L["UI position reset."] or "UI position reset.")
+			end,
+		},
+	}
+
+	-- Title
+	local title = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+	title:SetPoint("TOPLEFT", 16, -16)
+	title:SetText("!Mechanic " .. (L["Tools"] or "Tools"))
+
+	-- Subtitle with health log count
+	local subtitle = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	subtitle:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -4)
+	local logCount = #(self.db.profile.healthLog or {})
+	subtitle:SetText(string.format("Health Log: %d entries", logCount))
+
+	-- Create buttons for each tool
+	local lastButton = nil
+	for i, tool in ipairs(toolDefinitions) do
+		local btn = FenUI:CreateButton(parent, {
+			text = tool.name,
+			width = 200,
+			height = 28,
+			onClick = tool.action,
+		})
+
+		if i == 1 then
+			btn:SetPoint("TOPLEFT", subtitle, "BOTTOMLEFT", 0, -16)
+		else
+			btn:SetPoint("TOPLEFT", lastButton, "BOTTOMLEFT", 0, -8)
+		end
+		lastButton = btn
+
+		-- Description label
+		local desc = parent:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+		desc:SetPoint("LEFT", btn, "RIGHT", 12, 0)
+		desc:SetText(tool.description)
+		desc:SetWidth(350)
+		desc:SetJustifyH("LEFT")
+	end
+end
+
+--- Toggle self-registration state.
+---@param enabled boolean Whether to enable self-registration
+function Mechanic:SetRegisterSelf(enabled)
+	self.db.profile.registerSelf = enabled
+	if enabled then
+		self:RegisterSelf()
+	else
+		self:UnregisterSelf()
+	end
+	-- Refresh all module nav lists
+	self:RefreshAllModuleNav()
+end
+
+--- Refresh navigation in all modules after registration change.
+function Mechanic:RefreshAllModuleNav()
+	if self.Console then
+		self.Console.navDirty = true
+		if self.Console.frame and self.Console.frame:IsVisible() then
+			self.Console:RefreshSourceList()
+		end
+	end
+	if self.Tests and self.Tests.RefreshTree then
+		self.Tests:RefreshTree()
+		self.Tests:UpdateSummary()
+	end
+	if self.Tools then
+		self.Tools.navDirty = true
+		if self.Tools.frame and self.Tools.frame:IsVisible() then
+			self.Tools:RefreshAddonList()
+		end
+	end
+	if self.Perf then
+		self.Perf.navDirty = true
+		if self.Perf.frame and self.Perf.frame:IsVisible() then
+			self.Perf:RefreshNavItems()
+		end
+	end
+	self:UpdateStatusBar()
+end
+
+--- Get performance sub-metrics for !Mechanic itself.
+---@return table metrics Array of {name, value, percent, description}
+function Mechanic:GetSelfPerformanceMetrics()
+	local metrics = {}
+
+	-- Console buffer size
+	if self.Console and self.Console.buffer then
+		local bufferCount = self.Console.count or 0
+		local bufferMax = self.db.profile.bufferSize or 1000
+		table.insert(metrics, {
+			name = "Console Buffer",
+			ms = bufferCount, -- Using 'ms' key to match SUB_COLUMNS expectation
+			percent = (bufferCount / bufferMax) * 100,
+			description = string.format("%d / %d entries", bufferCount, bufferMax),
+		})
+	end
+
+	-- Health log entries
+	local healthCount = #(self.db.profile.healthLog or {})
+	table.insert(metrics, {
+		name = "Health Log",
+		ms = healthCount,
+		percent = 0,
+		description = string.format("%d entries", healthCount),
+	})
+
+	-- Watch list size
+	local MechanicLib = LibStub("MechanicLib-1.0", true)
+	if MechanicLib then
+		local watchCount = 0
+		for _ in pairs(MechanicLib:GetWatchList()) do
+			watchCount = watchCount + 1
+		end
+		table.insert(metrics, {
+			name = "Watch List",
+			ms = watchCount,
+			percent = 0,
+			description = string.format("%d items", watchCount),
+		})
+	end
+
+	return metrics
+end
+
+--- Get self-test definitions.
+---@return table tests Array of test definitions
+function Mechanic:GetSelfTests()
+	return {
+		{
+			id = "db_integrity",
+			name = "Database Integrity",
+			category = "Database",
+			description = "Verify that MechanicDB has valid structure",
+		},
+		{
+			id = "db_defaults",
+			name = "Database Defaults",
+			category = "Database",
+			description = "Verify that all default keys exist in profile",
+		},
+		{
+			id = "ui_modules",
+			name = "UI Modules Loaded",
+			category = "UI",
+			description = "Verify that all UI modules are initialized",
+		},
+	}
+end
+
+--- Run a self-test by ID.
+---@param id string The test ID
+---@return table result Test result {passed, message, duration, logs}
+function Mechanic:RunSelfTest(id)
+	local startTime = debugprofilestop()
+	local result = { passed = false, message = "", logs = {} }
+
+	if id == "db_integrity" then
+		-- Check that db and profile exist
+		if self.db and self.db.profile then
+			result.passed = true
+			result.message = "Database and profile are valid"
+			table.insert(result.logs, "self.db exists: true")
+			table.insert(result.logs, "self.db.profile exists: true")
+		else
+			result.message = "Database or profile is nil"
+			table.insert(result.logs, string.format("self.db exists: %s", tostring(self.db ~= nil)))
+			table.insert(
+				result.logs,
+				string.format("self.db.profile exists: %s", tostring(self.db and self.db.profile ~= nil))
+			)
+		end
+	elseif id == "db_defaults" then
+		-- Check for essential keys
+		local requiredKeys = { "position", "size", "activeTab", "bufferSize", "healthLog" }
+		local missing = {}
+		for _, key in ipairs(requiredKeys) do
+			if self.db.profile[key] == nil then
+				table.insert(missing, key)
+			end
+			table.insert(result.logs, string.format("%s: %s", key, tostring(self.db.profile[key] ~= nil)))
+		end
+		if #missing == 0 then
+			result.passed = true
+			result.message = "All required keys present"
+		else
+			result.message = "Missing keys: " .. table.concat(missing, ", ")
+		end
+	elseif id == "ui_modules" then
+		-- Check that modules exist
+		local modules = { "Console", "Errors", "Tests", "Tools", "API", "Inspect", "Perf" }
+		local missing = {}
+		for _, mod in ipairs(modules) do
+			local exists = self[mod] ~= nil
+			table.insert(result.logs, string.format("%s: %s", mod, tostring(exists)))
+			if not exists then
+				table.insert(missing, mod)
+			end
+		end
+		if #missing == 0 then
+			result.passed = true
+			result.message = "All UI modules available"
+		else
+			result.message = "Missing modules: " .. table.concat(missing, ", ")
+		end
+	else
+		result.message = "Unknown test ID: " .. tostring(id)
+	end
+
+	result.duration = (debugprofilestop() - startTime) / 1000
+	return result
+end
+
+--------------------------------------------------------------------------------
+-- Persistent Health Log (for Agent Auditing)
+--------------------------------------------------------------------------------
+
+--- Log an internal error or critical event to the persistent health log.
+--- This data survives reloads and can be read by agents via SavedVariablesInspector.
+---@param level string "ERROR" | "WARN" | "INFO"
+---@param source string The source module or function name
+---@param message string The log message
+---@param stack string|nil Optional stack trace
+function Mechanic:LogHealth(level, source, message, stack)
+	if not self.db or not self.db.profile then
+		return
+	end
+	if not self.db.profile.healthLog then
+		self.db.profile.healthLog = {}
+	end
+
+	local entry = {
+		timestamp = date("%Y-%m-%d %H:%M:%S"),
+		gameTime = GetTime(),
+		level = level or "INFO",
+		source = source or "Unknown",
+		message = message or "",
+		stack = stack,
+	}
+	table.insert(self.db.profile.healthLog, entry)
+
+	-- Cap at 100 entries to prevent bloat
+	while #self.db.profile.healthLog > 100 do
+		table.remove(self.db.profile.healthLog, 1)
+	end
+end
+
+--- Export the health log to the clipboard via the export dialog.
+function Mechanic:ExportHealthLog()
+	local lines = {}
+	local header = self:GetEnvironmentHeader()
+	if header then
+		table.insert(lines, header)
+		table.insert(lines, "---")
+	end
+
+	table.insert(lines, "!Mechanic Internal Health Log")
+	table.insert(lines, string.format("Entries: %d", #self.db.profile.healthLog))
+	table.insert(lines, "")
+
+	if #self.db.profile.healthLog == 0 then
+		table.insert(lines, "No entries in health log.")
+	else
+		for i, entry in ipairs(self.db.profile.healthLog) do
+			table.insert(
+				lines,
+				string.format(
+					"[%d] %s [%s] %s: %s",
+					i,
+					tostring(entry.timestamp or "?"),
+					tostring(entry.level or "?"),
+					tostring(entry.source or "?"),
+					tostring(entry.message or "")
+				)
+			)
+			if entry.stack then
+				table.insert(lines, "    Stack: " .. tostring(entry.stack))
+			end
+		end
+	end
+
+	local title = L["Tools : !Mechanic : View Health Log"] or "Tools : !Mechanic : View Health Log"
+	self.Utils:ShowExportDialog(title, table.concat(lines, "\n"))
+end
+
 function Mechanic:OnAddonRegistered(name, capabilities)
 	-- Global Filter
 	if self.db.profile.hiddenAddons[name] then
-		self:OnLog("System", string.format("Addon %s registered but is currently HIDDEN by global filter.", name), "[Core]")
+		self:OnLog(
+			"System",
+			string.format("Addon %s registered but is currently HIDDEN by global filter.", name),
+			"[Core]"
+		)
 		return
 	end
 
@@ -226,20 +635,20 @@ function Mechanic:SlashCommand(input)
 
 	if cmd == "" then
 		self:ToggleMainFrame()
+	elseif cmd == "inspect" then
+		self:ShowTab("inspect")
 	elseif cmd == "console" then
 		self:ShowTab("console")
 	elseif cmd == "errors" then
 		self:ShowTab("errors")
 	elseif cmd == "tests" then
 		self:ShowTab("tests")
+	elseif cmd == "perf" then
+		self:ShowTab("perf")
 	elseif cmd == "tools" then
 		self:ShowTab("tools")
 	elseif cmd == "api" then
 		self:ShowTab("api")
-	elseif cmd == "inspect" then
-		self:ShowTab("inspect")
-	elseif cmd == "perf" then
-		self:ShowTab("perf")
 	elseif cmd == "reload" then
 		ReloadUI()
 	elseif cmd == "gc" then
@@ -247,14 +656,22 @@ function Mechanic:SlashCommand(input)
 		collectgarbage("collect")
 		local after = collectgarbage("count")
 		local freed = before - after
-		self:Print(string.format(L["GC: %.1f KB freed (%.1f MB -> %.1f MB)"], 
-			self.Utils:FormatMemory(freed), 
-			self.Utils:FormatMemory(before), 
-			self.Utils:FormatMemory(after)))
+		self:Print(
+			string.format(
+				L["GC: %.1f KB freed (%.1f MB -> %.1f MB)"],
+				self.Utils:FormatMemory(freed),
+				self.Utils:FormatMemory(before),
+				self.Utils:FormatMemory(after)
+			)
+		)
 
 		local MechanicLib = LibStub("MechanicLib-1.0", true)
 		if MechanicLib then
-			MechanicLib:Log("System", string.format(L["GC executed: %s freed"], self.Utils:FormatMemory(freed)), MechanicLib.Categories.PERF)
+			MechanicLib:Log(
+				"System",
+				string.format(L["GC executed: %s freed"], self.Utils:FormatMemory(freed)),
+				MechanicLib.Categories.PERF
+			)
 		end
 	elseif cmd == "pause" then
 		self:TogglePause()
@@ -262,7 +679,7 @@ function Mechanic:SlashCommand(input)
 		self:ClearCurrentTab()
 	else
 		self:Print(string.format(L["Unknown command: %s"], cmd))
-		self:Print(L["Commands: console, errors, tests, perf, reload, gc, pause, copy, clear"])
+		self:Print(L["Commands: inspect, console, errors, tests, perf, tools, api, reload, gc, pause, copy, clear"])
 	end
 end
 

@@ -235,10 +235,13 @@ end
 
 local CheckboxMixin = {}
 
-function CheckboxMixin:SetChecked(checked)
+function CheckboxMixin:SetChecked(checked, silent)
+    if self.checked == checked then
+        return
+    end
     self.checked = checked
     self.checkmark:SetShown(checked)
-    if self.hooks.onChange then
+    if self.hooks.onChange and not silent then
         self.hooks.onChange(self, checked)
     end
 end
@@ -287,12 +290,12 @@ function FenUI:CreateCheckbox(parent, config)
     checkbox.boxBorder:SetDrawLayer("BORDER", 1)
     
     -- Checkmark
-    checkbox.checkmark = checkbox.box:CreateFontString(nil, "OVERLAY")
-    checkbox.checkmark:SetFontObject("GameFontNormal")
-    checkbox.checkmark:SetText("✓")
-    checkbox.checkmark:SetPoint("CENTER", 0, 1)
+    checkbox.checkmark = checkbox.box:CreateTexture(nil, "OVERLAY")
+    checkbox.checkmark:SetPoint("CENTER")
+    checkbox.checkmark:SetSize(14, 14)
+    checkbox.checkmark:SetAtlas("common-icon-checkmark")
     local r, g, b = FenUI:GetColor("interactiveDefault")
-    checkbox.checkmark:SetTextColor(r, g, b)
+    checkbox.checkmark:SetVertexColor(r, g, b)
     checkbox.checkmark:SetShown(checkbox.checked)
     
     -- Label
@@ -302,7 +305,7 @@ function FenUI:CreateCheckbox(parent, config)
     local tr, tg, tb = FenUI:GetColor("textDefault")
     checkbox.label:SetTextColor(tr, tg, tb)
     if config.label then
-        checkbox.label:SetLabel(config.label)
+        checkbox:SetLabel(config.label)
     end
     
     -- Size

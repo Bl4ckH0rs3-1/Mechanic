@@ -2,13 +2,46 @@
 
 All notable changes to !Mechanic will be documented in this file.
 
+## [1.2.0] - 2025-12-25
+
+### Added
+- **Self-Registration (Dogfooding)**: Added a "Register Mechanic" toggle checkbox in the main frame footer. When enabled, !Mechanic registers itself via MechanicLib, appearing in its own Performance, Tools, and Tests tabs.
+- **Persistent Health Log**: Internal errors and critical events are now logged to `MechanicDB.profile.healthLog` for persistent debugging across reloads.
+- **Self-Diagnostics Tools**:
+  - **View Health Log**: Export the internal error log via the high-elevation export dialog.
+  - **Clear Health Log**: Wipe all entries from the persistent health log.
+  - **Reset UI Position**: Reset the main frame to default size and center position.
+- **Self-Tests**: Added database integrity, defaults validation, and UI module checks.
+- **Self-Performance Metrics**: Console buffer usage, health log entry count, and watch list size.
+- Implemented `MechanicLib:Unregister()` for clean addon deregistration.
+
+### Changed
+- Bumped MechanicLib to Minor 3.
 
 
 
 
 
 
+## [1.1.9] - 2025-12-25
 
+### Fixed
+- Fixed UI rendering issues in the Performance tab where addon detail panels were blank on first load.
+- Replaced Unicode characters in sort indicators and checkboxes with robust Blizzard atlases and text icons to fix display issues (boxes/missing icons).
+- Fixed "Fechar" label on the Export dialog's close button by ensuring explicit text initialization.
+- Refactored Performance addon detail frames to use the SplitNavLayout's content frame management for better lifecycle synchronization.
+- Improved UI resilience in Performance tab with more descriptive empty states when metrics are unavailable.
+- Filtered Performance addon list to only show currently loaded (active) addons, resolving clutter from disabled addons.
+- Fixed legacy `IsAddOnLoaded` global call in Performance tab (switched to `C_AddOns.IsAddOnLoaded`).
+- Critical UI crash on Performance tab due to missing localization entries.
+- UI resilience: Switched to silent locale lookups to prevent future crashes if keys are missing.
+- Fixed EasyMenu nil errors by adding defensive checks in FenUI.Utils.
+- Fixed session dropdown values in Errors tab (now shows readable names instead of internal numbers).
+- Restored missing keys in enUS locale.
+- Fixed `attempt to call method 'HasCapability' (a nil value)` in Performance tab.
+- Fixed `attempt to call method 'OnShow' (a nil value)` and `OnHide` errors during tab switching by adding defensive checks in MainFrame and refactoring module lifecycles.
+- Resolved numerous linting warnings (W113/W122) in FenUI core and widgets for better stability.
+- Fixed critical syntax error in MainFrame.lua introduced during refactoring.
 
 ## [1.1.8] - 2025-12-25
 

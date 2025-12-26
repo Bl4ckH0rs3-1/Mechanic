@@ -156,11 +156,11 @@ function LayoutMixin:CreateBackgroundLayer()
     -- frame's background if the parent is at a high frame level.
     -- Instead, we let it inherit and we'll manage layering via draw layers
     -- or a slightly lower frame level than the parent.
-    self.bgFrame = CreateFrame("Frame", nil, self)
+    self.bgFrame = _G.CreateFrame("Frame", nil, self)
     
     -- Ensure it's at the bottom of the parent's internal stack
     local parentLevel = self:GetFrameLevel()
-    self.bgFrame:SetFrameLevel(math.max(0, parentLevel - 1))
+    self.bgFrame:SetFrameLevel(_G.math.max(0, parentLevel - 1))
     
     -- Create the background texture on bgFrame (not self)
     self.bgTexture = self.bgFrame:CreateTexture(nil, "BACKGROUND", nil, -8)
@@ -289,8 +289,8 @@ function LayoutMixin:ApplyGradientBackground(values)
     local orientation = values.orientation or "VERTICAL"
     self.bgTexture:SetGradient(
         orientation,
-        CreateColor(fromR, fromG, fromB, fromA or 1),
-        CreateColor(toR, toG, toB, toA or 1)
+        _G.CreateColor(fromR, fromG, fromB, fromA or 1),
+        _G.CreateColor(toR, toG, toB, toA or 1)
     )
     
     self:ApplyBackgroundAnchors()
@@ -550,8 +550,8 @@ function LayoutMixin:ApplyDropShadow(config)
     
     -- Create shadow frame if needed (sits behind the main frame)
     if not self.dropShadowFrame then
-        self.dropShadowFrame = CreateFrame("Frame", nil, self:GetParent())
-        self.dropShadowFrame:SetFrameLevel(math.max(1, self:GetFrameLevel() - 1))
+        self.dropShadowFrame = _G.CreateFrame("Frame", nil, self:GetParent())
+        self.dropShadowFrame:SetFrameLevel(_G.math.max(1, self:GetFrameLevel() - 1))
         
         -- Create 9 textures for proper scaling: 4 corners, 4 edges, 1 center
         self.dropShadowTextures = {}
@@ -686,7 +686,7 @@ end
 ---@return Frame
 function LayoutMixin:GetContentFrame()
     if not self.contentFrame then
-        self.contentFrame = CreateFrame("Frame", nil, self)
+        self.contentFrame = _G.CreateFrame("Frame", nil, self)
         
         local padding = self:GetPadding()
         self.contentFrame:SetPoint("TOPLEFT", padding, -padding)
@@ -755,11 +755,11 @@ function LayoutMixin:CreateCells()
             parsedDefs[i] = { type = "fixed", value = def }
             fixedSize = fixedSize + def
         elseif type(def) == "string" and def:find("px$") then
-            local val = tonumber(def:match("^(%d+)")) or 0
+            local val = _G.tonumber(def:match("^(%d+)")) or 0
             parsedDefs[i] = { type = "fixed", value = val }
             fixedSize = fixedSize + val
         elseif type(def) == "string" and def:find("fr$") then
-            local val = tonumber(def:match("^(%d+)")) or 1
+            local val = _G.tonumber(def:match("^(%d+)")) or 1
             parsedDefs[i] = { type = "fr", value = val }
             totalFr = totalFr + val
         else
@@ -771,7 +771,7 @@ function LayoutMixin:CreateCells()
     
     -- Create cell frames
     for i = 1, #defs do
-        local cell = CreateFrame("Frame", nil, self)
+        local cell = _G.CreateFrame("Frame", nil, self)
         cell.index = i
         cell.def = parsedDefs[i]
         
@@ -844,11 +844,11 @@ function LayoutMixin:LayoutCells()
         if isVertical then
             cell:SetPoint("TOPLEFT", padding, -offset)
             cell:SetPoint("TOPRIGHT", -padding, -offset)
-            cell:SetHeight(math.max(1, cellSize))
+            cell:SetHeight(_G.math.max(1, cellSize))
         else
             cell:SetPoint("TOPLEFT", offset, -padding)
             cell:SetPoint("BOTTOMLEFT", offset, padding)
-            cell:SetWidth(math.max(1, cellSize))
+            cell:SetWidth(_G.math.max(1, cellSize))
         end
         
         offset = offset + cellSize + gap
@@ -884,13 +884,14 @@ end
 ---@param parent Frame Parent frame
 ---@param config table Configuration
 ---@return Frame layout
+-- luacheck: ignore 122
 function FenUI:CreateLayout(parent, config)
     config = config or {}
     
     -- NOTE: Don't use BackdropTemplate when using NineSlice
     -- NineSlice and BackdropTemplate conflict in WoW 9.1.5+.
     -- We use a dedicated bgFrame child at frameLevel 0 for backgrounds instead.
-    local layout = CreateFrame("Frame", config.name, parent or UIParent)
+    local layout = _G.CreateFrame("Frame", config.name, parent or _G.UIParent)
     
     -- Apply mixin
     FenUI.Mixin(layout, LayoutMixin)
@@ -909,6 +910,7 @@ end
 ---@param parent Frame Parent frame
 ---@param config table Configuration
 ---@return Frame card
+-- luacheck: ignore 122
 function FenUI:CreateCard(parent, config)
     config = config or {}
     return self:CreateLayout(parent, {
@@ -928,6 +930,7 @@ end
 ---@param parent Frame Parent frame
 ---@param config table Configuration
 ---@return Frame dialog
+-- luacheck: ignore 122
 function FenUI:CreateDialog(parent, config)
     config = config or {}
     return self:CreateLayout(parent, {

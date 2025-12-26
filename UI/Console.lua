@@ -5,7 +5,7 @@
 
 local ADDON_NAME, ns = ...
 local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
-local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
+local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME, true)
 local Console = {}
 Mechanic.Console = Console
 
@@ -17,10 +17,11 @@ Console.head = 1
 Console.count = 0
 Console.paused = false
 Console.filters = {
-	source = "All",
-	category = "All",
+	source = "all",
+	category = "all",
 	search = "",
 }
+Console.selectedSource = "all"
 Console.navDirty = true
 
 function Console:Initialize(parent)
@@ -47,13 +48,22 @@ function Console:Initialize(parent)
 	-- Everything else goes into layout.contentArea
 	local contentArea = self.layout.contentArea
 
+	-- Toolbar
+	local toolbar = FenUI:CreateToolbar(contentArea, {
+		height = 32,
+		padding = 4,
+	})
+	toolbar:SetPoint("TOPLEFT", 0, 0)
+	toolbar:SetPoint("TOPRIGHT", 0, 0)
+	self.toolbar = toolbar
+
 	-- Filter Bar
 	local filterBar = FenUI:CreateLayout(contentArea, {
 		height = 30,
 		background = "surfaceElevated",
 	})
-	filterBar:SetPoint("TOPLEFT", 0, 0)
-	filterBar:SetPoint("TOPRIGHT", 0, 0)
+	filterBar:SetPoint("TOPLEFT", toolbar, "BOTTOMLEFT", 0, -4)
+	filterBar:SetPoint("TOPRIGHT", toolbar, "BOTTOMRIGHT", 0, -4)
 	self.filterBar = filterBar
 
 	-- Search Box
@@ -74,28 +84,13 @@ function Console:Initialize(parent)
 		background = "surfaceInset",
 	})
 	logDisplay:SetPoint("TOPLEFT", filterBar, "BOTTOMLEFT", 0, -4)
-	logDisplay:SetPoint("BOTTOMRIGHT", 0, 34) -- Leave space for toolbar
+	logDisplay:SetPoint("BOTTOMRIGHT", 0, 0)
 	self.logDisplay = logDisplay
-
-	-- Refresh on show
-	frame:SetScript("OnShow", function()
-		if Console.navDirty then
-			Console:RefreshSourceList()
-		end
-		Console:Refresh()
-	end)
-
-	-- Toolbar
-	local toolbar = FenUI:CreateToolbar(contentArea, {
-		height = 30,
-	})
-	toolbar:SetPoint("BOTTOMLEFT", 0, 0)
-	toolbar:SetPoint("BOTTOMRIGHT", 0, 0)
-	self.toolbar = toolbar
 
 	-- Clear Button
 	toolbar:AddButton({
-		text = "Clear",
+		text = L["Clear"],
+		width = 60,
 		onClick = function()
 			self:Clear()
 		end,
@@ -103,7 +98,8 @@ function Console:Initialize(parent)
 
 	-- Dedup All Button
 	toolbar:AddButton({
-		text = "Dedup All",
+		text = L["Dedup All"],
+		width = 80,
 		onClick = function()
 			self:SetDedupMode("all")
 		end,
@@ -111,7 +107,8 @@ function Console:Initialize(parent)
 
 	-- Dedup Adjacent Button
 	toolbar:AddButton({
-		text = "Dedup Adj",
+		text = L["Dedup Adjacent"],
+		width = 110,
 		onClick = function()
 			self:SetDedupMode("adjacent")
 		end,
@@ -119,9 +116,21 @@ function Console:Initialize(parent)
 
 	-- Pause Button
 	self.pauseBtn = toolbar:AddButton({
-		text = "Pause",
+		text = L["Pause"] or "Pause",
+		width = 60,
 		onClick = function()
 			self:TogglePause()
+		end,
+	})
+
+	toolbar:AddSpacer("flex")
+
+	-- Export Button
+	toolbar:AddButton({
+		text = L["Export Button"],
+		width = 90,
+		onClick = function()
+			self:Export()
 		end,
 	})
 
@@ -136,6 +145,15 @@ function Console:Initialize(parent)
 		self:OnSourceSelected(initialKey)
 	end
 end
+
+function Console:OnShow()
+	if self.navDirty then
+		self:RefreshSourceList()
+	end
+	self:Refresh()
+end
+
+function Console:OnHide() end
 
 function Console:IterateBuffer(callback)
 	local maxLimit = Mechanic.db.profile.bufferSize or 1000
@@ -159,7 +177,7 @@ end
 
 function Console:GetSourceList()
 	local items = {
-		{ key = "all", text = string.format("%s (%d)", L["All"], self.count) },
+		{ key = "all", text = string.format("%s (%d)", L["All"] or "All", self.count or 0) },
 	}
 
 	-- Count entries per source
@@ -182,18 +200,18 @@ function Console:GetSourceList()
 			local count = sourceCounts[addonName] or 0
 			table.insert(items, {
 				key = addonName,
-				text = string.format("%s (%d)", addonName, count),
+				text = string.format("%s (%d)", tostring(addonName or "Unknown"), count or 0),
 			})
 		end
 	end
 
 	-- Add "System" for internal logs if it has entries and isn't a registered addon
 	if sourceCounts["System"] then
-		local isRegistered = MechanicLib and MechanicLib:GetRegistered()["System"]
+		local isRegistered = MechanicLib and MechanicLib:HasCapability("System", "performance") -- Just a check for existence
 		if not isRegistered then
 			table.insert(items, {
 				key = "System",
-				text = string.format("System (%d)", sourceCounts["System"]),
+				text = string.format("%s (%d)", L["System"] or "System", sourceCounts["System"] or 0),
 			})
 		end
 	end
@@ -202,40 +220,43 @@ function Console:GetSourceList()
 end
 
 function Console:RefreshSourceList()
-	local items = self:GetSourceList()
-
 	if self.layout then
-		self.layout:SetItems(items)
+		self.layout:SetItems(self:GetSourceList())
 		self.navDirty = false
 	end
 end
 
 function Console:OnSourceSelected(key)
-	self.filters.source = key == "all" and "All" or key
+	self.selectedSource = key
+	self.filters.source = key
 	self:Refresh()
 end
 
-function Console:OnLog(addonName, message, category)
+function Console:OnLog(event, source, message, category)
+	if self.paused then
+		return
+	end
+
 	local maxLimit = Mechanic.db.profile.bufferSize or 1000
 
-	local entry = {
-		source = addonName,
-		category = category or "",
+	-- Circular buffer logic
+	self.buffer[self.head] = {
+		source = source,
 		message = message,
-		time = time(),
+		category = category or "",
+		time = GetTime(),
 	}
-
-	self.buffer[self.head] = entry
 
 	self.head = (self.head % maxLimit) + 1
 	if self.count < maxLimit then
 		self.count = self.count + 1
 	end
 
-	if not self.paused then
-		if self.frame and self.frame:IsVisible() then
-			self:RefreshSourceList()
-		end
+	-- Mark nav as dirty to refresh source list on next show
+	self.navDirty = true
+
+	-- Only refresh display if visible
+	if self.frame and self.frame:IsVisible() then
 		self:Refresh()
 	end
 end
@@ -258,7 +279,7 @@ function Console:Refresh()
 			self.logDisplay:SetText(text)
 		end
 		if self.lineCount then
-			self.lineCount:SetText(string.format(L["Lines: %d"], #filtered))
+			self.lineCount:SetText(string.format(L["Lines: %d"] or "Lines: %d", #filtered))
 		end
 	end)
 end
@@ -271,12 +292,12 @@ function Console:ApplyFilters()
 		local match = true
 
 		-- Source filter
-		if self.filters.source ~= "All" and entry.source ~= self.filters.source then
+		if self.filters.source ~= "all" and entry.source ~= self.filters.source then
 			match = false
 		end
 
 		-- Category filter
-		if match and self.filters.category ~= "All" and entry.category ~= self.filters.category then
+		if match and self.filters.category ~= "all" and entry.category ~= self.filters.category then
 			match = false
 		end
 
@@ -318,47 +339,41 @@ function Console:FormatEntries(entries, stripColors)
 		local category = ""
 		if entry.category ~= "" then
 			if stripColors then
-				category = string.format(" %s", entry.category)
+				category = string.format(" %s", tostring(entry.category or ""))
 			else
 				local color = CATEGORY_COLORS[entry.category] or DEFAULT_CATEGORY_COLOR
-				category = string.format(" %s%s|r", color, entry.category)
+				category = string.format(" %s%s|r", tostring(color or "|cffffffff"), tostring(entry.category or ""))
 			end
 		end
 
 		local count = ""
 		if entry.count and entry.count > 1 then
-			count = string.format(" (x%d)", entry.count)
+			count = string.format(" (x%d)", entry.count or 1)
 		end
 
-		table.insert(lines, string.format("%s[%s]%s %s%s", timestamp, entry.source, category, entry.message, count))
+		table.insert(
+			lines,
+			string.format(
+				"%s[%s]%s %s%s",
+				tostring(timestamp or ""),
+				tostring(entry.source or "Unknown"),
+				tostring(category or ""),
+				tostring(entry.message or ""),
+				tostring(count or "")
+			)
+		)
 	end
 	return table.concat(lines, "\n")
 end
 
 function Console:DedupAll(entries)
+	local seen = {}
 	local deduped = {}
-	local seen = {} -- key -> index in deduped
-	local keyParts = {}
-
 	for _, entry in ipairs(entries) do
-		wipe(keyParts)
-		table.insert(keyParts, entry.source)
-		table.insert(keyParts, entry.category or "")
-		table.insert(keyParts, entry.message)
-		local key = table.concat(keyParts)
-
-		if seen[key] then
-			local idx = seen[key]
-			deduped[idx].count = (deduped[idx].count or 1) + 1
-			deduped[idx].time = entry.time -- Update time to latest
-		else
-			local newEntry = {}
-			for k, v in pairs(entry) do
-				newEntry[k] = v
-			end
-			newEntry.count = 1
-			table.insert(deduped, newEntry)
-			seen[key] = #deduped
+		local key = entry.source .. (entry.category or "") .. entry.message
+		if not seen[key] then
+			seen[key] = true
+			table.insert(deduped, entry)
 		end
 	end
 	return deduped
@@ -367,35 +382,18 @@ end
 function Console:DedupAdjacent(entries)
 	local deduped = {}
 	local lastEntry = nil
-	local keyParts = {}
-
 	for _, entry in ipairs(entries) do
-		wipe(keyParts)
-		table.insert(keyParts, entry.source)
-		table.insert(keyParts, entry.category or "")
-		table.insert(keyParts, entry.message)
-		local key = table.concat(keyParts)
-
-		local lastKey = nil
-		if lastEntry then
-			wipe(keyParts)
-			table.insert(keyParts, lastEntry.source)
-			table.insert(keyParts, lastEntry.category or "")
-			table.insert(keyParts, lastEntry.message)
-			lastKey = table.concat(keyParts)
-		end
-
-		if lastEntry and lastKey == key then
+		if
+			lastEntry
+			and lastEntry.source == entry.source
+			and lastEntry.category == entry.category
+			and lastEntry.message == entry.message
+		then
 			lastEntry.count = (lastEntry.count or 1) + 1
-			lastEntry.time = entry.time
 		else
-			local newEntry = {}
-			for k, v in pairs(entry) do
-				newEntry[k] = v
-			end
-			newEntry.count = 1
-			table.insert(deduped, newEntry)
-			lastEntry = newEntry
+			entry.count = 1
+			table.insert(deduped, entry)
+			lastEntry = entry
 		end
 	end
 	return deduped
@@ -404,7 +402,7 @@ end
 function Console:TogglePause()
 	self.paused = not self.paused
 	if self.pauseBtn then
-		self.pauseBtn:SetText(self.paused and "Resume" or "Pause")
+		self.pauseBtn:SetText(self.paused and L["Resume"] or L["Pause"])
 	end
 	if not self.paused then
 		self:Refresh()
@@ -416,6 +414,23 @@ function Console:Clear()
 	self.head = 1
 	self.count = 0
 	self:Refresh()
+	self:RefreshSourceList()
+end
+
+function Console:Export()
+	local navName = self.selectedSource or "all"
+	if navName == "all" then
+		navName = L["All"] or "All"
+	end
+
+	local title = string.format(
+		"%s : %s : %s",
+		tostring(L["Console"] or "Console"),
+		tostring(navName or "All"),
+		tostring(L["Export"] or "Export")
+	)
+	local text = self:GetCopyText(Mechanic.db.profile.includeEnvHeader)
+	Mechanic.Utils:ShowExportDialog(title, text)
 end
 
 function Console:SetDedupMode(mode)
@@ -441,6 +456,21 @@ function Console:GetCopyText(includeHeader)
 	table.insert(lines, self:FormatEntries(filtered, true))
 
 	return table.concat(lines, "\n")
+end
+
+function Console:OnEnable()
+	-- Register with MechanicLib for logging
+	local MechanicLib = LibStub("MechanicLib-1.0", true)
+	if MechanicLib then
+		MechanicLib:RegisterCallback(self, "MechanicLib_Log", "OnLog")
+	end
+end
+
+function Console:OnDisable()
+	local MechanicLib = LibStub("MechanicLib-1.0", true)
+	if MechanicLib then
+		MechanicLib:UnregisterCallback(self, "MechanicLib_Log")
+	end
 end
 
 -- Initialize the console when called from Core

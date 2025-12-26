@@ -243,7 +243,7 @@ passed, message  -- boolean/nil, string
 ┌─────────────────────────────────────────────────────────────┐
 │ !Mechanic                                        [_][□][X]  │
 ├─────────────────────────────────────────────────────────────┤
-│ [Console] [Errors] [Tests] [Performance]                    │
+│ [Inspect] [Console] [Errors] [Tests] [Performance] [Tools]  │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  (Tab Content Area - varies by tab)                         │
@@ -565,10 +565,13 @@ MechanicDB = {
 | Command | Action |
 |---------|--------|
 | `/mech` or `/mechanic` | Toggle main panel |
+| `/mech inspect` | Open to Inspect tab |
 | `/mech console` | Open to Console tab |
 | `/mech errors` | Open to Errors tab |
 | `/mech tests` | Open to Tests tab |
 | `/mech perf` | Open to Performance tab |
+| `/mech tools` | Open to Tools tab |
+| `/mech api` | Open to API tab |
 | `/mech reload` | ReloadUI() shortcut |
 | `/mech gc` | Force garbage collection, log result |
 | `/mech pause` | Toggle pause on current tab |

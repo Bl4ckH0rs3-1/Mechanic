@@ -6,6 +6,7 @@
 
 local ADDON_NAME, ns = ...
 local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
+local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME, true)
 local ToolsModule = {}
 Mechanic.Tools = ToolsModule
 
@@ -24,6 +25,25 @@ function Mechanic:InitializeTools()
 	frame:SetAllPoints()
 	ToolsModule.frame = frame
 
+	-- Create toolbar for Export button
+	local toolbar = FenUI:CreateToolbar(frame, {
+		height = 32,
+		padding = 4,
+	})
+	toolbar:SetPoint("TOPLEFT", 0, 0)
+	toolbar:SetPoint("TOPRIGHT", 0, 0)
+
+	toolbar:AddSpacer("flex")
+
+	local exportBtn = toolbar:AddButton({
+		text = L["Export Button"],
+		width = 90,
+		onClick = function()
+			ToolsModule:Export()
+		end,
+	})
+	ToolsModule.exportButton = exportBtn
+
 	-- Create split nav layout
 	local SplitNavLayout = ns.SplitNavLayout
 	ToolsModule.layout = SplitNavLayout:Create(frame, {
@@ -34,6 +54,15 @@ function Mechanic:InitializeTools()
 			ToolsModule:OnAddonSelected(key)
 		end,
 	})
+
+	-- Anchor layout below toolbar
+	ToolsModule.layout.navPanel:ClearAllPoints()
+	ToolsModule.layout.navPanel:SetPoint("TOPLEFT", toolbar, "BOTTOMLEFT", 0, -4)
+	ToolsModule.layout.navPanel:SetPoint("BOTTOMLEFT", 0, 0)
+
+	ToolsModule.layout.contentArea:ClearAllPoints()
+	ToolsModule.layout.contentArea:SetPoint("TOPLEFT", ToolsModule.layout.navPanel, "TOPRIGHT", 4, 0)
+	ToolsModule.layout.contentArea:SetPoint("BOTTOMRIGHT", 0, 0)
 
 	-- Manually trigger initial selection now that layout is assigned
 	local initialKey = ToolsModule.layout:GetSelectedKey()
@@ -52,12 +81,15 @@ function ToolsModule:GetAddonList()
 	end
 
 	local items = {}
-	for addonName, capabilities in pairs(MechanicLib:GetRegistered()) do
-		if capabilities.tools and capabilities.tools.createPanel then
-			table.insert(items, {
-				key = addonName,
-				text = addonName,
-			})
+	for addonName in pairs(MechanicLib:GetRegistered()) do
+		if MechanicLib:HasCapability(addonName, "tools") then
+			local tools = MechanicLib:GetCapability(addonName, "tools")
+			if tools and tools.createPanel then
+				table.insert(items, {
+					key = addonName,
+					text = addonName,
+				})
+			end
 		end
 	end
 
@@ -94,9 +126,11 @@ function ToolsModule:OnAddonSelected(addonName)
 	-- Destroy previous panel if it exists
 	if self.activePanel and self.selectedAddon then
 		local MechanicLib = LibStub("MechanicLib-1.0", true)
-		local prevCaps = MechanicLib and MechanicLib:GetRegistered()[self.selectedAddon]
-		if prevCaps and prevCaps.tools and prevCaps.tools.destroyPanel then
-			pcall(prevCaps.tools.destroyPanel, self.activePanel)
+		if MechanicLib and MechanicLib:HasCapability(self.selectedAddon, "tools") then
+			local tools = MechanicLib:GetCapability(self.selectedAddon, "tools")
+			if tools and tools.destroyPanel then
+				pcall(tools.destroyPanel, self.activePanel)
+			end
 		end
 	end
 
@@ -120,8 +154,12 @@ function ToolsModule:OnAddonSelected(addonName)
 
 	-- Get addon capabilities
 	local MechanicLib = LibStub("MechanicLib-1.0", true)
-	local capabilities = MechanicLib and MechanicLib:GetRegistered()[addonName]
-	if not capabilities or not capabilities.tools then
+	if not MechanicLib or not MechanicLib:HasCapability(addonName, "tools") then
+		return
+	end
+
+	local tools = MechanicLib:GetCapability(addonName, "tools")
+	if not tools then
 		return
 	end
 
@@ -136,8 +174,8 @@ function ToolsModule:OnAddonSelected(addonName)
 	end
 
 	-- Let addon create its panel
-	if capabilities.tools.createPanel then
-		local ok, err = pcall(capabilities.tools.createPanel, contentFrame)
+	if tools.createPanel then
+		local ok, err = pcall(tools.createPanel, contentFrame)
 		if not ok then
 			Mechanic:Print(string.format("Error creating tools panel for %s: %s", addonName, tostring(err)))
 		end
@@ -152,6 +190,22 @@ end
 
 function ToolsModule:OnHide()
 	-- Optional: cleanup
+end
+
+function ToolsModule:OnHide() end
+
+function ToolsModule:Export()
+	local navName = (self.selectedAddon and self.selectedAddon ~= "_empty") and self.selectedAddon
+		or (L["All"] or "All")
+	local title = string.format(
+		"%s : %s : %s",
+		tostring(L["Tools"] or "Tools"),
+		tostring(navName or "All"),
+		tostring(L["Export"] or "Export")
+	)
+
+	local text = self:GetCopyText(Mechanic.db.profile.includeEnvHeader)
+	Mechanic.Utils:ShowExportDialog(title, text)
 end
 
 function ToolsModule:GetCopyText(includeHeader)
@@ -172,8 +226,8 @@ function ToolsModule:GetCopyText(includeHeader)
 	local MechanicLib = LibStub("MechanicLib-1.0", true)
 	if MechanicLib then
 		local registered = {}
-		for addonName, capabilities in pairs(MechanicLib:GetRegistered()) do
-			if capabilities.tools and capabilities.tools.createPanel then
+		for addonName in pairs(MechanicLib:GetRegistered()) do
+			if MechanicLib:HasCapability(addonName, "tools") then
 				table.insert(registered, addonName)
 			end
 		end

@@ -56,9 +56,11 @@ function TabButtonMixin:UpdateVisual()
     end
     
     self.text:SetTextColor(r, g, b)
-    if self.badge then
-        local br, bg, bb = FenUI:GetColorRGB(self.isDisabled and "interactiveDisabled" or "feedbackSuccess")
-        self.badge:SetTextColor(br, bg, bb)
+    if self.badge or self.badgeIcon then
+        local badgeColor = self.badgeColor or "feedbackSuccess"
+        local br, bg, bb = FenUI:GetColorRGB(self.isDisabled and "interactiveDisabled" or badgeColor)
+        if self.badge then self.badge:SetTextColor(br, bg, bb) end
+        if self.badgeIcon then self.badgeIcon:SetVertexColor(br, bg, bb) end
     end
 end
 
@@ -69,26 +71,50 @@ end
 
 function TabButtonMixin:UpdateWidth()
     local textWidth = self.text:GetStringWidth()
-    local badgeWidth = (self.badge and self.badge:IsShown()) and (self.badge:GetStringWidth() + 6) or 0
+    local badgeWidth = 0
+    if self.badge and self.badge:IsShown() then
+        badgeWidth = self.badge:GetStringWidth() + 6
+    elseif self.badgeIcon and self.badgeIcon:IsShown() then
+        badgeWidth = self.badgeIcon:GetWidth() + 6
+    end
     self:SetWidth(textWidth + badgeWidth + 24)
 end
 
-function TabButtonMixin:SetBadge(text)
+function TabButtonMixin:SetBadge(text, colorToken)
     if not self.badge then
         self.badge = self:CreateFontString(nil, "OVERLAY")
         self.badge:SetFontObject(FenUI:GetFont("fontSmall"))
         self.badge:SetPoint("LEFT", self.text, "RIGHT", 4, 0)
-        local r, g, b = FenUI:GetColorRGB("feedbackSuccess")
-        self.badge:SetTextColor(r, g, b)
     end
     
-    if text then
+    self.badgeColor = colorToken
+    
+    -- Support for icons/atlases
+    if text and (text:find("^atlas:") or text:find("^texture:")) then
+        if not self.badgeIcon then
+            self.badgeIcon = self:CreateTexture(nil, "OVERLAY")
+            self.badgeIcon:SetPoint("LEFT", self.text, "RIGHT", 4, 0)
+        end
+        
+        if text:find("^atlas:") then
+            self.badgeIcon:SetAtlas(text:sub(7), true)
+        else
+            self.badgeIcon:SetTexture(text:sub(9))
+        end
+        
+        self.badgeIcon:SetSize(12, 12) -- standard badge icon size
+        self.badgeIcon:Show()
+        self.badge:Hide()
+    elseif text then
+        if self.badgeIcon then self.badgeIcon:Hide() end
         self.badge:SetText(text)
         self.badge:Show()
     else
+        if self.badgeIcon then self.badgeIcon:Hide() end
         self.badge:Hide()
     end
     
+    self:UpdateVisual()
     self:UpdateWidth()
 end
 
@@ -221,10 +247,10 @@ function TabGroupMixin:SetTabVisible(key, visible)
     end
 end
 
-function TabGroupMixin:SetTabBadge(key, text)
+function TabGroupMixin:SetTabBadge(key, text, colorToken)
     local tab = self.tabs[key]
     if tab then
-        tab:SetBadge(text)
+        tab:SetBadge(text, colorToken)
         self:RepositionTabs()
     end
 end
