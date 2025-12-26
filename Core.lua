@@ -570,7 +570,10 @@ function Mechanic:OnAddonRegistered(name, capabilities)
 			local frames = capabilities.inspect.getWatchFrames()
 			if frames then
 				for _, data in ipairs(frames) do
-					MechanicLib:AddToWatchList(data.frame, data.label, { source = name })
+					MechanicLib:AddToWatchList(data.frame, data.label, { 
+						source = name,
+						property = data.property
+					})
 				end
 			end
 		end

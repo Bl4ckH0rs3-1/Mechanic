@@ -46,42 +46,42 @@ function Mechanic:InitializeInspect()
 	pickBtn:SetPoint("LEFT", 8, 0)
 	InspectModule.pickBtn = pickBtn
 
-	-- Path Input
+	-- Export Button (anchored from RIGHT)
+	local exportBtn = FenUI:CreateButton(toolbar, {
+		text = L["Export Button"],
+		width = 70,
+		height = 24,
+		onClick = function()
+			InspectModule:Export()
+		end,
+	})
+	exportBtn:SetPoint("RIGHT", -8, 0)
+	InspectModule.exportBtn = exportBtn
+
+	-- Watch Button (anchored from export)
+	local watchBtn = FenUI:CreateButton(toolbar, {
+		text = L["+ Watch"],
+		width = 70,
+		height = 24,
+		onClick = function()
+			InspectModule:WatchCurrent()
+		end,
+	})
+	watchBtn:SetPoint("RIGHT", exportBtn, "LEFT", -8, 0)
+	InspectModule.watchBtn = watchBtn
+
+	-- Path Input (fills remaining space)
 	local pathInput = FenUI:CreateInput(toolbar, {
 		placeholder = L["Frame path or global table..."],
 	})
 	pathInput:SetPoint("LEFT", pickBtn, "RIGHT", 8, 0)
-	pathInput:SetPoint("RIGHT", -120, 0)
+	pathInput:SetPoint("RIGHT", watchBtn, "LEFT", -8, 0)
 	pathInput:SetHeight(24)
 	pathInput.editBox:SetScript("OnEnterPressed", function(eb)
 		eb:ClearFocus()
 		InspectModule:InspectPath(eb:GetText())
 	end)
 	InspectModule.pathInput = pathInput
-
-	-- Watch Button
-	local watchBtn = FenUI:CreateButton(toolbar, {
-		text = L["+ Watch"],
-		width = 80,
-		height = 24,
-		onClick = function()
-			InspectModule:WatchCurrent()
-		end,
-	})
-	watchBtn:SetPoint("LEFT", pathInput, "RIGHT", 8, 0)
-	InspectModule.watchBtn = watchBtn
-
-	-- Export Button
-	local exportBtn = FenUI:CreateButton(toolbar, {
-		text = L["Export Button"],
-		width = 90,
-		height = 24,
-		onClick = function()
-			InspectModule:Export()
-		end,
-	})
-	exportBtn:SetPoint("LEFT", watchBtn, "RIGHT", 8, 0)
-	InspectModule.exportBtn = exportBtn
 
 	-- Main Layout (Three Columns)
 	local content = CreateFrame("Frame", nil, frame)
@@ -91,7 +91,7 @@ function Mechanic:InitializeInspect()
 
 	-- 1. Frame Tree (Left)
 	local treeFrame = CreateFrame("Frame", nil, content)
-	treeFrame:SetWidth(180)
+	treeFrame:SetWidth(240)
 	treeFrame:SetPoint("TOPLEFT", 0, 0)
 	treeFrame:SetPoint("BOTTOMLEFT", 0, 0)
 	InspectModule.treeFrame = treeFrame
@@ -537,9 +537,39 @@ function InspectModule:GetCopyText(includeHeader)
 		return table.concat(lines, "\n")
 	end
 
+	-- Helper to safely convert values (handles Midnight secret values)
+	local function safeToString(val)
+		if val == nil then
+			return "nil"
+		end
+		-- Check for secret values (Midnight 12.0+)
+		if issecretvalue and issecretvalue(val) then
+			return "[secret]"
+		end
+		local ok, str = pcall(tostring, val)
+		if ok then
+			-- If it's a function address, try to capture a clean hex
+			if type(val) == "function" then
+				local addr = str:match(":(%s*0x%x+)") or str:match(":%s*(%x+)") or str:match("(%x+)") or "ptr"
+				addr = addr:gsub("%s", ""):gsub("^0x", "")
+				if #addr > 8 then addr = addr:sub(-8) end
+				return "[" .. addr .. "]"
+			end
+			return str
+		end
+		return "[error]"
+	end
+
 	local obj = self.selectedFrame
-	local name = obj.GetName and obj:GetName() or (obj.GetObjectType and obj:GetObjectType()) or "<table>"
-	table.insert(lines, string.format(L["Inspecting: %s"] or "Inspecting: %s", tostring(name or "Unknown")))
+	local name = obj.GetName and obj:GetName()
+	if (not name or name == "") and obj.GetObjectType then
+		local path = ns.FrameResolver:GetFramePath(obj)
+		if path and type(path) == "string" then
+			name = path:match("([^%.]+)$")
+		end
+	end
+	name = name or (obj.GetObjectType and obj:GetObjectType()) or "<table>"
+	table.insert(lines, string.format(L["Inspecting: %s"] or "Inspecting: %s", safeToString(name or "Unknown")))
 	table.insert(lines, "")
 
 	-- Simple property list for export
@@ -551,8 +581,64 @@ function InspectModule:GetCopyText(includeHeader)
 			if obj[method] and type(obj[method]) == "function" then
 				local ok, val = pcall(obj[method], obj)
 				if ok then
-					table.insert(props, string.format("%s: %s", tostring(method), tostring(val)))
+					table.insert(props, string.format("%s: %s", tostring(method), safeToString(val)))
 				end
+			end
+		end
+
+		-- Interactivity (for frames)
+		if obj.IsMouseEnabled then
+			table.insert(props, "")
+			table.insert(props, "--- Interactivity ---")
+			table.insert(props, "Mouse: " .. (obj:IsMouseEnabled() and "Enabled" or "Disabled"))
+			table.insert(props, "Click: " .. (obj:IsMouseClickEnabled() and "Enabled" or "Disabled"))
+			table.insert(props, "Protected: " .. (obj:IsProtected() and "Yes" or "No"))
+		end
+
+		-- Geometry (for frames)
+		if obj.GetEffectiveScale then
+			table.insert(props, "")
+			table.insert(props, "--- Geometry ---")
+			table.insert(props, "Scale: " .. safeToString(obj:GetScale()) .. " (Eff: " .. safeToString(obj:GetEffectiveScale()) .. ")")
+			table.insert(props, "Alpha: " .. safeToString(obj:GetAlpha()))
+		end
+
+		-- Attributes (for frames)
+		if obj.GetAttribute then
+			local commonAttrs = { 
+				"type", "action", "unit", "spell", "item", "macro", 
+				"state-visibility", "state-parent", "state-unit" 
+			}
+			local attrs = {}
+			for _, attr in ipairs(commonAttrs) do
+				local val = obj:GetAttribute(attr)
+				if val ~= nil then
+					table.insert(attrs, string.format("%s: %s", attr, safeToString(val)))
+				end
+			end
+			if #attrs > 0 then
+				table.insert(props, "")
+				table.insert(props, "--- Attributes ---")
+				for _, a in ipairs(attrs) do table.insert(props, a) end
+			end
+		end
+
+		-- Scripts (for frames)
+		if obj.HasScript then
+			local commonScripts = { 
+				"OnUpdate", "OnEvent", "OnShow", "OnHide", "OnClick", 
+				"OnEnter", "OnLeave", "OnAttributeChanged" 
+			}
+			local scripts = {}
+			for _, s in ipairs(commonScripts) do
+				if obj:HasScript(s) and obj:GetScript(s) then
+					table.insert(scripts, string.format("%s: %s", s, safeToString(obj:GetScript(s))))
+				end
+			end
+			if #scripts > 0 then
+				table.insert(props, "")
+				table.insert(props, "--- Scripts ---")
+				for _, s in ipairs(scripts) do table.insert(props, s) end
 			end
 		end
 
@@ -566,7 +652,7 @@ function InspectModule:GetCopyText(includeHeader)
 				break
 			end
 			if type(v) ~= "function" and type(v) ~= "table" then
-				table.insert(props, string.format("%s: %s", tostring(k), tostring(v)))
+				table.insert(props, string.format("%s: %s", safeToString(k), safeToString(v)))
 				count = count + 1
 			end
 		end

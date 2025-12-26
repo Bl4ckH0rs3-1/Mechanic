@@ -40,15 +40,35 @@ function InspectModule:UpdateDetails(frame)
 	-- 1. Header Section
 	yOffset = self:AddDetailHeader(frame, yOffset)
 
-	-- 2. Geometry Section (Frames only)
+	-- 2. Interactivity Section (Frames only)
+	if frame.IsMouseEnabled then
+		yOffset = self:AddDetailInteractivity(frame, yOffset)
+	end
+
+	-- 3. Geometry Section (Frames only)
 	if frame.GetObjectType and frame.GetSize then
 		yOffset = self:AddDetailGeometry(frame, yOffset)
 	end
 
-	-- 3. Properties Section
+	-- 4. Anchors Section (Frames only)
+	if frame.GetNumPoints then
+		yOffset = self:AddDetailAnchors(frame, yOffset)
+	end
+
+	-- 5. Regions Section (Frames only)
+	if frame.GetRegions then
+		yOffset = self:AddDetailRegions(frame, yOffset)
+	end
+
+	-- 6. Properties Section
 	yOffset = self:AddDetailProperties(frame, yOffset)
 
-	-- 4. Scripts Section (Frames only)
+	-- 7. Attributes Section (Frames only)
+	if frame.GetAttribute then
+		yOffset = self:AddDetailAttributes(frame, yOffset)
+	end
+
+	-- 8. Scripts Section (Frames only)
 	if frame.HasScript then
 		yOffset = self:AddDetailScripts(frame, yOffset)
 	end
@@ -59,26 +79,101 @@ end
 function InspectModule:AddDetailHeader(frame, yOffset)
 	local section = self:GetOrCreateDetailSection("Header", yOffset)
 
-	local name = frame.GetName and frame:GetName() or "<anonymous>"
-	section.title:SetText(name)
+	-- Helper for consistent name resolution
+	local function getDescriptiveName(target)
+		if not target then return nil end
+		local name = target.GetName and target:GetName()
+		if (not name or name == "") and target.GetObjectType then
+			local path = ns.FrameResolver:GetFramePath(target)
+			if path and type(path) == "string" then
+				name = path:match("([^%.]+)$")
+			end
+		end
+		return name or (target.GetObjectType and target:GetObjectType()) or "<anonymous>"
+	end
+
+	local globalName = frame.GetName and frame:GetName()
+	local displayName = getDescriptiveName(frame)
+	section.title:SetText(displayName)
 
 	local info
 	if frame.GetObjectType then
+		local parent = frame:GetParent()
+		local parentName = parent and getDescriptiveName(parent) or "None"
+
 		info = string.format(
-			"Type: %s | Level: %d | Strata: %s",
+			"Type: %s | Level: %d | Strata: %s\nParent: %s\nGlobal: %s",
 			frame:GetObjectType(),
 			frame.GetFrameLevel and frame:GetFrameLevel() or 0,
-			frame.GetFrameStrata and frame:GetFrameStrata() or "N/A"
+			frame.GetFrameStrata and frame:GetFrameStrata() or "N/A",
+			parentName,
+			(globalName and globalName ~= "") and globalName or "<none>"
 		)
 	else
 		info = "Type: Table (Global)"
 	end
 	section.content:SetText(info)
 
-	local height = 40
+	-- Add Copy Path button
+	if not section.copyBtn then
+		local btn = CreateFrame("Button", nil, section, "UIPanelButtonTemplate")
+		btn:SetSize(70, 18)
+		btn:SetPoint("TOPRIGHT", section, "TOPRIGHT", 0, 2)
+		btn:SetText("Copy Path")
+		btn:GetFontString():SetFont(btn:GetFontString():GetFont(), 10)
+		section.copyBtn = btn
+	end
+
+	-- Update the button's click handler with current frame
+	section.copyBtn:SetScript("OnClick", function()
+		local path = ns.FrameResolver:GetFramePath(frame)
+		if path and type(path) == "string" then
+			-- Copy to clipboard via editbox trick
+			local editBox = ChatFrame1EditBox or _G.ChatFrame1EditBox
+			if editBox then
+				editBox:SetText(path)
+				editBox:HighlightText()
+				editBox:SetFocus()
+				Mechanic:Print("Path copied to chat: " .. path)
+			else
+				Mechanic:Print("Path: " .. path)
+			end
+		else
+			Mechanic:Print("Could not resolve path for this frame")
+		end
+	end)
+	section.copyBtn:Show()
+
+	local height = 60
 	section:SetHeight(height)
 	section:Show()
-	return yOffset - height - 10
+	return yOffset - height - 2
+end
+
+function InspectModule:AddDetailInteractivity(frame, yOffset)
+	local section = self:GetOrCreateDetailSection("Interactivity", yOffset)
+	section.title:SetText("Interactivity")
+
+	local mouse = (frame.IsMouseEnabled and frame:IsMouseEnabled()) and "|cff00ff00Enabled|r" or "|cff888888Disabled|r"
+	local mouseClick = (frame.IsMouseClickEnabled and frame:IsMouseClickEnabled()) and "|cff00ff00Enabled|r" or "|cff888888Disabled|r"
+	local keyboard = (frame.IsKeyboardEnabled and frame:IsKeyboardEnabled()) and "|cff00ff00Enabled|r" or "|cff888888Disabled|r"
+	local propagate = (frame.GetPropagateKeyboardInput and frame:GetPropagateKeyboardInput()) and "Yes" or "No"
+	local protected = (frame.IsProtected and frame:IsProtected()) and "|cffff6666Yes|r" or "No"
+
+	local info = string.format(
+		"Mouse Motion: %s\nMouse Click: %s\nKeyboard: %s (Propagate: %s)\nProtected: %s",
+		mouse,
+		mouseClick,
+		keyboard,
+		propagate,
+		protected
+	)
+	section.content:SetText(info)
+
+	local height = 80
+	section:SetHeight(height)
+	section:Show()
+	return yOffset - height - 2
 end
 
 function InspectModule:AddDetailGeometry(frame, yOffset)
@@ -86,20 +181,154 @@ function InspectModule:AddDetailGeometry(frame, yOffset)
 	section.title:SetText(L["Geometry"])
 
 	local w, h = frame:GetSize()
+	local scale = frame:GetScale()
+	local alpha = frame:GetAlpha()
+
+	-- Calculate effective scale (includes all parents)
+	local effectiveScale = frame:GetEffectiveScale()
+
+	-- Calculate effective alpha (includes all parents)
+	local effectiveAlpha = alpha
+	local parent = frame:GetParent()
+	while parent do
+		if parent.GetAlpha then
+			effectiveAlpha = effectiveAlpha * parent:GetAlpha()
+		end
+		parent = parent.GetParent and parent:GetParent()
+	end
+
 	local info = string.format(
-		"Size: %.1f x %.1f\nScale: %.2f\nAlpha: %.2f\nVisible: %s",
+		"Size: %.1f x %.1f\nScale: %.2f (Effective: %.2f)\nAlpha: %.2f (Effective: %.2f)\nVisible: %s (Shown: %s)",
 		w,
 		h,
-		frame:GetScale(),
-		frame:GetAlpha(),
-		tostring(frame:IsVisible())
+		scale,
+		effectiveScale,
+		alpha,
+		effectiveAlpha,
+		tostring(frame:IsVisible()),
+		tostring(frame:IsShown())
 	)
 	section.content:SetText(info)
 
 	local height = 80
 	section:SetHeight(height)
 	section:Show()
-	return yOffset - height - 10
+	return yOffset - height - 2
+end
+
+function InspectModule:AddDetailAnchors(frame, yOffset)
+	local section = self:GetOrCreateDetailSection("Anchors", yOffset)
+	section.title:SetText("Anchors")
+
+	local numPoints = frame:GetNumPoints()
+	local anchors = {}
+
+	if numPoints == 0 then
+		table.insert(anchors, "No anchors set")
+	else
+		for i = 1, numPoints do
+			local point, relativeTo, relativePoint, xOfs, yOfs = frame:GetPoint(i)
+			local relativeName = "<nil>"
+			if relativeTo then
+				relativeName = relativeTo.GetName and relativeTo:GetName() or "<anonymous>"
+			end
+			table.insert(anchors, string.format(
+				"%s -> %s:%s (%.0f, %.0f)",
+				point or "?",
+				relativeName,
+				relativePoint or "?",
+				xOfs or 0,
+				yOfs or 0
+			))
+		end
+	end
+
+	section.content:SetText(table.concat(anchors, "\n"))
+
+	local height = 20 + (#anchors * 14)
+	section:SetHeight(height)
+	section:Show()
+	return yOffset - height - 2
+end
+
+function InspectModule:AddDetailRegions(frame, yOffset)
+	local section = self:GetOrCreateDetailSection("Regions", yOffset)
+	section.title:SetText("Regions (Textures/FontStrings)")
+
+	local regions = { frame:GetRegions() }
+	local regionList = {}
+
+	if #regions == 0 then
+		table.insert(regionList, "None")
+	else
+		for _, region in ipairs(regions) do
+			local objType = region.GetObjectType and region:GetObjectType() or "Unknown"
+			local name = region.GetName and region:GetName()
+			if name and name ~= "" then
+				table.insert(regionList, string.format("[%s] %s", objType, name))
+			else
+				-- Try to get more info for textures/mask textures
+				local extra = ""
+				local isTextureType = objType == "Texture" or objType == "MaskTexture"
+				if isTextureType then
+					-- Try atlas first
+					if region.GetAtlas then
+						local atlas = region:GetAtlas()
+						if atlas and atlas ~= "" then
+							extra = " atlas:" .. atlas
+						end
+					end
+					-- If no atlas, try texture file path
+					if extra == "" and region.GetTexture then
+						local texPath = region:GetTexture()
+						if texPath then
+							if type(texPath) == "number" then
+								-- FileID
+								extra = (texPath == 0) and " [empty]" or " fileID:" .. texPath
+							elseif type(texPath) == "string" and texPath ~= "" then
+								-- Clean up "FileData ID 0" style strings or numeric strings
+								local fileID = texPath:match("FileData ID (%d+)") or texPath:match("^(%d+)$")
+								if fileID then
+									extra = (fileID == "0") and " [empty]" or " fileID:" .. fileID
+								else
+									-- Extract just the filename from full path
+									local filename = texPath:match("([^\\]+)$") or texPath
+									extra = " file:" .. filename
+								end
+							end
+						end
+					end
+				elseif objType == "FontString" then
+					-- For FontStrings, show preview + font info
+					local text = region.GetText and region:GetText()
+					if text and text ~= "" then
+						-- Truncate long text
+						if #text > 20 then
+							text = text:sub(1, 17) .. "..."
+						end
+						extra = ' "' .. text .. '"'
+					end
+
+					-- Add font info (font file and size)
+					if region.GetFont then
+						local font, size = region:GetFont()
+						if font then
+							local fontName = font:match("([^\\]+)$") or font
+							extra = extra .. " font:" .. fontName .. "(" .. math.floor(size + 0.5) .. ")"
+						end
+					end
+				end
+				table.insert(regionList, string.format("[%s] <anonymous>%s", objType, extra))
+			end
+		end
+	end
+
+	section.content:SetText(table.concat(regionList, "\n"))
+
+	local height = 20 + (#regionList * 14)
+	section:SetHeight(height)
+	section:Show()
+	return yOffset - height - 2
 end
 
 function InspectModule:AddDetailProperties(frame, yOffset)
@@ -166,30 +395,92 @@ function InspectModule:AddDetailProperties(frame, yOffset)
 	local height = 20 + (section.content:GetStringHeight() or 14)
 	section:SetHeight(height)
 	section:Show()
-	return yOffset - height - 10
+	return yOffset - height - 2
+end
+
+function InspectModule:AddDetailAttributes(frame, yOffset)
+	local section = self:GetOrCreateDetailSection("Attributes", yOffset)
+	section.title:SetText("Attributes")
+
+	-- Helper for consistent value conversion
+	local function safeToString(val)
+		if val == nil then return "nil" end
+		if issecretvalue and issecretvalue(val) then return "[secret]" end
+		local ok, str = pcall(tostring, val)
+		return ok and str or "[error]"
+	end
+
+	-- Attributes are key-value pairs set via SetAttribute
+	-- There's no way to iterate all attributes, so we check common ones used by Blizzard/addons
+	local common = {
+		-- Secure Button attributes
+		"type", "action", "unit", "spell", "item", "macro", "macrotext",
+		"target-slot", "attribute", "value", "pressbutton", "clickbutton",
+		"initialConfigFunction", "initialConfigFunction",
+		-- State Driver attributes
+		"state-visibility", "state-parent", "state-unit", "state-page",
+		-- Backdrop/UI attributes
+		"tableIndex", "id", "name", "label",
+		-- UnitFrame attributes
+		"showPlayer", "showSolo", "showParty", "showRaid",
+	}
+
+	local attributes = {}
+	for _, attr in ipairs(common) do
+		local val = frame:GetAttribute(attr)
+		if val ~= nil then
+			table.insert(attributes, string.format("%s: %s", attr, safeToString(val)))
+		end
+	end
+
+	if #attributes == 0 then
+		table.insert(attributes, "None")
+	end
+	section.content:SetText(table.concat(attributes, "\n"))
+
+	local height = 20 + (#attributes * 14)
+	section:SetHeight(height)
+	section:Show()
+	return yOffset - height - 2
 end
 
 function InspectModule:AddDetailScripts(frame, yOffset)
 	local section = self:GetOrCreateDetailSection("Scripts", yOffset)
 	section.title:SetText(L["Scripts"])
 
+	-- Helper for consistent value conversion
+	local function safeToString(val)
+		if val == nil then return "nil" end
+		if issecretvalue and issecretvalue(val) then return "[secret]" end
+		local ok, str = pcall(tostring, val)
+		return ok and str or "[error]"
+	end
+
 	local scripts = {
-		"OnUpdate",
-		"OnEvent",
-		"OnShow",
-		"OnHide",
-		"OnEnter",
-		"OnLeave",
-		"OnMouseDown",
-		"OnMouseUp",
-		"OnClick",
-		"OnValueChanged",
+		"OnUpdate", "OnEvent", "OnShow", "OnHide",
+		"OnEnter", "OnLeave", "OnMouseDown", "OnMouseUp", "OnClick",
+		"OnValueChanged", "OnSizeChanged", "OnAttributeChanged",
+		"OnDragStart", "OnDragStop", "OnTooltipShow",
+		"OnLoad", "OnScrollRangeChanged", "OnHorizontalScroll", "OnVerticalScroll",
 	}
 
 	local active = {}
 	for _, script in ipairs(scripts) do
-		if frame:HasScript(script) and frame:GetScript(script) then
-			table.insert(active, string.format("%s: [function]", script))
+		if frame:HasScript(script) then
+			local func = frame:GetScript(script)
+			if func then
+				-- Get function address for identity checking
+				-- WoW tostring(func) can be "function: 0x..." or "function: 000..."
+				local str = safeToString(func)
+				local addr = str:match(":(%s*0x%x+)") or str:match(":%s*(%x+)") or str:match("(%x+)") or "ptr"
+				-- Clean up whitespace and 0x
+				addr = addr:gsub("%s", ""):gsub("^0x", "")
+				-- Show last 8 chars for brevity if it's a long address
+				if #addr > 8 then
+					addr = addr:sub(-8)
+				end
+				table.insert(active, string.format("%s: [%s]", script, addr))
+			end
 		end
 	end
 
@@ -201,7 +492,7 @@ function InspectModule:AddDetailScripts(frame, yOffset)
 	local height = 20 + (#active * 14)
 	section:SetHeight(height)
 	section:Show()
-	return yOffset - height - 10
+	return yOffset - height - 2
 end
 
 function InspectModule:GetOrCreateDetailSection(name, yOffset)

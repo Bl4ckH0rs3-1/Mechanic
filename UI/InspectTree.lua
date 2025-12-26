@@ -5,6 +5,40 @@ local ADDON_NAME, ns = ...
 local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
 local InspectModule = Mechanic.Inspect
 
+-- Helper: Get a descriptive name for a frame
+-- Priority: Global Name > Leaf from FrameResolver path > <ObjectType>
+local function GetDescriptiveName(frame)
+	if not frame then
+		return "<nil>"
+	end
+
+	-- 1. Check for global name first
+	local globalName = frame.GetName and frame:GetName()
+	if globalName and type(globalName) == "string" and globalName ~= "" then
+		return globalName
+	end
+
+	-- 2. Try FrameResolver to get a path, then extract the leaf
+	if ns.FrameResolver then
+		local path = ns.FrameResolver:GetFramePath(frame)
+		if path and type(path) == "string" and path ~= "<anonymous>" then
+			-- Extract the leaf (last segment after last dot)
+			local leaf = path:match("%.([^%.]+)$") or path
+			if leaf and leaf ~= "?" then
+				return leaf
+			end
+		end
+	end
+
+	-- 3. Fallback to object type
+	local objType = frame.GetObjectType and frame:GetObjectType()
+	if objType then
+		return "<" .. objType .. ">"
+	end
+
+	return "<table>"
+end
+
 function InspectModule:InitializeTree(parent)
 	local scrollFrame = CreateFrame("ScrollFrame", nil, parent, "UIPanelScrollFrameTemplate")
 	scrollFrame:SetPoint("TOPLEFT", 4, -4)
@@ -67,13 +101,12 @@ function InspectModule:UpdateTree(selectedFrame)
 		node:SetPoint("TOPLEFT", self.treeContent, "TOPLEFT", nodeData.indent, -yOffset)
 		node:SetPoint("RIGHT", self.treeContent, "RIGHT", 0, 0)
 
-		local name = nodeData.frame.GetName and nodeData.frame:GetName()
-			or (nodeData.frame.GetObjectType and ("<" .. nodeData.frame:GetObjectType() .. ">") or "<table>")
-		-- Ensure name is a string (some frames return FontString objects)
-		if type(name) ~= "string" then
-			name = tostring(name) or "<unknown>"
-		end
+		local name = GetDescriptiveName(nodeData.frame)
 		node.text:SetText(name)
+
+		-- Store the full path for tooltip
+		local fullPath = ns.FrameResolver and ns.FrameResolver:GetFramePath(nodeData.frame) or name
+		node.fullPath = fullPath
 
 		if nodeData.type == "selected" then
 			node.text:SetTextColor(1, 0.8, 0)
@@ -87,6 +120,20 @@ function InspectModule:UpdateTree(selectedFrame)
 		end
 
 		node.frame = nodeData.frame
+
+		-- Update visibility toggle state
+		if node.visBtn and nodeData.frame.IsVisible then
+			local isVisible = nodeData.frame:IsVisible()
+			node.visBtn.tex:SetAlpha(isVisible and 1 or 0.3)
+		end
+
+		-- Update pin state
+		if node.pinBtn then
+			local isPinned = InspectModule.pinnedFrame == nodeData.frame
+			node.pinBtn.tex:SetDesaturated(not isPinned)
+			node.pinBtn.tex:SetAlpha(isPinned and 1 or 0.4)
+		end
+
 		node:Show()
 		yOffset = yOffset + 20
 	end
@@ -108,8 +155,68 @@ function InspectModule:GetOrCreateTreeNode(index)
 	bg:Hide()
 	node.bg = bg
 
+	-- Pin button (assign to _G.f for console access)
+	local pinBtn = CreateFrame("Button", nil, node)
+	pinBtn:SetSize(16, 16)
+	pinBtn:SetPoint("RIGHT", -2, 0)
+	local pinTex = pinBtn:CreateTexture(nil, "ARTWORK")
+	pinTex:SetAllPoints()
+	pinTex:SetAtlas("friendslist-recentallies-pin-yellow")
+	pinBtn.tex = pinTex
+	pinBtn:SetScript("OnClick", function(s)
+		local targetFrame = s:GetParent().frame
+		if targetFrame then
+			_G.f = targetFrame
+			InspectModule.pinnedFrame = targetFrame
+			local name = GetDescriptiveName(targetFrame)
+			Mechanic:Print("|cff00ff00Pinned:|r _G.f = " .. name)
+			-- Refresh tree to update visual state of all pins
+			InspectModule:UpdateTree(InspectModule.selectedFrame)
+		end
+	end)
+	pinBtn:SetScript("OnEnter", function(s)
+		GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
+		GameTooltip:AddLine("Assign to _G.f", 1, 1, 1)
+		GameTooltip:AddLine("Use /run print(f) in console", 0.7, 0.7, 0.7)
+		GameTooltip:Show()
+	end)
+	pinBtn:SetScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
+	node.pinBtn = pinBtn
+
+	-- Visibility toggle button (small checkbox-like)
+	local visBtn = CreateFrame("Button", nil, node)
+	visBtn:SetSize(16, 16)
+	visBtn:SetPoint("RIGHT", pinBtn, "LEFT", -2, 0)
+	local visTex = visBtn:CreateTexture(nil, "ARTWORK")
+	visTex:SetAllPoints()
+	visTex:SetAtlas("socialqueuing-icon-eye")
+	visBtn.tex = visTex
+	visBtn:SetScript("OnClick", function(s)
+		local targetFrame = s:GetParent().frame
+		if targetFrame and targetFrame.IsVisible and targetFrame.SetShown then
+			local newState = not targetFrame:IsVisible()
+			targetFrame:SetShown(newState)
+			-- Update icon appearance
+			s.tex:SetAlpha(newState and 1 or 0.3)
+			-- Refresh tree to update all visibility states
+			InspectModule:UpdateTree(InspectModule.selectedFrame)
+		end
+	end)
+	visBtn:SetScript("OnEnter", function(s)
+		GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
+		GameTooltip:AddLine("Toggle Visibility", 1, 1, 1)
+		GameTooltip:Show()
+	end)
+	visBtn:SetScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
+	node.visBtn = visBtn
+
 	local text = node:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	text:SetPoint("LEFT", 4, 0)
+	text:SetPoint("RIGHT", visBtn, "LEFT", -2, 0)
 	text:SetJustifyH("LEFT")
 	node.text = text
 
@@ -119,6 +226,19 @@ function InspectModule:GetOrCreateTreeNode(index)
 
 	node:SetScript("OnEnter", function(s)
 		InspectModule:ShowHighlight(s.frame)
+		-- Show tooltip with full path and object type
+		if s.fullPath or s.frame then
+			GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
+			GameTooltip:AddLine(s.fullPath or "<anonymous>", 1, 0.82, 0)
+			if s.frame and s.frame.GetObjectType then
+				GameTooltip:AddLine(s.frame:GetObjectType(), 0.7, 0.7, 0.7)
+			end
+			if s.frame and s.frame.IsVisible then
+				local visible = s.frame:IsVisible()
+				GameTooltip:AddLine(visible and "Visible" or "Hidden", visible and 0 or 1, visible and 1 or 0, 0)
+			end
+			GameTooltip:Show()
+		end
 	end)
 
 	node:SetScript("OnLeave", function(s)
@@ -127,6 +247,7 @@ function InspectModule:GetOrCreateTreeNode(index)
 		else
 			InspectModule:HideHighlight()
 		end
+		GameTooltip:Hide()
 	end)
 
 	self.treeNodes[index] = node

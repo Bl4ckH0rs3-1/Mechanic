@@ -87,13 +87,14 @@ end
 --- Add a frame or path to the Mechanic watch list.
 ---@param frameOrPath Frame|string The frame reference or a path string (e.g. "PlayerFrame.health")
 ---@param label string? A descriptive label for the watch item
----@param options table? Optional configuration (e.g. { source = "MyAddon" })
+---@param options table? Optional configuration (e.g. { source = "MyAddon", property = "Visibility" })
 function MechanicLib:AddToWatchList(frameOrPath, label, options)
     local key = tostring(frameOrPath)
     self.watchList[key] = {
         target = frameOrPath,
         label = label or key,
         source = options and options.source or "Manual",
+        property = options and options.property or nil,
         timestamp = GetTime(),
     }
 
