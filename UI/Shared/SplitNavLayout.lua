@@ -173,7 +173,7 @@ function SplitNavLayout:Create(parent, config)
 		local text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 		text:SetPoint("LEFT", 8, 0)
 		text:SetJustifyH("LEFT")
-		text:SetText("Test Item") -- Default text
+		text:SetText(L["Test Item"]) -- Default text
 		btn.text = text
 
 		btn:SetScript("OnClick", function()

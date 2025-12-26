@@ -27,10 +27,22 @@ function MultiLineEditBoxMixin:Init(config)
     self.editBox:SetMaxLetters(0)
     self.editBox:SetFontObject(FenUI:GetFont("fontMono") or "ChatFontNormal")
     self.editBox:SetWidth(self.scrollFrame:GetWidth())
-    self.editBox:SetHeight(self.scrollFrame:GetHeight())
     self.editBox:SetAutoFocus(false)
     
     self.scrollFrame:SetScrollChild(self.editBox)
+    
+    -- Create hidden measurement font string
+    self.measureFS = self:CreateFontString(nil, "ARTWORK")
+    self.measureFS:Hide()
+    local font, size, flags = self.editBox:GetFont()
+    self.measureFS:SetFont(font, size, flags)
+    self.measureFS:SetWidth(self.scrollFrame:GetWidth())
+
+    -- Helper to get text height
+    function self:GetTextHeight()
+        self.measureFS:SetText(self.editBox:GetText() or "")
+        return self.measureFS:GetHeight()
+    end
     
     -- Configure behavior
     if config.readOnly then
@@ -47,23 +59,26 @@ function MultiLineEditBoxMixin:Init(config)
     end
     
     -- Handle size changes
-    self:SetScript("OnSizeChanged", function(_, width, height)
-        self.editBox:SetWidth(width - 30)
-        -- NOTE: We no longer set EditBox height manually here.
-        -- In 12.0, manual height updates during interaction can break drag-selection.
-        -- The UIPanelScrollFrameTemplate handles the ScrollChild's scrollable area.
-    end)
-    
-    -- Click to focus
-    self:SetScript("OnMouseDown", function()
-        if not self.editBox:HasFocus() then
-            self.editBox:SetFocus()
+    self:HookScript("OnSizeChanged", function(_, width, height)
+        local editBoxWidth = width - 30
+        self.editBox:SetWidth(editBoxWidth)
+        self.measureFS:SetWidth(editBoxWidth)
+        
+        -- Ensure editBox is at least as tall as the scroll frame so it's clickable
+        -- and can handle text selection in empty space.
+        if height and height > 8 then
+            self.editBox:SetHeight(math.max(height - 8, self:GetTextHeight()))
         end
     end)
     
-    self.scrollFrame:SetScript("OnMouseDown", function()
+    -- Mouse handlers for focus
+    -- TRAP: Using OnMouseDown on parent frames intercepts the event required for 
+    -- the native EditBox to start text selection/highlighting.
+    -- SOLUTION: Use OnMouseUp on the scrollFrame to allow clicking empty space to focus.
+    self.scrollFrame:SetScript("OnMouseUp", function()
         if not self.editBox:HasFocus() then
             self.editBox:SetFocus()
+            self.editBox:SetCursorPosition(self.editBox:GetNumLetters())
         end
     end)
     
@@ -75,9 +90,6 @@ function MultiLineEditBoxMixin:Init(config)
             return
         end
         
-        -- NOTE: We no longer set EditBox height manually here.
-        -- This avoids the "GetTextHeight is nil" error and prevents selection breakage.
-
         if not self.paused then
             self.scrollFrame:SetVerticalScroll(self.scrollFrame:GetVerticalScrollRange())
         end

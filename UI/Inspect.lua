@@ -5,6 +5,7 @@
 
 local ADDON_NAME, ns = ...
 local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
+local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 local InspectModule = {}
 Mechanic.Inspect = InspectModule
 
@@ -44,35 +45,40 @@ function Mechanic:InitializeInspect()
 	toolbarBg:SetColorTexture(0, 0, 0, 0.2)
 
 	-- Pick Button
-	local pickBtn = CreateFrame("Button", nil, toolbar, "UIPanelButtonTemplate")
-	pickBtn:SetSize(60, 24)
+	local pickBtn = FenUI:CreateButton(toolbar, {
+		text = L["Pick"],
+		width = 60,
+		height = 24,
+		onClick = function()
+			InspectModule:TogglePickMode()
+		end,
+	})
 	pickBtn:SetPoint("LEFT", 8, 0)
-	pickBtn:SetText("Pick")
-	pickBtn:SetScript("OnClick", function()
-		InspectModule:TogglePickMode()
-	end)
 	InspectModule.pickBtn = pickBtn
 
 	-- Path Input
-	local pathInput = CreateFrame("EditBox", nil, toolbar, "InputBoxTemplate")
+	local pathInput = FenUI:CreateInput(toolbar, {
+		placeholder = L["Frame path or global table..."],
+	})
 	pathInput:SetPoint("LEFT", pickBtn, "RIGHT", 8, 0)
 	pathInput:SetPoint("RIGHT", -120, 0)
-	pathInput:SetHeight(20)
-	pathInput:SetAutoFocus(false)
-	pathInput:SetScript("OnEnterPressed", function(eb)
+	pathInput:SetHeight(24)
+	pathInput.editBox:SetScript("OnEnterPressed", function(eb)
 		eb:ClearFocus()
 		InspectModule:InspectPath(eb:GetText())
 	end)
 	InspectModule.pathInput = pathInput
 
 	-- Watch Button
-	local watchBtn = CreateFrame("Button", nil, toolbar, "UIPanelButtonTemplate")
-	watchBtn:SetSize(80, 24)
+	local watchBtn = FenUI:CreateButton(toolbar, {
+		text = L["+ Watch"],
+		width = 80,
+		height = 24,
+		onClick = function()
+			InspectModule:WatchCurrent()
+		end,
+	})
 	watchBtn:SetPoint("LEFT", pathInput, "RIGHT", 8, 0)
-	watchBtn:SetText("+ Watch")
-	watchBtn:SetScript("OnClick", function()
-		InspectModule:WatchCurrent()
-	end)
 	InspectModule.watchBtn = watchBtn
 
 	-- Main Layout (Three Columns)
@@ -118,10 +124,10 @@ end
 function InspectModule:TogglePickMode()
 	self.pickMode = not self.pickMode
 	if self.pickMode then
-		self.pickBtn:SetText("Picking...")
+		self.pickBtn:SetText(L["Picking..."])
 		self:StartPicking()
 	else
-		self.pickBtn:SetText("Pick")
+		self.pickBtn:SetText(L["Pick"])
 		self:StopPicking()
 	end
 end

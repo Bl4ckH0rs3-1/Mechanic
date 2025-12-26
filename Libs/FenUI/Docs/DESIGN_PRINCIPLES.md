@@ -223,6 +223,21 @@ end)
 | Deep component nesting | Makes debugging and styling difficult |
 | Monolithic widgets | Harder to compose; prefer small building blocks |
 | Skipping fallbacks | Addon breaks if FenUI isn't installed |
+| Blocking Selection | Setting `OnMouseDown` on EditBox parents | Prevents text highlighting and copying |
+
+---
+
+## Known Traps & Performance
+
+### 1. Multi-line EditBox Selection
+When wrapping an `EditBox` inside a `ScrollFrame` (like `MultiLineEditBox`), it is a common trap to set `OnMouseDown` scripts on the parent frames to "click to focus". 
+
+**The Trap:** Setting `OnMouseDown` on a parent frame (or the EditBox itself) often intercepts the mouse-down event that the WoW engine uses to initiate text selection/highlighting. 
+
+**The Solution:** 
+- Use `OnMouseUp` on the parent frames for focusing logic.
+- Avoid manual `SetHeight` calls on the `EditBox` during active interaction, as this can cause coordinate offsets ("Interaction Dead-zones").
+- Ensure the `EditBox` correctly handles its own focus while allowing events to bubble where appropriate.
 
 ---
 

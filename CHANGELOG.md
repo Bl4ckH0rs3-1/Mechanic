@@ -8,6 +8,27 @@ All notable changes to !Mechanic will be documented in this file.
 
 
 
+
+
+## [1.1.8] - 2025-12-25
+
+### Changed
+- Refactored UI to use FenUI widgets.
+Consolidated utilities into FenUI.Utils.
+Fixed hardcoded strings and added localization keys.
+Synced libraries to latest versions.
+Midnight compatibility verified.
+
+## [1.1.7] - 2025-12-25
+
+### Changed
+- - Implemented dynamic minimap icon based on error state.
+- Updated LibDBIcon-1.0 to modern version (Minor 55).
+- Fixed Performance tab export overlapping table view.
+- Fixed MultiLineEditBox text selection and scrolling issues.
+- Optimized Inspect Watch list by switching from OnUpdate to Ticker.
+- Cleaned up API definitions for Midnight 12.0 compatibility.
+
 ## [1.1.6] - 2025-12-25
 
 ### Added

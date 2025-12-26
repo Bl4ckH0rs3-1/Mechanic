@@ -5,6 +5,7 @@
 
 local ADDON_NAME, ns = ...
 local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
+local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 local APIModule = {}
 Mechanic.API = APIModule
 
@@ -161,7 +162,7 @@ function APIModule:BuildAPIPanel(parent, apiDef)
 	infoLabel:SetPoint("TOPLEFT", 8, yOffset)
 	local catName = ns.APICategoryLookup[apiDef.category] and ns.APICategoryLookup[apiDef.category].name
 		or apiDef.category
-	infoLabel:SetText(string.format("Category: %s", catName))
+	infoLabel:SetText(string.format(L["Category: %s"], catName))
 	infoLabel:Show()
 	yOffset = yOffset - 18
 
@@ -171,7 +172,7 @@ function APIModule:BuildAPIPanel(parent, apiDef)
 		return p:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	end)
 	impactLabel:SetPoint("TOPLEFT", 8, yOffset)
-	impactLabel:SetText(string.format("Midnight Impact: %s%s|r", impactColor, apiDef.midnightImpact))
+	impactLabel:SetText(string.format(L["Midnight Impact: %s%s|r"], impactColor, apiDef.midnightImpact))
 	impactLabel:Show()
 	yOffset = yOffset - 18
 
@@ -208,7 +209,7 @@ function APIModule:BuildAPIPanel(parent, apiDef)
 		return p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	end)
 	paramsHeader:SetPoint("TOPLEFT", 8, yOffset)
-	paramsHeader:SetText("Parameters:")
+	paramsHeader:SetText(L["Parameters:"])
 	paramsHeader:Show()
 	yOffset = yOffset - 20
 
@@ -227,36 +228,39 @@ function APIModule:BuildAPIPanel(parent, apiDef)
 	buttonRow:Show()
 
 	local runBtn = Mechanic.Utils:GetOrCreateWidget(buttonRow, "runBtn", function(p)
-		return CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+		return FenUI:CreateButton(p, {
+			text = L["Run"],
+			width = 80,
+			onClick = function()
+				self:RunAPI(apiDef)
+			end,
+		})
 	end)
 	runBtn:SetPoint("LEFT", 0, 0)
-	runBtn:SetSize(80, 24)
-	runBtn:SetText("Run")
-	runBtn:SetScript("OnClick", function()
-		self:RunAPI(apiDef)
-	end)
 	runBtn:Show()
 
 	local runCatBtn = Mechanic.Utils:GetOrCreateWidget(buttonRow, "runCatBtn", function(p)
-		return CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+		return FenUI:CreateButton(p, {
+			text = L["Run Category"],
+			width = 110,
+			onClick = function()
+				self:RunCategory(apiDef.category)
+			end,
+		})
 	end)
 	runCatBtn:SetPoint("LEFT", runBtn, "RIGHT", 8, 0)
-	runCatBtn:SetSize(110, 24)
-	runCatBtn:SetText("Run Category")
-	runCatBtn:SetScript("OnClick", function()
-		self:RunCategory(apiDef.category)
-	end)
 	runCatBtn:Show()
 
 	local copyBtn = Mechanic.Utils:GetOrCreateWidget(buttonRow, "copyBtn", function(p)
-		return CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+		return FenUI:CreateButton(p, {
+			text = L["Copy Report"],
+			width = 100,
+			onClick = function()
+				self:CopyAPIReport(apiDef)
+			end,
+		})
 	end)
 	copyBtn:SetPoint("LEFT", runCatBtn, "RIGHT", 8, 0)
-	copyBtn:SetSize(100, 24)
-	copyBtn:SetText("Copy Report")
-	copyBtn:SetScript("OnClick", function()
-		self:CopyAPIReport(apiDef)
-	end)
 	copyBtn:Show()
 
 	yOffset = yOffset - 40
@@ -278,7 +282,7 @@ function APIModule:BuildAPIPanel(parent, apiDef)
 		return p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	end)
 	resultsHeader:SetPoint("TOPLEFT", 8, yOffset)
-	resultsHeader:SetText("Results:")
+	resultsHeader:SetText(L["Results:"])
 	resultsHeader:Show()
 	yOffset = yOffset - 20
 
@@ -287,17 +291,17 @@ function APIModule:BuildAPIPanel(parent, apiDef)
 		return p:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	end)
 	statusLabel:SetPoint("TOPLEFT", 8, yOffset)
-	statusLabel:SetText("Not yet run")
+	statusLabel:SetText(L["Not yet run"])
 	statusLabel:Show()
 	parent.statusLabel = statusLabel
 	yOffset = yOffset - 20
 
 	-- Results display (MultiLineEditBox)
-	local resultsBox = FenUI:GetOrCreateWidget(parent, "resultsBox", function(p)
+	local resultsBox = Mechanic.Utils:GetOrCreateWidget(parent, "resultsBox", function(p)
 		return FenUI:CreateMultiLineEditBox(p, {
-			readOnly = true,
-			background = "surfaceInset",
-		})
+		readOnly = true,
+		background = "surfaceInset",
+	})
 	end)
 	resultsBox:SetPoint("TOPLEFT", 8, yOffset)
 	resultsBox:SetPoint("BOTTOMRIGHT", -8, 80)
@@ -309,31 +313,31 @@ function APIModule:BuildAPIPanel(parent, apiDef)
 		return p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	end)
 	notesHeader:SetPoint("BOTTOMLEFT", 8, 70)
-	notesHeader:SetText("Notes:")
+	notesHeader:SetText(L["Notes:"])
 	notesHeader:Show()
 
-	local notesBox = Mechanic.Utils:GetOrCreateWidget(parent, "notesBox", function(p)
-		local box = CreateFrame("EditBox", nil, p, "InputBoxTemplate")
-		box:SetMultiLine(true)
-		box:SetAutoFocus(false)
+	local apiNotesBox = Mechanic.Utils:GetOrCreateWidget(parent, "notesBox", function(p)
+		local box = FenUI:CreateMultiLineEditBox(p, {
+			background = "surfaceInset",
+		})
+		box:SetHeight(55)
 		return box
 	end)
-	notesBox:SetPoint("BOTTOMLEFT", 8, 8)
-	notesBox:SetPoint("BOTTOMRIGHT", -8, 8)
-	notesBox:SetHeight(55)
-	notesBox:Show()
+	apiNotesBox:SetPoint("BOTTOMLEFT", 8, 8)
+	apiNotesBox:SetPoint("BOTTOMRIGHT", -8, 8)
+	apiNotesBox:Show()
 
 	-- Load saved notes
 	local savedNotes = Mechanic.db.profile.apiTests
 			and Mechanic.db.profile.apiTests[apiDef.key]
 			and Mechanic.db.profile.apiTests[apiDef.key].notes
 		or ""
-	notesBox:SetText(savedNotes)
-
-	notesBox:SetScript("OnTextChanged", function(self)
-		APIModule:SaveNotes(apiDef.key, self:GetText())
+	apiNotesBox:SetText(savedNotes)
+    
+	apiNotesBox.editBox:SetScript("OnTextChanged", function(eb)
+		APIModule:SaveNotes(apiDef.key, eb:GetText())
 	end)
-	parent.notesBox = notesBox
+	parent.notesBox = apiNotesBox
 
 	-- Restore last results if available
 	if self.lastResults[apiDef.key] then
@@ -360,10 +364,10 @@ function APIModule:CreateParamInput(parent, param, index, yOffset)
 	label:Show()
 
 	local input = Mechanic.Utils:GetOrCreateWidget(row, "input", function(p)
-		local eb = CreateFrame("EditBox", nil, p, "InputBoxTemplate")
-		eb:SetSize(150, 20)
-		eb:SetAutoFocus(false)
-		return eb
+		return FenUI:CreateInput(p, {
+			width = 150,
+			height = 20,
+		})
 	end)
 	input:SetPoint("LEFT", label, "RIGHT", 8, 0)
 	input:SetText(tostring(param.default or ""))
@@ -379,46 +383,38 @@ function APIModule:CreateParamInput(parent, param, index, yOffset)
 	-- Examples dropdown (if examples provided)
 	if param.examples and #param.examples > 0 then
 		local examplesBtn = Mechanic.Utils:GetOrCreateWidget(row, "examplesBtn", function(p)
-			local btn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
-			btn:SetSize(24, 20)
-			btn:SetText("▼")
-			return btn
+			return FenUI:CreateDropdown(p, {
+				width = 24,
+				height = 20,
+				items = param.examples,
+				fixedText = true,
+				defaultText = "▼",
+				onSelect = function(val)
+					input:SetText(tostring(val))
+				end,
+			})
 		end)
 		examplesBtn:SetPoint("LEFT", typeLabel, "RIGHT", 8, 0)
-		examplesBtn:SetScript("OnClick", function()
-			self:ShowExamplesMenu(param, input)
-		end)
 		examplesBtn:Show()
 
 		-- Quick example buttons for common cases (show first 3)
 		local xOffset = 36
 		for i, example in ipairs(param.examples) do
-			if i > 3 then
-				break
-			end -- Limit to 3 quick buttons
+			if i > 3 then break end
 			local quickBtn = Mechanic.Utils:GetOrCreateWidget(row, string.format("quickBtn%d", i), function(p)
-				local btn = CreateFrame("Button", nil, p)
-				local btnText = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-				btnText:SetPoint("CENTER")
-				btn.btnText = btnText
-				return btn
+				return FenUI:CreateButton(p, {
+					text = string.format("|cff88ccff%s|r", example.label),
+					width = 40,
+					height = 18,
+					onClick = function()
+						input:SetText(tostring(example.value))
+					end,
+				})
 			end)
 			quickBtn:SetPoint("LEFT", typeLabel, "RIGHT", xOffset, 0)
-			quickBtn.btnText:SetText(string.format("|cff88ccff%s|r", example.label))
 
-			-- Size button based on text width
-			local textWidth = quickBtn.btnText:GetStringWidth()
-			quickBtn:SetSize(math.max(textWidth + 16, 40), 18)
-
-			quickBtn:SetScript("OnClick", function()
-				input:SetText(tostring(example.value))
-			end)
-			quickBtn:SetScript("OnEnter", function(self)
-				self.btnText:SetText(string.format("|cffffffff%s|r", example.label))
-			end)
-			quickBtn:SetScript("OnLeave", function(self)
-				self.btnText:SetText(string.format("|cff88ccff%s|r", example.label))
-			end)
+			local textWidth = quickBtn:GetFontString():GetStringWidth()
+			quickBtn:SetWidth(math.max(textWidth + 12, 40))
 			quickBtn:Show()
 
 			xOffset = xOffset + quickBtn:GetWidth() + 4
@@ -429,23 +425,6 @@ function APIModule:CreateParamInput(parent, param, index, yOffset)
 	self.paramInputs[param.name] = input
 
 	return row
-end
-
-function APIModule:ShowExamplesMenu(param, inputBox)
-	-- Create dropdown menu for all examples
-	local menu = {}
-	for _, example in ipairs(param.examples) do
-		table.insert(menu, {
-			text = string.format("%s (%s)", example.label, tostring(example.value)),
-			func = function()
-				inputBox:SetText(tostring(example.value))
-				CloseDropDownMenus()
-			end,
-			notCheckable = true,
-		})
-	end
-
-	Mechanic.Utils:ShowMenu(menu)
 end
 
 --------------------------------------------------------------------------------
@@ -469,7 +448,6 @@ function APIModule:RunAPI(apiDef)
 		local input = self.paramInputs[paramDef.name]
 		local value = input and input:GetText() or paramDef.default
 
-		-- Type conversion
 		if paramDef.type == "number" then
 			value = tonumber(value)
 		elseif paramDef.type == "boolean" then
@@ -503,19 +481,11 @@ function APIModule:RunAPI(apiDef)
 	self:DisplayResults(contentFrame, apiDef, resultData)
 end
 
-function APIModule:SafeCallAPI(func, ...)
-	local results = { pcall(func, ...) }
-	local success = table.remove(results, 1)
-	return success, results
-end
-
 function APIModule:DisplayResults(parent, apiDef, resultData)
 	local statusLabel = parent.statusLabel
 	local resultsBox = parent.resultsBox
 
-	if not statusLabel or not resultsBox then
-		return
-	end
+	if not statusLabel or not resultsBox then return end
 
 	-- Status line
 	local timeStr = date("%H:%M:%S")
@@ -524,7 +494,6 @@ function APIModule:DisplayResults(parent, apiDef, resultData)
 	if not resultData.success then
 		statusText = "|cffff0000ERROR|r"
 	else
-		-- Check for secrets in results
 		local secretCount = Mechanic.Utils:CountSecrets(resultData.results)
 		if secretCount > 0 then
 			statusText = string.format("|cffaa00ffSECRET|r (%d secret values)", secretCount)
@@ -539,7 +508,6 @@ function APIModule:DisplayResults(parent, apiDef, resultData)
 
 	-- Results display
 	local lines = {}
-
 	if not resultData.success then
 		table.insert(lines, string.format("Error: %s", tostring(resultData.results[1])))
 	else
@@ -554,74 +522,18 @@ function APIModule:DisplayResults(parent, apiDef, resultData)
 	resultsBox:SetText(table.concat(lines, "\n"))
 end
 
-function APIModule:FormatValue(value, retDef)
-	if value == nil then
-		return "nil"
-	end
-
-	-- Check if secret
-	local isSecret = issecretvalue and issecretvalue(value)
-	local secretTag = isSecret and " |cffaa00ff(SECRET)|r" or ""
-
-	if type(value) == "table" then
-		local parts = {}
-		table.insert(parts, "{")
-
-		if retDef and retDef.fields then
-			for _, fieldName in ipairs(retDef.fields) do
-				local fieldValue = value[fieldName]
-				local fieldSecret = issecretvalue and issecretvalue(fieldValue)
-				local fieldSecretTag = fieldSecret and " |cffaa00ff(SECRET)|r" or ""
-				table.insert(parts, string.format("  .%s = %s%s", fieldName, tostring(fieldValue), fieldSecretTag))
-			end
-		else
-			for k, v in pairs(value) do
-				local fieldSecret = issecretvalue and issecretvalue(v)
-				local fieldSecretTag = fieldSecret and " |cffaa00ff(SECRET)|r" or ""
-				table.insert(parts, string.format("  .%s = %s%s", tostring(k), tostring(v), fieldSecretTag))
-			end
-		end
-
-		table.insert(parts, "}")
-		return table.concat(parts, "\n")
-	end
-
-	return string.format("%s%s", tostring(value), secretTag)
-end
-
-function APIModule:CountSecrets(results)
-	local count = 0
-	if not results then
-		return 0
-	end
-	for _, value in ipairs(results) do
-		if issecretvalue and issecretvalue(value) then
-			count = count + 1
-		elseif type(value) == "table" then
-			for _, v in pairs(value) do
-				if issecretvalue and issecretvalue(v) then
-					count = count + 1
-				end
-			end
-		end
-	end
-	return count
-end
-
 --------------------------------------------------------------------------------
 -- Category Batch Testing
 --------------------------------------------------------------------------------
 
 function APIModule:RunCategory(categoryKey)
 	local count = 0
-
 	for apiKey, apiDef in pairs(API_DEFINITIONS) do
 		if apiDef.category == categoryKey and not apiDef.protected then
 			self:RunAPI(apiDef)
 			count = count + 1
 		end
 	end
-
 	Mechanic:Print(string.format("Ran %d APIs in category", count))
 end
 
@@ -632,15 +544,11 @@ end
 function APIModule:CopyAPIReport(apiDef)
 	local lines = {}
 
-	-- Header
 	table.insert(lines, string.format("=== Mechanic API Report: %s ===", apiDef.funcPath))
 	local header = Mechanic:GetEnvironmentHeader()
-	if header then
-		table.insert(lines, header)
-	end
+	if header then table.insert(lines, header) end
 	table.insert(lines, "---")
 
-	-- API info
 	table.insert(lines, string.format("API: %s", apiDef.funcPath))
 	table.insert(lines, string.format("Category: %s", apiDef.category))
 	table.insert(lines, string.format("Midnight Impact: %s", apiDef.midnightImpact))
@@ -649,21 +557,28 @@ function APIModule:CopyAPIReport(apiDef)
 	end
 	table.insert(lines, "")
 
-	-- Results
 	local resultData = self.lastResults[apiDef.key]
 	if resultData then
 		table.insert(lines, "Last Test:")
 		table.insert(lines, string.format("  Duration: %.2fms", resultData.duration))
 		table.insert(lines, string.format("  Status: %s", (resultData.success and "SUCCESS" or "ERROR")))
-		table.insert(lines, string.format("  Secret Values: %d", self:CountSecrets(resultData.results or {})))
+		table.insert(lines, string.format("  Secret Values: %d", Mechanic.Utils:CountSecrets(resultData.results or {})))
 		table.insert(lines, "")
 		table.insert(lines, "Results:")
-		table.insert(lines, self:FormatResultsPlainText(apiDef, resultData))
+		
+		if not resultData.success then
+			table.insert(lines, string.format("  Error: %s", tostring(resultData.results[1])))
+		else
+			for i, retDef in ipairs(apiDef.returns) do
+				local value = resultData.results[i]
+				local valueStr = Mechanic.Utils:FormatValue(value, { fields = retDef.fields, plain = true })
+				table.insert(lines, string.format("  %s = %s", retDef.name, valueStr))
+			end
+		end
 	else
 		table.insert(lines, "Not yet tested.")
 	end
 
-	-- Notes
 	local notes = Mechanic.db.profile.apiTests
 		and Mechanic.db.profile.apiTests[apiDef.key]
 		and Mechanic.db.profile.apiTests[apiDef.key].notes
@@ -676,82 +591,25 @@ function APIModule:CopyAPIReport(apiDef)
 	Mechanic:ShowCopyDialog(table.concat(lines, "\n"))
 end
 
-function APIModule:FormatResultsPlainText(apiDef, resultData)
-	local lines = {}
-
-	if not resultData.success then
-		table.insert(lines, string.format("  Error: %s", tostring(resultData.results[1])))
-	else
-		for i, retDef in ipairs(apiDef.returns) do
-			local value = resultData.results[i]
-			local valueStr = Mechanic.Utils:FormatValue(value, { fields = retDef.fields, plain = true })
-			table.insert(lines, string.format("  %s = %s", retDef.name, valueStr))
-		end
-	end
-
-	return table.concat(lines, "\n")
-end
-
-function APIModule:FormatValuePlainText(value, retDef)
-	if value == nil then
-		return "nil"
-	end
-
-	local isSecret = issecretvalue and issecretvalue(value)
-	local secretTag = isSecret and " (SECRET)" or ""
-
-	if type(value) == "table" then
-		local parts = {}
-		if retDef and retDef.fields then
-			for _, fieldName in ipairs(retDef.fields) do
-				local fieldValue = value[fieldName]
-				local fieldSecret = issecretvalue and issecretvalue(fieldValue)
-				local fieldSecretTag = fieldSecret and " (SECRET)" or ""
-				table.insert(parts, string.format("    .%s = %s%s", fieldName, tostring(fieldValue), fieldSecretTag))
-			end
-		else
-			for k, v in pairs(value) do
-				local fieldSecret = issecretvalue and issecretvalue(v)
-				local fieldSecretTag = fieldSecret and " (SECRET)" or ""
-				table.insert(parts, string.format("    .%s = %s%s", tostring(k), tostring(v), fieldSecretTag))
-			end
-		end
-		return string.format("{\n%s\n  }", table.concat(parts, "\n"))
-	end
-
-	return string.format("%s%s", tostring(value), secretTag)
-end
-
 function APIModule:GetCategoryReport(categoryKey)
 	local lines = {}
 	local catName = ns.APICategoryLookup[categoryKey] and ns.APICategoryLookup[categoryKey].name or categoryKey
 
 	table.insert(lines, string.format("=== Mechanic API Report: %s ===", catName))
 	local header = Mechanic:GetEnvironmentHeader()
-	if header then
-		table.insert(lines, header)
-	end
+	if header then table.insert(lines, header) end
 	table.insert(lines, "---")
 
 	local passCount, secretCount, errorCount, untestedCount = 0, 0, 0, 0
-
-	-- Get APIs in this category
 	local apis = {}
 	for apiKey, apiDef in pairs(API_DEFINITIONS) do
-		if apiDef.category == categoryKey then
-			table.insert(apis, apiDef)
-		end
+		if apiDef.category == categoryKey then table.insert(apis, apiDef) end
 	end
-
-	-- Sort APIs by name
-	table.sort(apis, function(a, b)
-		return a.name < b.name
-	end)
+	table.sort(apis, function(a, b) return a.name < b.name end)
 
 	for _, apiDef in ipairs(apis) do
 		local resultData = self.lastResults[apiDef.key]
 		local status
-
 		if not resultData then
 			status = "----"
 			untestedCount = untestedCount + 1
@@ -765,21 +623,11 @@ function APIModule:GetCategoryReport(categoryKey)
 			status = "PASS"
 			passCount = passCount + 1
 		end
-
 		table.insert(lines, string.format("[%s] %s", status, apiDef.funcPath))
 	end
 
 	table.insert(lines, "---")
-	table.insert(
-		lines,
-		string.format(
-			"Summary: %d PASS, %d SECRET, %d FAIL, %d untested",
-			passCount,
-			secretCount,
-			errorCount,
-			untestedCount
-		)
-	)
+	table.insert(lines, string.format("Summary: %d PASS, %d SECRET, %d FAIL, %d untested", passCount, secretCount, errorCount, untestedCount))
 
 	return table.concat(lines, "\n")
 end
@@ -806,82 +654,26 @@ function APIModule:SaveNotes(apiKey, notes)
 end
 
 --------------------------------------------------------------------------------
--- Helpers
+-- Error Handling
 --------------------------------------------------------------------------------
-
-function APIModule:GetOrCreateLabel(parent, key, font)
-	if parent[key] then
-		return parent[key]
-	end
-	local label = parent:CreateFontString(nil, "OVERLAY", font or "GameFontNormal")
-	parent[key] = label
-	return label
-end
-
-function APIModule:GetOrCreateSeparator(parent, key)
-	if parent[key] then
-		return parent[key]
-	end
-	local sep = parent:CreateTexture(nil, "BACKGROUND")
-	sep:SetHeight(1)
-	sep:SetColorTexture(1, 1, 1, 0.2)
-	parent[key] = sep
-	return sep
-end
-
-function APIModule:GetOrCreateFrame(parent, key)
-	if parent[key] then
-		return parent[key]
-	end
-	local frame = CreateFrame("Frame", nil, parent)
-	parent[key] = frame
-	return frame
-end
-
-function APIModule:GetOrCreateButton(parent, key, text)
-	if parent[key] then
-		parent[key]:SetText(text)
-		return parent[key]
-	end
-	local btn = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-	btn:SetText(text)
-	parent[key] = btn
-	return btn
-end
-
-function APIModule:GetOrCreateEditBox(parent, key)
-	if parent[key] then
-		return parent[key]
-	end
-	local box = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
-	parent[key] = box
-	return box
-end
 
 function APIModule:DisplayProtectedError(apiDef)
 	local contentFrame = self.layout:GetContentFrame(apiDef.key)
 	if contentFrame and contentFrame.statusLabel then
-		contentFrame.statusLabel:SetText("|cffff0000PROTECTED|r - Cannot call from addon code")
+		contentFrame.statusLabel:SetText(string.format("|cffff0000%s|r - %s", L["PROTECTED"], L["Cannot call from addon code"]))
 	end
 	if contentFrame and contentFrame.resultsBox then
-		contentFrame.resultsBox:SetText(
-			"This API is protected and cannot be called from addon code in Midnight.\n\nConsider using the reskin strategy with Blizzard frames."
-		)
+		contentFrame.resultsBox:SetText(L["This API is protected and cannot be called from addon code in Midnight.\n\nConsider using the reskin strategy with Blizzard frames."])
 	end
 end
 
 function APIModule:DisplayMissingFuncError(apiDef)
 	local contentFrame = self.layout:GetContentFrame(apiDef.key)
 	if contentFrame and contentFrame.statusLabel then
-		contentFrame.statusLabel:SetText("|cffff8800MISSING|r - Function not found")
+		contentFrame.statusLabel:SetText(string.format("|cffff8800%s|r - %s", L["MISSING"], L["Function not found"]))
 	end
 	if contentFrame and contentFrame.resultsBox then
-		contentFrame.resultsBox:SetText(
-			string.format(
-				"Function not available: %s\n\nThis may be a newer API not yet available in this WoW version.",
-				apiDef.funcPath
-			)
-		)
+		contentFrame.resultsBox:SetText(string.format(L["Function not available: %s\n\nThis may be a newer API not yet available in this WoW version."], apiDef.funcPath))
 	end
 end
 
@@ -898,7 +690,6 @@ function APIModule:OnShow()
 		self.navDirty = false
 	end
 
-	-- Refresh current selection if any
 	if self.selectedAPI then
 		local contentFrame = self.layout:GetContentFrame(self.selectedAPI)
 		local apiDef = API_DEFINITIONS[self.selectedAPI]
@@ -908,16 +699,12 @@ function APIModule:OnShow()
 	end
 end
 
-function APIModule:OnHide()
-	-- Cleanup if needed
-end
+function APIModule:OnHide() end
 
 function APIModule:GetCopyText(includeHeader)
 	if self.selectedAPI then
 		local apiDef = API_DEFINITIONS[self.selectedAPI]
-		if apiDef then
-			return self:GetCategoryReport(apiDef.category)
-		end
+		if apiDef then return self:GetCategoryReport(apiDef.category) end
 	end
-	return "No API selected."
+	return L["No API selected."]
 end

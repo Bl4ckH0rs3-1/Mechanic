@@ -4,69 +4,146 @@ if not L then
 end
 
 -- Core
-L["!Mechanic loaded."] = true
-L["Unknown command: %s"] = true
-L["Commands: console, errors, tests, perf, reload, gc, pause, copy, clear"] = true
-L["GC: %.1f KB freed (%.1f MB -> %.1f MB)"] = true
+L["!Mechanic loaded."] = "!Mechanic loaded."
+L["Unknown command: %s"] = "Unknown command: %s"
+L["Commands: console, errors, tests, perf, reload, gc, pause, copy, clear"] = "Commands: console, errors, tests, perf, reload, gc, pause, copy, clear"
+L["GC: %.1f KB freed (%.1f MB -> %.1f MB)"] = "GC: %.1f KB freed (%.1f MB -> %.1f MB)"
 
 -- Tabs
-L["Console"] = true
-L["Errors"] = true
-L["Tests"] = true
-L["Performance"] = true
+L["Console"] = "Console"
+L["Errors"] = "Errors"
+L["Tests"] = "Tests"
+L["Performance"] = "Performance"
 
 -- Console (Phase 1)
-L["Source"] = true
-L["Category"] = true
-L["Search"] = true
-L["Clear"] = true
-L["Copy"] = true
-L["Dedup All"] = true
-L["Dedup Adjacent"] = true
-L["Pause"] = true
-L["Resume"] = true
-L["All"] = true
+L["Source"] = "Source"
+L["Category"] = "Category"
+L["Search"] = "Search"
+L["Clear"] = "Clear"
+L["Copy"] = "Copy"
+L["Dedup All"] = "Dedup All"
+L["Dedup Adjacent"] = "Dedup Adjacent"
+L["Pause"] = "Pause"
+L["Resume"] = "Resume"
+L["All"] = "All"
+L["Lines: %d"] = "Lines: %d"
+L["Lines: 0"] = "Lines: 0"
+L["Reload UI"] = "Reload UI"
 
 -- Errors (Phase 2)
-L["Session"] = true
-L["Current Session"] = true
-L["Previous Session"] = true
-L["All Sessions"] = true
-L["Send to Console"] = true
-L["Copy Error"] = true
-L["Wipe Session"] = true
-L["!BugGrabber Required"] = true
+L["Session"] = "Session"
+L["Current Session"] = "Current Session"
+L["Previous Session"] = "Previous Session"
+L["All Sessions"] = "All Sessions"
+L["Send to Console"] = "Send to Console"
+L["Copy Error"] = "Copy Error"
+L["Wipe Session"] = "Wipe Session"
+L["!BugGrabber Required"] = "!BugGrabber Required"
+L["No errors in this session."] = "No errors in this session."
+L["0/0"] = "0/0"
+L["%d/%d"] = "%d/%d"
+L["▶ Resume"] = "▶ Resume"
+L["⏸ Pause"] = "⏸ Pause"
+L["Error database wiped."] = "Error database wiped."
+L["[Error]"] = "[Error]"
+L["Session: %s | Error: %d/%d"] = "Session: %s | Error: %d/%d"
 
 -- Tests (Phase 2)
-L["Run Selected"] = true
-L["Run All Auto"] = true
-L["Validate"] = true
-L["Clear Results"] = true
-L["Total"] = true
-L["Passed"] = true
-L["Failed"] = true
-L["Pending"] = true
+L["Run Selected"] = "Run Selected"
+L["Run All Auto"] = "Run All Auto"
+L["Validate"] = "Validate"
+L["Clear Results"] = "Clear Results"
+L["Total"] = "Total"
+L["Passed"] = "Passed"
+L["Failed"] = "Failed"
+L["Pending"] = "Pending"
+L["PASSED"] = "PASSED"
+L["FAILED"] = "FAILED"
+L["PENDING"] = "PENDING"
+L["Status: %s%s|r"] = "Status: %s%s|r"
+L["Status: |cff888888Not run|r"] = "Status: |cff888888Not run|r"
+L["Category: %s"] = "Category: %s"
+L["Select a test"] = "Select a test"
+L["Tree View"] = "Tree View"
+L["Export"] = "Export"
+L["Duration: %.3fs"] = "Duration: %.3fs"
+L["Message: %s"] = "Message: %s"
+L["Details:"] = "Details:"
+L["  %s %s: %s%s|r"] = "  %s %s: %s%s|r"
+L["Captured Logs:"] = "Captured Logs:"
+L["  %s"] = "  %s"
+L["No test selected."] = "No test selected."
+L["No addons have registered diagnostic tools.\n\nAddons can register tools via:\nMechanicLib:Register(name, { tools = { ... } })"] = "No addons have registered diagnostic tools.\n\nAddons can register tools via:\nMechanicLib:Register(name, { tools = { ... } })"
+L["Result: %d/%d passed, %d failed, %d pending"] = "Result: %d/%d passed, %d failed, %d pending"
+L["%s > %s"] = "%s > %s"
 
 -- Performance (Phase 3)
-L["Auto-Refresh"] = true
-L["Reset Stats"] = true
-L["CPU Profiling"] = true
-L["FPS"] = true
-L["Latency"] = true
-L["Memory"] = true
-L["Addon"] = true
-L["Tracking"] = true
-L["Total Memory"] = true
+L["Auto-Refresh"] = "Auto-Refresh"
+L["Reset Stats"] = "Reset Stats"
+L["CPU Profiling"] = "CPU Profiling"
+L["FPS"] = "FPS"
+L["Latency"] = "Latency"
+L["Memory"] = "Memory"
+L["Addon"] = "Addon"
+L["Tracking"] = "Tracking"
+L["Total Memory"] = "Total Memory"
+L["Auto-Refresh: ON"] = "Auto-Refresh: ON"
+L["Auto-Refresh: OFF"] = "Auto-Refresh: OFF"
+L["CPU Profiling: ON"] = "CPU Profiling: ON"
+L["CPU Profiling: OFF"] = "CPU Profiling: OFF"
+L["FPS: --"] = "FPS: --"
+L["Latency: --ms / --ms"] = "Latency: --ms / --ms"
+L["Lua Memory: -- MB"] = "Lua Memory: -- MB"
+L["Tracking: %s | Total Memory: %s"] = "Tracking: %s | Total Memory: %s"
+L["Total:"] = "Total:"
+L["Table View"] = "Table View"
+L["Performance stats reset."] = "Performance stats reset."
 
 -- Settings (Phase 3)
-L["General"] = true
-L["Copy Options"] = true
-L["Registered Addons"] = true
-L["Console Buffer Size"] = true
-L["Show Timestamps"] = true
-L["Include Environment Header"] = true
-L["Include Character Info"] = true
-L["Include Timestamp"] = true
-L["Refresh Interval"] = true
-L["Track Event Frequency"] = true
-L["Show Minimap Icon"] = true
+L["General"] = "General"
+L["Copy Options"] = "Copy Options"
+L["Registered Addons"] = "Registered Addons"
+L["Console Buffer Size"] = "Console Buffer Size"
+L["Show Timestamps"] = "Show Timestamps"
+L["Include Environment Header"] = "Include Environment Header"
+L["Include Character Info"] = "Include Character Info"
+L["Include Timestamp"] = "Include Timestamp"
+L["Refresh Interval"] = "Refresh Interval"
+L["Track Event Frequency"] = "Track Event Frequency"
+L["Show Minimap Icon"] = "Show Minimap Icon"
+
+-- API (Phase 7)
+L["Run"] = "Run"
+L["Run Category"] = "Run Category"
+L["Copy Report"] = "Copy Report"
+L["Results:"] = "Results:"
+L["Not yet run"] = "Not yet run"
+L["Notes:"] = "Notes:"
+L["Parameters:"] = "Parameters:"
+L["Category: %s"] = "Category: %s"
+L["Midnight Impact: %s%s|r"] = "Midnight Impact: %s%s|r"
+L["Midnight Note:"] = "Midnight Note:"
+L["Select an API"] = "Select an API"
+L["Select a category"] = "Select a category"
+L["Search APIs..."] = "Search APIs..."
+L["PROTECTED"] = "PROTECTED"
+L["MISSING"] = "MISSING"
+L["Function not found"] = "Function not found"
+L["Cannot call from addon code"] = "Cannot call from addon code"
+L["This API is protected and cannot be called from addon code in Midnight.\n\nConsider using the reskin strategy with Blizzard frames."] = "This API is protected and cannot be called from addon code in Midnight.\n\nConsider using the reskin strategy with Blizzard frames."
+L["Function not available: %s\n\nThis may be a newer API not yet available in this WoW version."] = "Function not available: %s\n\nThis may be a newer API not yet available in this WoW version."
+L["No API selected."] = "No API selected."
+
+-- Inspect (Phase 8)
+L["Pick"] = "Pick"
+L["Picking..."] = "Picking..."
+L["Watch"] = "Watch"
+L["+ Watch"] = "+ Watch"
+L["Inspect"] = "Inspect"
+L["Frame path or global table..."] = "Frame path or global table..."
+L["Select a frame"] = "Select a frame"
+L["Geometry"] = "Geometry"
+L["Common Properties"] = "Common Properties"
+L["Scripts"] = "Scripts"
+L["Watch List"] = "Watch List"
+L["Test Item"] = "Test Item"

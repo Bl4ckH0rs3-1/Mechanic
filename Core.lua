@@ -5,6 +5,7 @@
 -- Implementation tracked in PLAN/01-foundation.plan.md through PLAN/04-migration.plan.md
 
 local ADDON_NAME, ns = ...
+local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 
 local Mechanic = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceConsole-3.0", "AceEvent-3.0")
 _G.Mechanic = Mechanic -- luacheck: ignore W122 -- Global for MechanicLib:IsEnabled() check
@@ -72,6 +73,38 @@ function Mechanic:OnInitialize()
 	self:SetupDataBroker()
 
 	self:Print("Mechanic initialized.")
+end
+
+function Mechanic:UpdateMinimapIcon()
+	if not self.ldbObj then
+		return
+	end
+
+	local hasErrors = false
+	-- Check if we have the Errors module and it has errors for the CURRENT session
+	if self.Errors and self.Errors.errors and #self.Errors.errors > 0 then
+		-- Errors module already filters by current session by default
+		hasErrors = true
+	-- Fallback check for current session only
+	elseif _G.BugGrabber and _G.BugGrabber.GetSessionId then
+		local sessionId = _G.BugGrabber:GetSessionId()
+		local db = _G.BugGrabber:GetDB()
+		if db then
+			for i = #db, 1, -1 do
+				if db[i].session == sessionId then
+					hasErrors = true
+					break
+				end
+			end
+		end
+	end
+
+	local icon = hasErrors and "Interface\\AddOns\\!Mechanic\\assets\\mechanic-icon-error-64"
+		or "Interface\\AddOns\\!Mechanic\\assets\\mechanic-icon-normal-64"
+
+	if self.ldbObj.icon ~= icon then
+		self.ldbObj.icon = icon
+	end
 end
 
 function Mechanic:OnEnable()
@@ -214,22 +247,22 @@ function Mechanic:SlashCommand(input)
 		collectgarbage("collect")
 		local after = collectgarbage("count")
 		local freed = before - after
-		self:Print(string.format("GC: %s freed (%s -> %s)", 
+		self:Print(string.format(L["GC: %.1f KB freed (%.1f MB -> %.1f MB)"], 
 			self.Utils:FormatMemory(freed), 
 			self.Utils:FormatMemory(before), 
 			self.Utils:FormatMemory(after)))
 
 		local MechanicLib = LibStub("MechanicLib-1.0", true)
 		if MechanicLib then
-			MechanicLib:Log("System", string.format("GC executed: %s freed", self.Utils:FormatMemory(freed)), MechanicLib.Categories.PERF)
+			MechanicLib:Log("System", string.format(L["GC executed: %s freed"], self.Utils:FormatMemory(freed)), MechanicLib.Categories.PERF)
 		end
 	elseif cmd == "pause" then
 		self:TogglePause()
 	elseif cmd == "clear" then
 		self:ClearCurrentTab()
 	else
-		self:Print("Unknown command: " .. cmd)
-		self:Print("Commands: console, errors, tests, perf, reload, gc, pause, clear")
+		self:Print(string.format(L["Unknown command: %s"], cmd))
+		self:Print(L["Commands: console, errors, tests, perf, reload, gc, pause, copy, clear"])
 	end
 end
 
@@ -303,9 +336,10 @@ function Mechanic:SetupDataBroker()
 
 	local MechanicLib = LibStub("MechanicLib-1.0", true)
 
-	local dataObj = LDB:NewDataObject("Mechanic", {
+	self.ldbObj = LDB:NewDataObject("Mechanic", {
 		type = "launcher",
-		icon = "Interface\\Icons\\Trade_Engineering",
+		icon = "Interface\\AddOns\\!Mechanic\\assets\\mechanic-icon-normal-64",
+		iconCoords = { 0, 1, 0, 1 },
 		label = "Mechanic",
 		OnClick = function(_, button)
 			if button == "LeftButton" then
@@ -332,8 +366,11 @@ function Mechanic:SetupDataBroker()
 	})
 
 	if LDBIcon then
-		LDBIcon:Register("Mechanic", dataObj, self.db.profile.minimap)
+		LDBIcon:Register("Mechanic", self.ldbObj, self.db.profile.minimap)
 	end
+
+	-- Initial icon state
+	self:UpdateMinimapIcon()
 end
 
 function Mechanic:ToggleMinimapIcon()

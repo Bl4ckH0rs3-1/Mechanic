@@ -1892,7 +1892,6 @@ ns.APIRegistry = {
     ["C_Spell.IsAutoAttackSpell"] = { ns = "C_Spell", cat = "combat_midnight", impact = "RESTRICTED", name = "IsAutoAttackSpell" },
     ["C_Spell.IsAutoRepeatSpell"] = { ns = "C_Spell", cat = "combat_midnight", impact = "RESTRICTED", name = "IsAutoRepeatSpell" },
     ["C_Spell.IsClassTalentSpell"] = { ns = "C_Spell", cat = "combat_midnight", impact = "RESTRICTED", name = "IsClassTalentSpell" },
-    ["C_Spell.IsConsumableSpell"] = { ns = "C_Spell", cat = "combat_midnight", impact = "RESTRICTED", name = "IsConsumableSpell" },
     ["C_Spell.IsCurrentSpell"] = { ns = "C_Spell", cat = "combat_midnight", impact = "RESTRICTED", name = "IsCurrentSpell" },
     ["C_Spell.IsExternalDefensive"] = { ns = "C_Spell", cat = "combat_midnight", impact = "RESTRICTED", name = "IsExternalDefensive" },
     ["C_Spell.IsPressHoldReleaseSpell"] = { ns = "C_Spell", cat = "combat_midnight", impact = "RESTRICTED", name = "IsPressHoldReleaseSpell" },

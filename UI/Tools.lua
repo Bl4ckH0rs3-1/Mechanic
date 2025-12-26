@@ -110,7 +110,7 @@ function ToolsModule:OnAddonSelected(addonName)
 			emptyText = contentFrame:CreateFontString(nil, "OVERLAY", "GameFontDisableLarge")
 			emptyText:SetPoint("CENTER")
 			emptyText:SetText(
-				"No addons have registered diagnostic tools.\n\nAddons can register tools via:\nMechanicLib:Register(name, { tools = { ... } })"
+				L["No addons have registered diagnostic tools.\n\nAddons can register tools via:\nMechanicLib:Register(name, { tools = { ... } })"]
 			)
 			contentFrame.emptyText = emptyText
 		end

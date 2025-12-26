@@ -6,7 +6,7 @@
 
 local ADDON_NAME, ns = ...
 local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
-local L = LibStub("AceLocale-3.0"):GetLocale("!Mechanic", true) or {}
+local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 local PerformanceModule = {}
 Mechanic.Perf = PerformanceModule
 
@@ -70,7 +70,7 @@ function Mechanic:InitializePerformance()
 
 	-- Auto-Refresh Toggle
 	local autoRefreshBtn = toolbar:AddButton({
-		text = "   Auto-Refresh: ON",
+		text = L["Auto-Refresh: ON"],
 		width = 135,
 		onClick = function()
 			PerformanceModule:ToggleAutoRefresh()
@@ -90,12 +90,12 @@ function Mechanic:InitializePerformance()
 		autoRefreshIcon:SetVertexColor(0, 1, 0) -- Green
 	else
 		autoRefreshIcon:SetVertexColor(1, 0, 0) -- Red
-		autoRefreshBtn:SetText("   Auto-Refresh: OFF")
+		autoRefreshBtn:SetText(L["Auto-Refresh: OFF"])
 	end
 
 	-- Reset Stats
 	local resetBtn = toolbar:AddButton({
-		text = "Reset",
+		text = L["Reset"],
 		width = 60,
 		onClick = function()
 			PerformanceModule:ResetStats()
@@ -104,7 +104,7 @@ function Mechanic:InitializePerformance()
 
 	-- CPU Profiling Toggle
 	local cpuBtn = toolbar:AddButton({
-		text = "CPU Profiling: OFF",
+		text = L["CPU Profiling: OFF"],
 		width = 130,
 		onClick = function()
 			PerformanceModule:ToggleCPUProfiling()
@@ -116,7 +116,7 @@ function Mechanic:InitializePerformance()
 
 	-- Export Button
 	local exportBtn = toolbar:AddButton({
-		text = "Export",
+		text = L["Export"],
 		width = 70,
 		onClick = function()
 			PerformanceModule:ToggleExportMode()
@@ -139,17 +139,17 @@ function Mechanic:InitializePerformance()
 
 	local fpsLabel = metricsRow:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	fpsLabel:SetPoint("LEFT", 0, 0)
-	fpsLabel:SetText("FPS: --")
+	fpsLabel:SetText(L["FPS: --"])
 	PerformanceModule.fpsLabel = fpsLabel
 
 	local latencyLabel = metricsRow:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	latencyLabel:SetPoint("LEFT", fpsLabel, "RIGHT", 32, 0)
-	latencyLabel:SetText("Latency: --ms / --ms")
+	latencyLabel:SetText(L["Latency: --ms / --ms"])
 	PerformanceModule.latencyLabel = latencyLabel
 
 	local memoryLabel = metricsRow:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	memoryLabel:SetPoint("LEFT", latencyLabel, "RIGHT", 32, 0)
-	memoryLabel:SetText("Lua Memory: -- MB")
+	memoryLabel:SetText(L["Lua Memory: -- MB"])
 	PerformanceModule.memoryLabel = memoryLabel
 
 	-- Footer bar
@@ -160,7 +160,7 @@ function Mechanic:InitializePerformance()
 
 	local footerLabel = footerBar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	footerLabel:SetPoint("LEFT", 0, 0)
-	footerLabel:SetText("Tracking: 0m 0s | Total Memory: 0 KB")
+	footerLabel:SetText(L["Tracking: %s | Total Memory: %s"])
 	PerformanceModule.footerLabel = footerLabel
 
 	-- Header row for addon list
@@ -286,6 +286,13 @@ end
 function PerformanceModule:OnNavSelected(key)
 	-- If in export mode, update the text box and return
 	if self.exportMode then
+		-- Re-hide content frames as layout:Select() shows them
+		if self.layout and self.layout.contentFrames then
+			for _, frame in pairs(self.layout.contentFrames) do
+				frame:Hide()
+			end
+		end
+
 		if self.exportBox then
 			local text = self:GetCopyText(Mechanic.db.profile.includeEnvHeader)
 			self.exportBox:SetText(text)
@@ -721,14 +728,14 @@ function PerformanceModule:ToggleAutoRefresh()
 
 	if self.autoRefresh then
 		self:StartAutoRefresh()
-		self.autoRefreshButton:SetText("   Auto-Refresh: ON")
+		self.autoRefreshButton:SetText(L["Auto-Refresh: ON"])
 		if self.autoRefreshButton.icon then
 			self.autoRefreshButton.icon:SetAtlas("actionbar-icon-continuetracking")
 			self.autoRefreshButton.icon:SetVertexColor(0, 1, 0) -- Green
 		end
 	else
 		self:StopAutoRefresh()
-		self.autoRefreshButton:SetText("   Auto-Refresh: OFF")
+		self.autoRefreshButton:SetText(L["Auto-Refresh: OFF"])
 		if self.autoRefreshButton.icon then
 			self.autoRefreshButton.icon:SetAtlas("actionbar-icon-continuetracking")
 			self.autoRefreshButton.icon:SetVertexColor(1, 0, 0) -- Red
@@ -743,9 +750,9 @@ end
 function PerformanceModule:UpdateCPUButtonState()
 	local cpuEnabled = GetCVarBool("scriptProfile")
 	if cpuEnabled then
-		self.cpuButton:SetText("CPU Profiling: ON")
+		self.cpuButton:SetText(L["CPU Profiling: ON"])
 	else
-		self.cpuButton:SetText("CPU Profiling: OFF")
+		self.cpuButton:SetText(L["CPU Profiling: OFF"])
 	end
 end
 
@@ -768,7 +775,7 @@ function PerformanceModule:ResetStats()
 	ResetCPUUsage()
 	collectgarbage("collect")
 	self:Refresh()
-	Mechanic:Print("Performance stats reset.")
+	Mechanic:Print(L["Performance stats reset."])
 end
 
 --------------------------------------------------------------------------------

@@ -3,6 +3,7 @@
 
 local ADDON_NAME, ns = ...
 local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
+local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 local ErrorsModule = {}
 Mechanic.Errors = ErrorsModule
 
@@ -43,21 +44,14 @@ function Mechanic:InitializeErrors()
 	toolbar:SetPoint("TOPRIGHT", 0, 0)
 
 	-- Session Dropdown
-	local AceGUI = LibStub("AceGUI-3.0")
-	local sessionDropdown = AceGUI:Create("Dropdown")
-	sessionDropdown:SetWidth(150)
-	sessionDropdown:SetCallback("OnValueChanged", function(widget, event, value)
-		ErrorsModule:OnSessionChanged(value)
-	end)
-
-	-- We need to wrap AceGUI widget to add it to FenUI toolbar
-	local dropdownContainer = CreateFrame("Frame", nil, toolbar)
-	dropdownContainer:SetSize(150, 24)
-	sessionDropdown.frame:SetParent(dropdownContainer)
-	sessionDropdown.frame:SetAllPoints()
-	sessionDropdown.frame:Show()
-
-	toolbar:AddFrame(dropdownContainer)
+	local sessionDropdown = FenUI:CreateDropdown(toolbar, {
+		width = 150,
+		height = 24,
+		onSelect = function(value)
+			ErrorsModule:OnSessionChanged(value)
+		end,
+	})
+	toolbar:AddFrame(sessionDropdown)
 	ErrorsModule.sessionDropdown = sessionDropdown
 
 	-- Navigation
@@ -139,7 +133,7 @@ end
 
 function ErrorsModule:RefreshSourceList()
 	local items = {
-		{ key = "all", text = string.format("All (%d)", #self.errors) },
+		{ key = "all", text = string.format("%s (%d)", L["All"], #self.errors) },
 	}
 
 	-- Group errors by detected addon
@@ -170,6 +164,7 @@ function ErrorsModule:OnSourceSelected(key)
 	self:RefreshErrors() -- This will now need to respect self.selectedSource
 	self.currentIndex = #self.errors
 	self:UpdateDisplay()
+	Mechanic:UpdateMinimapIcon()
 end
 
 function ErrorsModule:OnEnable()
@@ -187,6 +182,7 @@ function ErrorsModule:OnEnable()
 	self:RefreshErrors()
 	self.currentIndex = #self.errors
 	self:UpdateDisplay()
+	Mechanic:UpdateMinimapIcon()
 end
 
 function ErrorsModule:UpdateSessionList()
@@ -195,16 +191,16 @@ function ErrorsModule:UpdateSessionList()
 	end
 
 	local currentId = _G.BugGrabber:GetSessionId()
-	local list = {
-		[currentId] = "Current Session",
-		["all"] = "All Sessions",
+	local items = {
+		{ text = L["Current Session"], value = currentId },
+		{ text = L["All Sessions"], value = "all" },
 	}
 
 	if currentId > 1 then
-		list[currentId - 1] = "Previous Session"
+		table.insert(items, { text = L["Previous Session"], value = currentId - 1 })
 	end
 
-	self.sessionDropdown:SetList(list)
+	self.sessionDropdown:SetItems(items)
 	self.sessionDropdown:SetValue(self.currentSession)
 end
 
@@ -213,6 +209,7 @@ function ErrorsModule:OnSessionChanged(session)
 	self:RefreshErrors()
 	self.currentIndex = #self.errors
 	self:UpdateDisplay()
+	Mechanic:UpdateMinimapIcon()
 end
 
 function ErrorsModule:OnBugGrabbed(event, errorObject)
@@ -232,6 +229,7 @@ function ErrorsModule:OnBugGrabbed(event, errorObject)
 	end
 
 	self:UpdateDisplay()
+	Mechanic:UpdateMinimapIcon()
 end
 
 function ErrorsModule:RefreshErrors()
@@ -282,8 +280,8 @@ function ErrorsModule:UpdateDisplay()
 
 	local err = self.errors[self.currentIndex]
 	if not err then
-		self.editBox:SetText("No errors in this session.")
-		self.countLabel:SetText("0/0")
+		self.editBox:SetText(L["No errors in this session."])
+		self.countLabel:SetText(L["0/0"])
 		self.prevButton:SetEnabled(false)
 		self.nextButton:SetEnabled(false)
 		return
@@ -293,18 +291,19 @@ function ErrorsModule:UpdateDisplay()
 	self.editBox:SetText(text)
 
 	-- Update navigation
-	self.countLabel:SetText(string.format("%d/%d", self.currentIndex, #self.errors))
+	self.countLabel:SetText(string.format(L["%d/%d"], self.currentIndex, #self.errors))
 	self.prevButton:SetEnabled(self.currentIndex > 1)
 	self.nextButton:SetEnabled(self.currentIndex < #self.errors)
 end
 
 function ErrorsModule:TogglePause()
 	self.paused = not self.paused
-	self.pauseButton:SetText(self.paused and "▶ Resume" or "⏸ Pause")
+	self.pauseButton:SetText(self.paused and L["▶ Resume"] or L["⏸ Pause"])
 
 	if not self.paused then
 		self:RefreshErrors()
 		self:UpdateDisplay()
+		Mechanic:UpdateMinimapIcon()
 	end
 end
 
@@ -314,7 +313,8 @@ function ErrorsModule:WipeSession()
 		self:RefreshErrors()
 		self.currentIndex = 0
 		self:UpdateDisplay()
-		Mechanic:Print("Error database wiped.")
+		Mechanic:UpdateMinimapIcon()
+		Mechanic:Print(L["Error database wiped."])
 	end
 end
 
@@ -327,7 +327,7 @@ function ErrorsModule:SendToConsole()
 	local text = Mechanic.Utils:FormatError(err)
 	local MechanicLib = LibStub("MechanicLib-1.0", true)
 	if MechanicLib then
-		MechanicLib:Log("BugGrabber", text, "[Error]")
+		MechanicLib:Log("BugGrabber", text, L["[Error]"])
 	end
 end
 
@@ -341,7 +341,7 @@ function ErrorsModule:GetCopyText(includeHeader)
 			table.insert(
 				lines,
 				string.format(
-					"Session: %s | Error: %d/%d",
+					L["Session: %s | Error: %d/%d"],
 					tostring(self.currentSession),
 					self.currentIndex,
 					#self.errors

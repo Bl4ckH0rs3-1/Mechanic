@@ -526,20 +526,6 @@ APIDefs["C_Spell.IsClassTalentSpell"] = {
     midnightNote = "Secret behavior: SecretArguments=AllowedWhenTainted",
 }
 
-APIDefs["C_Spell.IsConsumableSpell"] = {
-    key = "C_Spell.IsConsumableSpell",
-    name = "IsConsumableSpell",
-    category = "combat_midnight",
-    subcategory = "c_spell",
-    func = _G["C_Spell"] and _G["C_Spell"]["IsConsumableSpell"],
-    funcPath = "C_Spell.IsConsumableSpell",
-    params = { { name = "spellIdentifier", type = "SpellIdentifier", default = nil } },
-    returns = { { name = "consumable", type = "bool", canBeSecret = false } },
-    midnightImpact = "RESTRICTED",
-    protected = true,
-    midnightNote = "Secret behavior: SecretArguments=AllowedWhenTainted",
-}
-
 APIDefs["C_Spell.IsCurrentSpell"] = {
     key = "C_Spell.IsCurrentSpell",
     name = "IsCurrentSpell",

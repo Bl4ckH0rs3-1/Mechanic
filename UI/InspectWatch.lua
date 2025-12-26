@@ -26,11 +26,8 @@ function InspectModule:InitializeWatch(parent)
 	end
 	
 	-- Live Update Timer
-	self.watchTimer = 0
-	parent:SetScript("OnUpdate", function(_, elapsed)
-		self.watchTimer = self.watchTimer + elapsed
-		if self.watchTimer > 0.5 then
-			self.watchTimer = 0
+	self.watchTicker = C_Timer.NewTicker(0.5, function()
+		if parent:IsVisible() then
 			self:RefreshWatchList()
 		end
 	end)

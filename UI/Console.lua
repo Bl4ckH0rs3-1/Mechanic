@@ -5,6 +5,7 @@
 
 local ADDON_NAME, ns = ...
 local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
+local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 local Console = {}
 Mechanic.Console = Console
 
@@ -12,6 +13,8 @@ local CATEGORY_COLORS = Mechanic.Utils.Colors.Categories
 local DEFAULT_CATEGORY_COLOR = Mechanic.Utils.Colors.Status.default
 
 Console.buffer = {} -- { {source, category, message, time}, ... }
+Console.head = 1
+Console.count = 0
 Console.paused = false
 Console.filters = {
 	source = "All",
@@ -54,11 +57,12 @@ function Console:Initialize(parent)
 	self.filterBar = filterBar
 
 	-- Search Box
-	local searchBox = CreateFrame("EditBox", nil, filterBar, "SearchBoxTemplate")
-	searchBox:SetSize(200, 20)
+	local searchBox = FenUI:CreateInput(filterBar, {
+		placeholder = L["Search"],
+	})
+	searchBox:SetSize(200, 24)
 	searchBox:SetPoint("LEFT", 8, 0)
-	searchBox:SetAutoFocus(false)
-	searchBox:SetScript("OnTextChanged", function(eb)
+	searchBox.editBox:SetScript("OnTextChanged", function(eb)
 		self.filters.search = eb:GetText():lower()
 		self:Refresh()
 	end)
@@ -124,7 +128,7 @@ function Console:Initialize(parent)
 	-- Line Count Label
 	self.lineCount = toolbar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	self.lineCount:SetPoint("RIGHT", -8, 0)
-	self.lineCount:SetText("Lines: 0")
+	self.lineCount:SetText(L["Lines: 0"])
 
 	-- Manually trigger initial selection now that ALL UI elements are created
 	local initialKey = self.layout:GetSelectedKey()
@@ -133,16 +137,36 @@ function Console:Initialize(parent)
 	end
 end
 
+function Console:IterateBuffer(callback)
+	local maxLimit = Mechanic.db.profile.bufferSize or 1000
+	if self.count == 0 then
+		return
+	end
+
+	local start = self.head - self.count
+	if start < 1 then
+		start = start + maxLimit
+	end
+
+	for i = 0, self.count - 1 do
+		local idx = ((start + i - 1) % maxLimit) + 1
+		local entry = self.buffer[idx]
+		if entry then
+			callback(entry)
+		end
+	end
+end
+
 function Console:GetSourceList()
 	local items = {
-		{ key = "all", text = string.format("All (%d)", #self.buffer) },
+		{ key = "all", text = string.format("%s (%d)", L["All"], self.count) },
 	}
 
 	-- Count entries per source
 	local sourceCounts = {}
-	for _, entry in ipairs(self.buffer) do
+	self:IterateBuffer(function(entry)
 		sourceCounts[entry.source] = (sourceCounts[entry.source] or 0) + 1
-	end
+	end)
 
 	-- Add registered addons
 	local MechanicLib = LibStub("MechanicLib-1.0", true)
@@ -192,17 +216,20 @@ function Console:OnSourceSelected(key)
 end
 
 function Console:OnLog(addonName, message, category)
-	table.insert(self.buffer, {
+	local maxLimit = Mechanic.db.profile.bufferSize or 1000
+
+	local entry = {
 		source = addonName,
 		category = category or "",
 		message = message,
 		time = time(),
-	})
+	}
 
-	-- Enforce buffer limit
-	local maxLimit = Mechanic.db.profile.bufferSize or 1000
-	if #self.buffer > maxLimit then
-		table.remove(self.buffer, 1)
+	self.buffer[self.head] = entry
+
+	self.head = (self.head % maxLimit) + 1
+	if self.count < maxLimit then
+		self.count = self.count + 1
 	end
 
 	if not self.paused then
@@ -231,7 +258,7 @@ function Console:Refresh()
 			self.logDisplay:SetText(text)
 		end
 		if self.lineCount then
-			self.lineCount:SetText("Lines: " .. #filtered)
+			self.lineCount:SetText(string.format(L["Lines: %d"], #filtered))
 		end
 	end)
 end
@@ -240,7 +267,7 @@ function Console:ApplyFilters()
 	local filtered = {}
 	local search = self.filters.search
 
-	for _, entry in ipairs(self.buffer) do
+	self:IterateBuffer(function(entry)
 		local match = true
 
 		-- Source filter
@@ -267,7 +294,7 @@ function Console:ApplyFilters()
 		if match then
 			table.insert(filtered, entry)
 		end
-	end
+	end)
 
 	-- Apply Dedup
 	if self.dedupMode == "all" then
@@ -386,6 +413,8 @@ end
 
 function Console:Clear()
 	wipe(self.buffer)
+	self.head = 1
+	self.count = 0
 	self:Refresh()
 end
 

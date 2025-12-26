@@ -3,6 +3,7 @@
 
 local ADDON_NAME, ns = ...
 local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
+local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 local TestsModule = {}
 Mechanic.Tests = TestsModule
 
@@ -66,42 +67,39 @@ function Mechanic:InitializeTests()
 	})
 
 	-- Summary Bar
-	local summaryBar = CreateFrame("Frame", nil, frame)
-	summaryBar:SetHeight(24)
-	summaryBar:SetPoint("BOTTOMLEFT", 0, 0)
-	summaryBar:SetPoint("BOTTOMRIGHT", 0, 0)
-	local summaryText = summaryBar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	summaryText:SetPoint("LEFT", 8, 0)
-	summaryText:SetText("Total: 0 | Passed: 0 | Failed: 0 | Pending: 0")
-	TestsModule.summaryLabel = summaryText
+	local testSummaryBar = CreateFrame("Frame", nil, frame)
+	testSummaryBar:SetHeight(24)
+	testSummaryBar:SetPoint("BOTTOMLEFT", 8, 4)
+	testSummaryBar:SetPoint("BOTTOMRIGHT", -8, 4)
+	TestsModule.summaryBar = testSummaryBar
 
-	-- Split Container using AceGUI (since FenUI doesn't have a tree/split yet)
-	local AceGUI = LibStub("AceGUI-3.0")
-	local container = AceGUI:Create("SimpleGroup")
-	container:SetLayout("Fill")
-	container.frame:SetParent(frame)
-	container.frame:SetPoint("TOPLEFT", toolbar, "BOTTOMLEFT", 0, -4)
-	container.frame:SetPoint("BOTTOMRIGHT", summaryBar, "TOPRIGHT", 0, 4)
-	container.frame:Show()
+	local summaryLabel = testSummaryBar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	summaryLabel:SetPoint("LEFT", 0, 0)
+	TestsModule.summaryLabel = summaryLabel
 
-	local treeGroup = AceGUI:Create("TreeGroup")
-	treeGroup:SetLayout("Fill")
-	treeGroup:SetCallback("OnGroupSelected", function(widget, event, value)
+	-- Tree Panel (replacing AceGUI-TreeGroup)
+	local tree = FenUI:CreateTree(frame, {
+		onSelect = function(value)
 		local parts = { strsplit(":", value) }
 		if #parts == 2 then
 			TestsModule:OnTestSelected(parts[1], parts[2])
 		end
-	end)
-	container:AddChild(treeGroup)
-	TestsModule.treeGroup = treeGroup
+		end,
+	})
+	tree:SetPoint("TOPLEFT", toolbar, "BOTTOMLEFT", 0, -4)
+	tree:SetPoint("BOTTOMLEFT", testSummaryBar, "TOPLEFT", 0, 4)
+	tree:SetWidth(200)
+	TestsModule.tree = tree
 
-	-- Right Panel: Details (Using FenUI inside the AceGUI TreeGroup content)
-	local detailsFrame = CreateFrame("Frame", nil, treeGroup.content)
-	detailsFrame:SetAllPoints()
+	-- Right Panel: Details
+	local detailsFrame = CreateFrame("Frame", nil, frame)
+	detailsFrame:SetPoint("TOPLEFT", tree, "TOPRIGHT", 4, 0)
+	detailsFrame:SetPoint("BOTTOMRIGHT", testSummaryBar, "TOPRIGHT", 0, 4)
+	TestsModule.detailsFrame = detailsFrame
 
 	local nameLabel = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 	nameLabel:SetPoint("TOPLEFT", 8, -8)
-	nameLabel:SetText("Select a test")
+	nameLabel:SetText(L["Select a test"])
 	TestsModule.nameLabel = nameLabel
 
 	local categoryLabel = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -137,21 +135,20 @@ function Mechanic:InitializeTests()
 		autoScroll = false,
 	})
 	exportBox:SetPoint("TOPLEFT", toolbar, "BOTTOMLEFT", 0, -4)
-	exportBox:SetPoint("BOTTOMRIGHT", summaryBar, "TOPRIGHT", 0, 4)
+	exportBox:SetPoint("BOTTOMRIGHT", testSummaryBar, "TOPRIGHT", 0, 4)
 	exportBox:Hide()
 	TestsModule.exportBox = exportBox
-	TestsModule.treeContainer = container
 
 	TestsModule:RefreshTree()
 	TestsModule:UpdateSummary()
 end
 
 function TestsModule:RefreshTree()
-	if not self.frame or not self.treeGroup then
+	if not self.frame or not self.tree then
 		return
 	end
 	local tree = self:BuildTree()
-	self.treeGroup:SetTree(tree)
+	self.tree:SetData(tree)
 end
 
 function TestsModule:BuildTree()
@@ -262,44 +259,44 @@ end
 function TestsModule:UpdateDetailsPanel(testDef, result)
 	local typeTag = testDef.type == "manual" and "|cff888888(Manual)|r" or "|cff88ff88(Auto)|r"
 	self.nameLabel:SetText(string.format("%s %s", testDef.name, typeTag))
-	self.categoryLabel:SetText(string.format("Category: %s", testDef.category))
+	self.categoryLabel:SetText(string.format(L["Category: %s"], testDef.category))
 
 	if result then
 		local statusColor = result.passed == true and STATUS_COLORS.pass
 			or (result.passed == false and STATUS_COLORS.fail or STATUS_COLORS.pending)
-		local statusText = result.passed == true and "PASSED" or (result.passed == false and "FAILED" or "PENDING")
-		self.statusLabel:SetText(string.format("Status: %s%s|r", statusColor, statusText))
+		local statusText = result.passed == true and L["PASSED"] or (result.passed == false and L["FAILED"] or L["PENDING"])
+		self.statusLabel:SetText(string.format(L["Status: %s%s|r"], statusColor, statusText))
 
 		if result.duration then
-			self.durationLabel:SetText(string.format("Duration: %.3fs", result.duration))
+			self.durationLabel:SetText(string.format(L["Duration: %.3fs"], result.duration))
 		else
 			self.durationLabel:SetText("")
 		end
 
 		local details = {}
 		if result.message then
-			table.insert(details, string.format("Message: %s", result.message))
+			table.insert(details, string.format(L["Message: %s"], result.message))
 			table.insert(details, "")
 		end
 
 		-- NEW: Details array rendering per Phase 5
 		if result.details and #result.details > 0 then
-			table.insert(details, "Details:")
+			table.insert(details, L["Details:"])
 			for _, detail in ipairs(result.details) do
 				local statusColor = STATUS_COLORS[detail.status] or STATUS_COLORS.default
 				local statusIcon = self:GetDetailStatusIcon(detail.status)
 				table.insert(
 					details,
-					string.format("  %s %s: %s%s|r", statusIcon, detail.label, statusColor, detail.value)
+					string.format(L["  %s %s: %s%s|r"], statusIcon, detail.label, statusColor, detail.value)
 				)
 			end
 			table.insert(details, "")
 		end
 
 		if result.logs and #result.logs > 0 then
-			table.insert(details, "Captured Logs:")
+			table.insert(details, L["Captured Logs:"])
 			for _, log in ipairs(result.logs) do
-				table.insert(details, string.format("  %s", log))
+				table.insert(details, string.format(L["  %s"], log))
 			end
 		end
 
@@ -307,7 +304,7 @@ function TestsModule:UpdateDetailsPanel(testDef, result)
 			self.detailsBox:SetText(table.concat(details, "\n"))
 		end
 	else
-		self.statusLabel:SetText("Status: |cff888888Not run|r")
+		self.statusLabel:SetText(L["Status: |cff888888Not run|r"])
 		self.durationLabel:SetText("")
 		if self.detailsBox then
 			self.detailsBox:SetText("")
@@ -336,7 +333,7 @@ end
 
 function TestsModule:RunSelected()
 	if not self.selectedAddon or not self.selectedTest then
-		Mechanic:Print("No test selected.")
+		Mechanic:Print(L["No test selected."])
 		return
 	end
 
@@ -383,7 +380,7 @@ function TestsModule:ClearResults()
 	end
 	self:RefreshTree()
 	self:UpdateSummary()
-	self.statusLabel:SetText(string.format("Status: %sNot run|r", STATUS_COLORS.not_run))
+	self.statusLabel:SetText(L["Status: |cff888888Not run|r"])
 	if self.detailsBox then
 		self.detailsBox:SetText("")
 	end
@@ -430,8 +427,11 @@ function TestsModule:ToggleExportMode()
 
 	if self.exportMode then
 		-- Hide tree/details, show export box
-		if self.treeContainer then
-			self.treeContainer.frame:Hide()
+		if self.tree then
+			self.tree:Hide()
+		end
+		if self.detailsFrame then
+			self.detailsFrame:Hide()
 		end
 		if self.exportBox then
 			local text = self:GetCopyText(Mechanic.db.profile.includeEnvHeader)
@@ -440,18 +440,21 @@ function TestsModule:ToggleExportMode()
 			self.exportBox:ScrollToTop()
 		end
 		if self.exportButton then
-			self.exportButton:SetText("Tree View")
+			self.exportButton:SetText(L["Tree View"])
 		end
 	else
 		-- Hide export box, show tree/details
 		if self.exportBox then
 			self.exportBox:Hide()
 		end
-		if self.treeContainer then
-			self.treeContainer.frame:Show()
+		if self.tree then
+			self.tree:Show()
+		end
+		if self.detailsFrame then
+			self.detailsFrame:Show()
 		end
 		if self.exportButton then
-			self.exportButton:SetText("Export")
+			self.exportButton:SetText(L["Export"])
 		end
 	end
 end
