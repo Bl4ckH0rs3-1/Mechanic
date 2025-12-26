@@ -186,13 +186,113 @@ function InspectModule:StartPicking()
 		self.pickBar = bar
 	end
 	
-	-- 2. Event frame for GLOBAL_MOUSE_DOWN (no mouse interaction, just events)
+	-- 2. Gold Highlight Border (mouse-disabled, positioned by OnUpdate)
+	if not self.pickHighlight then
+		local highlight = CreateFrame("Frame", "MechanicPickHighlight", UIParent)
+		highlight:SetFrameStrata("TOOLTIP")
+		highlight:SetFrameLevel(4900)
+		highlight:EnableMouse(false)  -- CRITICAL: Don't block GetMouseFoci()
+		
+		local edgeSize = 3
+		for _, edge in ipairs({"Top", "Bottom", "Left", "Right"}) do
+			local tex = highlight:CreateTexture(nil, "OVERLAY")
+			tex:SetColorTexture(1, 0.82, 0, 1)  -- Gold color
+			highlight[edge.."Edge"] = tex
+		end
+		
+		highlight.TopEdge:SetHeight(edgeSize)
+		highlight.TopEdge:SetPoint("TOPLEFT")
+		highlight.TopEdge:SetPoint("TOPRIGHT")
+		highlight.BottomEdge:SetHeight(edgeSize)
+		highlight.BottomEdge:SetPoint("BOTTOMLEFT")
+		highlight.BottomEdge:SetPoint("BOTTOMRIGHT")
+		highlight.LeftEdge:SetWidth(edgeSize)
+		highlight.LeftEdge:SetPoint("TOPLEFT", highlight.TopEdge, "BOTTOMLEFT")
+		highlight.LeftEdge:SetPoint("BOTTOMLEFT", highlight.BottomEdge, "TOPLEFT")
+		highlight.RightEdge:SetWidth(edgeSize)
+		highlight.RightEdge:SetPoint("TOPRIGHT", highlight.TopEdge, "BOTTOMRIGHT")
+		highlight.RightEdge:SetPoint("BOTTOMRIGHT", highlight.BottomEdge, "TOPRIGHT")
+		
+		local label = highlight:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		label:SetPoint("TOP", highlight, "BOTTOM", 0, -4)
+		highlight.label = label
+		
+		self.pickHighlight = highlight
+	end
+	
+	-- 3. Event frame for GLOBAL_MOUSE_DOWN (no mouse interaction, just events)
 	if not self.pickEventFrame then
 		self.pickEventFrame = CreateFrame("Frame", "MechanicPickEventFrame")
-					end
-					
-	-- Show instruction bar
+	end
+	
+	-- Show instruction bar and hide highlight initially
 	self.pickBar:Show()
+	self.pickHighlight:Hide()
+	
+	-- 4. OnUpdate scanner on pickBar (mouse-disabled, so GetMouseFoci works!)
+	self.pickBar:SetScript("OnUpdate", function(s, elapsed)
+		s.elapsed = (s.elapsed or 0) + elapsed
+		if s.elapsed < 0.05 then return end
+		s.elapsed = 0
+		
+		-- Get frames under cursor - NO blocking since pickBar is mouse-disabled!
+		local foci = GetMouseFoci()
+		local target = nil
+		
+		for _, f in ipairs(foci) do
+			if f and f ~= UIParent and f ~= WorldFrame then
+				local isMechanic = false
+				local p = f
+				while p do
+					if p == Mechanic.frame or p == self.pickBar or p == self.pickHighlight or p == self.pickBtn then
+						isMechanic = true
+						break
+					end
+					p = p.GetParent and p:GetParent()
+				end
+				if not isMechanic then
+					target = f
+					break
+				end
+			end
+		end
+		
+		if target then
+			self.pickHighlight:ClearAllPoints()
+			self.pickHighlight:SetPoint("TOPLEFT", target, "TOPLEFT", -3, 3)
+			self.pickHighlight:SetPoint("BOTTOMRIGHT", target, "BOTTOMRIGHT", 3, -3)
+			self.pickHighlight:Show()
+			local name = (target.GetDebugName and target:GetDebugName())
+				or (target.GetName and target:GetName())
+				or (target.GetObjectType and target:GetObjectType())
+				or tostring(target)
+			self.pickHighlight.label:SetText("|cffFFD100" .. name .. "|r")
+		else
+			self.pickHighlight:Hide()
+		end
+	end)
+	
+	-- #region agent log
+	Mechanic:Print("|cff00ffff[Run 13]|r OnUpdate scanner active on pickBar")
+	-- #endregion
+	
+	-- 5. ESC key handling on pickBar
+	self.pickBar:EnableKeyboard(true)
+	self.pickBar:SetScript("OnKeyDown", function(s, key)
+		if key == "ESCAPE" then
+			-- #region agent log
+			Mechanic:Print("|cff00ffff[Run 13]|r ESC pressed - cancelling pick mode")
+			-- #endregion
+			self.pickMode = false
+			self.pickExitTime = GetTime()
+			self:StopPicking()
+			if self.pickBtn then self.pickBtn:SetText(L["Pick"]) end
+		end
+	end)
+	
+	-- #region agent log
+	Mechanic:Print("|cff00ffff[Run 13]|r ESC handler active on pickBar")
+	-- #endregion
 	
 	-- #region agent log
 	Mechanic:Print("|cff00ffff[Run 12]|r Delaying event registration by 0.15s...")
@@ -279,18 +379,26 @@ function InspectModule:StopPicking()
 	local self = InspectModule
 	
 	-- #region agent log
-	Mechanic:Print("|cff00ffff[Run 12]|r StopPicking")
+	Mechanic:Print("|cff00ffff[Run 13]|r StopPicking")
 	-- #endregion
 	
-	-- Unregister event
+	-- Unregister GLOBAL_MOUSE_DOWN event
 	if self.pickEventFrame then
 		self.pickEventFrame:UnregisterAllEvents()
 		self.pickEventFrame:SetScript("OnEvent", nil)
 	end
 	
-	-- Hide instruction bar
+	-- Clean up pickBar scripts (OnUpdate scanner, OnKeyDown handler)
 	if self.pickBar then
+		self.pickBar:SetScript("OnUpdate", nil)
+		self.pickBar:SetScript("OnKeyDown", nil)
+		self.pickBar:EnableKeyboard(false)
 		self.pickBar:Hide()
+	end
+	
+	-- Hide gold highlight
+	if self.pickHighlight then
+		self.pickHighlight:Hide()
 	end
 end
 
