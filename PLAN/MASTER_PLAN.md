@@ -351,7 +351,7 @@ passed, message  -- boolean/nil, string
 - **Export Toggle**: Replaces tree view with a copyable text report (Ctrl+A / Ctrl+C)
 - **Summary Bar**: Aggregated counts
 
-### Inspect Tab (Phase 8)
+### Inspect Tab (Phase 8 & 11)
 
 **Universal Inspection**: The Inspect tab is designed to handle both WoW `Frame` objects and plain global `tables`. 
 
@@ -360,6 +360,10 @@ passed, message  -- boolean/nil, string
 - **Contextual Tree**: 
     - For Frames: Shows ancestors up to UIParent and direct children.
     - For Tables: Shows the table as a root node.
+- **Properties Panel (Phase 11)**: 
+    - Live editing of Geometry, Visibility, Layering, and Scale.
+    - Section Registry for extensible property modules.
+    - Markdown/Lua export for change tracking.
 - **Details Panel**:
     - Frames: Shows Geometry, Scripts, and common properties.
     - Tables: Iterates and displays top-level members (up to 10) for quick inspection.
@@ -507,6 +511,8 @@ Each module still implements `GetCopyText(includeHeader)` for generating the exp
 │   ├── Console.lua            # Console tab module
 │   ├── Errors.lua             # Errors tab module
 │   ├── Tests.lua              # Tests tab module
+│   ├── Inspect.lua            # Inspect tab module
+│   ├── InspectProperties.lua  # Property editor module
 │   └── Performance.lua        # Performance tab module
 │
 ├── Libs/                      # Embedded libraries
@@ -728,6 +734,7 @@ MechanicLib is embedded in consuming addons:
 | 8 | Inspect Tab | Frame Inspector, Watch List, Pick mode | **COMPLETE** |
 | 9 | API Database Automation | Automated discovery, lazy loading, massive coverage | **COMPLETE** |
 | 10 | Persistence & Initialization | Tab memory, race condition fixes, UI refinements | **COMPLETE** |
+| 11 | Live Property Editor | 4-column layout, live editing, section registry, export | **COMPLETE** |
 
 See individual phase specs for detailed requirements:
 - [01-foundation.plan.md](01-foundation.plan.md)
@@ -740,4 +747,4 @@ See individual phase specs for detailed requirements:
 - [08-inspect.plan.md](08-inspect.plan.md)
 - [09-api_database_automation.plan.md](09-api_database_automation.plan.md)
 - [10-persistence_initialization.plan.md](10-persistence_initialization.plan.md)
-
+- [11-inspect-properties-editor.plan.md](11-inspect-properties-editor.plan.md)
