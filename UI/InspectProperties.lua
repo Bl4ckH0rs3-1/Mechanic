@@ -107,6 +107,7 @@ function Properties:Initialize(parent)
 	self.originalValues = {}
 	self.pendingChanges = {}
 	self.activeEditKey = nil
+	self.editBoxRegistry = {}
 
 	self:InitializeDefaultSections()
 end
@@ -130,6 +131,7 @@ function Properties:Update(frame, isRefresh)
 	-- Clear current content (visuals)
 	self:HideAllSections()
 	self.sectionFrames = {}
+	self.editBoxRegistry = {} -- Clear registry before rebuild
 
 	-- Update FenUI Badge
 	if self:IsFenUIComponent(frame) then
@@ -156,6 +158,18 @@ function Properties:Update(frame, isRefresh)
 	end
 
 	self.content:SetHeight(math.abs(yOffset))
+
+	-- Restore focus if needed
+	if self.activeEditKey and self.editBoxRegistry[self.activeEditKey] then
+		local eb = self.editBoxRegistry[self.activeEditKey]
+		-- Wrap in C_Timer to ensure frame visibility/layout is complete
+		C_Timer.After(0, function()
+			if eb and eb:IsVisible() then
+				eb:SetFocus()
+				eb:SetCursorPosition(string.len(eb:GetText()))
+			end
+		end)
+	end
 end
 
 function Properties:HideAllSections()
@@ -337,6 +351,8 @@ function Properties.inputs:Number(parent, label, value, key, onChange, onReset, 
 	input:SetText(string.format(fmt, value or 0))
 	
 	if input.editBox then
+		Properties.editBoxRegistry[key] = input.editBox -- Register for focus restoration
+		
 		input.editBox:SetScript("OnEnterPressed", function(eb)
 			eb:ClearFocus()
 			local newVal = tonumber(eb:GetText())
@@ -347,18 +363,15 @@ function Properties.inputs:Number(parent, label, value, key, onChange, onReset, 
 			Properties.activeEditKey = key
 		end)
 		input.editBox:HookScript("OnEditFocusLost", function()
-			if Properties.activeEditKey == key then
-				Properties.activeEditKey = nil
-			end
+			-- Only clear if we aren't about to restore it
+			C_Timer.After(0.01, function()
+				if Properties.activeEditKey == key and not input.editBox:HasFocus() then
+					-- Properties.activeEditKey = nil -- Don't clear yet, Update might need it
+				end
+			end)
 		end)
 		
 		self:SetupKeyboardNav(input.editBox, value, stepVal, shiftStep, onChange, key)
-		
-		-- Restore focus if this was the active key
-		if Properties.activeEditKey == key then
-			input.editBox:SetFocus()
-			input.editBox:SetCursorPosition(string.len(input.editBox:GetText()))
-		end
 	end
 	
 	self:AddExtras(container, lbl, key, onReset, tooltip)
@@ -415,6 +428,8 @@ function Properties.inputs:Slider(parent, label, value, key, min, max, step, onC
 	slider:SetObeyStepOnDrag(true)
 
 	if input.editBox then
+		Properties.editBoxRegistry[key] = input.editBox -- Register for focus restoration
+		
 		input.editBox:SetScript("OnEnterPressed", function(eb)
 			eb:ClearFocus()
 			local newVal = tonumber(eb:GetText())
@@ -428,23 +443,12 @@ function Properties.inputs:Slider(parent, label, value, key, min, max, step, onC
 		input.editBox:HookScript("OnEditFocusGained", function()
 			Properties.activeEditKey = key
 		end)
-		input.editBox:HookScript("OnEditFocusLost", function()
-			if Properties.activeEditKey == key then
-				Properties.activeEditKey = nil
-			end
-		end)
 		
 		self:SetupKeyboardNav(input.editBox, value, step or 0.1, 1, function(val)
 			val = math.max(min, math.min(max, val))
 			slider:SetValue(val)
 			onChange(val)
 		end, key)
-		
-		-- Restore focus if this was the active key
-		if Properties.activeEditKey == key then
-			input.editBox:SetFocus()
-			input.editBox:SetCursorPosition(string.len(input.editBox:GetText()))
-		end
 	end
 
 	slider:SetScript("OnValueChanged", function(s, val)
@@ -573,6 +577,8 @@ function Properties.inputs:Text(parent, label, value, key, onChange, onReset, to
 	input:SetText(tostring(value or ""))
 	
 	if input.editBox then
+		Properties.editBoxRegistry[key] = input.editBox -- Register for focus restoration
+		
 		input.editBox:SetScript("OnEnterPressed", function(eb)
 			eb:ClearFocus()
 			onChange(eb:GetText())
@@ -581,17 +587,6 @@ function Properties.inputs:Text(parent, label, value, key, onChange, onReset, to
 		input.editBox:HookScript("OnEditFocusGained", function()
 			Properties.activeEditKey = key
 		end)
-		input.editBox:HookScript("OnEditFocusLost", function()
-			if Properties.activeEditKey == key then
-				Properties.activeEditKey = nil
-			end
-		end)
-		
-		-- Restore focus if this was the active key
-		if Properties.activeEditKey == key then
-			input.editBox:SetFocus()
-			input.editBox:SetCursorPosition(string.len(input.editBox:GetText()))
-		end
 	end
 	
 	self:AddExtras(container, lbl, key, onReset, tooltip)
@@ -1005,8 +1000,8 @@ function Properties:ResetChanges()
 		elseif key == "scale" then frame:SetScale(val)
 		elseif key == "level" then frame:SetFrameLevel(val)
 		elseif key == "strata" then frame:SetFrameStrata(val)
-		elseif key == "vertexColor" then frame:SetVertexColor(val.r, val.g, b, a)
-		elseif key == "textColor" then frame:SetTextColor(val.r, val.g, b, a)
+		elseif key == "vertexColor" then frame:SetVertexColor(val.r, val.g, val.b, val.a)
+		elseif key == "textColor" then frame:SetTextColor(val.r, val.g, val.b, val.a)
 		elseif key == "text" then frame:SetText(val)
 		end
 	end
