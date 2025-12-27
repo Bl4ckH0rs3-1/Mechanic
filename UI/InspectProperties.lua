@@ -110,23 +110,24 @@ function Properties:Initialize(parent)
 	self:InitializeDefaultSections()
 end
 
-function Properties:Update(frame)
-	self.currentFrame = frame
-	self.originalValues = {}
-	self.pendingChanges = {}
-
-	-- Clear current content
-	if self.sectionFrames then
-		for _, f in ipairs(self.sectionFrames) do
-			f:Hide()
-		end
+function Properties:Update(frame, isRefresh)
+	if not frame then
+		self.currentFrame = nil
+		self:HideAllSections()
+		return
 	end
+
+	-- Only wipe history if we are selecting a NEW frame
+	if not isRefresh or frame ~= self.currentFrame then
+		self.currentFrame = frame
+		self.originalValues = {}
+		self.pendingChanges = {}
+		self:CaptureOriginalValues(frame)
+	end
+
+	-- Clear current content (visuals)
+	self:HideAllSections()
 	self.sectionFrames = {}
-
-	if not frame then return end
-
-	-- Capture original values
-	self:CaptureOriginalValues(frame)
 
 	-- Update FenUI Badge
 	if self:IsFenUIComponent(frame) then
@@ -153,6 +154,14 @@ function Properties:Update(frame)
 	end
 
 	self.content:SetHeight(math.abs(yOffset))
+end
+
+function Properties:HideAllSections()
+	if self.sectionFrames then
+		for _, f in ipairs(self.sectionFrames) do
+			f:Hide()
+		end
+	end
 end
 
 function Properties:CaptureOriginalValues(frame)
@@ -194,14 +203,13 @@ function Properties:CaptureOriginalValues(frame)
 end
 
 function Properties:TrackChange(key, value)
-	if not self.originalValues[key] then return end -- Don't track if we don't have original
+	if not self.originalValues[key] then return end 
 
 	local isOriginal = false
 	if type(value) == "table" and type(self.originalValues[key]) == "table" then
-		-- Simple comparison for color tables
-		isOriginal = (math.abs(value.r - self.originalValues[key].r) < 0.01) and
-		             (math.abs(value.g - self.originalValues[key].g) < 0.01) and
-		             (math.abs(value.b - self.originalValues[key].b) < 0.01) and
+		isOriginal = (math.abs((value.r or 0) - (self.originalValues[key].r or 0)) < 0.01) and
+		             (math.abs((value.g or 0) - (self.originalValues[key].g or 0)) < 0.01) and
+		             (math.abs((value.b or 0) - (self.originalValues[key].b or 0)) < 0.01) and
 		             (math.abs((value.a or 1) - (self.originalValues[key].a or 1)) < 0.01)
 	else
 		isOriginal = (value == self.originalValues[key])
@@ -252,7 +260,6 @@ end
 
 Properties.inputs = {}
 
--- Helper to add reset button and tooltip to any container
 function Properties.inputs:AddExtras(container, labelFS, key, onReset, tooltip)
 	if tooltip then
 		container:SetScript("OnEnter", function(s)
@@ -276,7 +283,6 @@ function Properties.inputs:AddExtras(container, labelFS, key, onReset, tooltip)
 		resetBtn:SetScript("OnLeave", function(s) s:SetAlpha(0.4) end)
 		container.resetBtn = resetBtn
 		
-		-- Only show reset if changed
 		if InspectModule.Properties.pendingChanges[key] then
 			resetBtn:Show()
 		else
@@ -295,12 +301,13 @@ function Properties.inputs:Number(parent, label, value, key, onChange, onReset, 
 	lbl:SetJustifyH("LEFT")
 	lbl:SetText(label)
 	
-	local input = FenUI:CreateInput(container, {
-		text = tostring(math.floor((value or 0) + 0.5)),
-	})
+	local input = FenUI:CreateInput(container, {})
 	input:SetPoint("LEFT", lbl, "RIGHT", 4, 0)
 	input:SetPoint("RIGHT", onReset and -RESET_BTN_SIZE - 4 or 0, 0)
 	input:SetHeight(INPUT_HEIGHT - 2)
+	
+	-- EXPLICITLY set text because FenUI:CreateInput doesn't handle config.text
+	input:SetText(tostring(math.floor((value or 0) + 0.5)))
 	
 	if input.editBox then
 		input.editBox:SetScript("OnEnterPressed", function(eb)
@@ -328,7 +335,6 @@ function Properties.inputs:Checkbox(parent, label, value, key, onChange, onReset
 	})
 	cb:SetPoint("LEFT", 0, 0)
 	
-	-- Match status bar style
 	cb.label:SetFontObject("GameFontHighlightSmall")
 	if cb.boxBg then cb.boxBg:SetVertexColor(1, 1, 1, 0.8) end
 
@@ -350,12 +356,10 @@ function Properties.inputs:Slider(parent, label, value, key, min, max, step, onC
 	lbl:SetJustifyH("LEFT")
 	lbl:SetText(label)
 
-	-- Number input alongside slider
-	local input = FenUI:CreateInput(container, {
-		text = string.format("%.2f", value or 0),
-	})
+	local input = FenUI:CreateInput(container, {})
 	input:SetSize(40, INPUT_HEIGHT - 2)
 	input:SetPoint("TOPRIGHT", onReset and -RESET_BTN_SIZE - 4 or 0, 0)
+	input:SetText(string.format("%.2f", value or 0))
 	
 	local slider = CreateFrame("Slider", nil, container, "OptionsSliderTemplate")
 	slider:SetPoint("TOPLEFT", lbl, "TOPRIGHT", 4, 0)
@@ -496,12 +500,12 @@ function Properties.inputs:Text(parent, label, value, key, onChange, onReset, to
 	lbl:SetJustifyH("LEFT")
 	lbl:SetText(label)
 	
-	local input = FenUI:CreateInput(container, {
-		text = tostring(value or ""),
-	})
+	local input = FenUI:CreateInput(container, {})
 	input:SetPoint("LEFT", lbl, "RIGHT", 4, 0)
 	input:SetPoint("RIGHT", onReset and -RESET_BTN_SIZE - 4 or 0, 0)
 	input:SetHeight(INPUT_HEIGHT - 2)
+	
+	input:SetText(tostring(value or ""))
 	
 	if input.editBox then
 		input.editBox:SetScript("OnEnterPressed", function(eb)
@@ -532,12 +536,12 @@ function Properties:InitializeDefaultSections()
 			local wInput = self.inputs:Number(parent, _L("Width"), frame:GetWidth(), "width", function(val)
 				frame:SetWidth(val)
 				self:TrackChange("width", val)
-				self:Update(frame)
+				self:Update(frame, true) -- true = isRefresh
 			end, function()
 				local val = self.originalValues.width
 				frame:SetWidth(val)
 				self.pendingChanges.width = nil
-				self:Update(frame)
+				self:Update(frame, true)
 			end)
 			wInput:SetPoint("TOPLEFT", 0, y)
 			y = y - INPUT_HEIGHT
@@ -545,12 +549,12 @@ function Properties:InitializeDefaultSections()
 			local hInput = self.inputs:Number(parent, _L("Height"), frame:GetHeight(), "height", function(val)
 				frame:SetHeight(val)
 				self:TrackChange("height", val)
-				self:Update(frame)
+				self:Update(frame, true)
 			end, function()
 				local val = self.originalValues.height
 				frame:SetHeight(val)
 				self.pendingChanges.height = nil
-				self:Update(frame)
+				self:Update(frame, true)
 			end)
 			hInput:SetPoint("TOPLEFT", 0, y)
 			y = y - INPUT_HEIGHT
@@ -587,12 +591,12 @@ function Properties:InitializeDefaultSections()
 			local shownInput = self.inputs:Checkbox(parent, _L("Shown"), frame:IsShown(), "shown", function(val)
 				if val then frame:Show() else frame:Hide() end
 				self:TrackChange("shown", val)
-				self:Update(frame)
+				self:Update(frame, true)
 			end, function()
 				local val = self.originalValues.shown
 				if val then frame:Show() else frame:Hide() end
 				self.pendingChanges.shown = nil
-				self:Update(frame)
+				self:Update(frame, true)
 			end)
 			shownInput:SetPoint("TOPLEFT", 0, y)
 			y = y - INPUT_HEIGHT
@@ -604,7 +608,7 @@ function Properties:InitializeDefaultSections()
 				local val = self.originalValues.alpha
 				frame:SetAlpha(val)
 				self.pendingChanges.alpha = nil
-				self:Update(frame)
+				self:Update(frame, true)
 			end)
 			alphaInput:SetPoint("TOPLEFT", 0, y)
 			y = y - (INPUT_HEIGHT + 10)
@@ -644,12 +648,12 @@ function Properties:InitializeDefaultSections()
 			local levelInput = self.inputs:Number(parent, _L("Level"), frame:GetFrameLevel(), "level", function(val)
 				frame:SetFrameLevel(val)
 				self:TrackChange("level", val)
-				self:Update(frame)
+				self:Update(frame, true)
 			end, function()
 				local val = self.originalValues.level
 				frame:SetFrameLevel(val)
 				self.pendingChanges.level = nil
-				self:Update(frame)
+				self:Update(frame, true)
 			end, "Controls depth within the same strata. Higher numbers appear on top.")
 			levelInput:SetPoint("TOPLEFT", 0, y)
 			y = y - INPUT_HEIGHT
@@ -660,12 +664,12 @@ function Properties:InitializeDefaultSections()
 			local strataInput = self.inputs:Dropdown(parent, _L("Strata"), strataOptions, frame:GetFrameStrata(), "strata", function(val)
 				frame:SetFrameStrata(val)
 				self:TrackChange("strata", val)
-				self:Update(frame)
+				self:Update(frame, true)
 			end, function()
 				local val = self.originalValues.strata
 				frame:SetFrameStrata(val)
 				self.pendingChanges.strata = nil
-				self:Update(frame)
+				self:Update(frame, true)
 			end, "Major render layers. DIALOG > HIGH > MEDIUM > LOW > BACKGROUND.")
 			strataInput:SetPoint("TOPLEFT", 0, y)
 			y = y - INPUT_HEIGHT
@@ -705,12 +709,12 @@ function Properties:InitializeDefaultSections()
 			local scaleInput = self.inputs:Number(parent, _L("Scale"), frame:GetScale(), "scale", function(val)
 				frame:SetScale(val)
 				self:TrackChange("scale", val)
-				self:Update(frame)
+				self:Update(frame, true)
 			end, function()
 				local val = self.originalValues.scale
 				frame:SetScale(val)
 				self.pendingChanges.scale = nil
-				self:Update(frame)
+				self:Update(frame, true)
 			end)
 			scaleInput:SetPoint("TOPLEFT", 0, y)
 			y = y - INPUT_HEIGHT
@@ -741,12 +745,12 @@ function Properties:InitializeDefaultSections()
 			local colorInput = self.inputs:Color(parent, _L("Vertex Color"), r, g, b, a, "vertexColor", function(nr, ng, nb, na)
 				frame:SetVertexColor(nr, ng, nb, na)
 				self:TrackChange("vertexColor", {r=nr, g=ng, b=nb, a=na})
-				self:Update(frame)
+				self:Update(frame, true)
 			end, function()
 				local val = self.originalValues.vertexColor
 				frame:SetVertexColor(val.r, val.g, val.b, val.a)
 				self.pendingChanges.vertexColor = nil
-				self:Update(frame)
+				self:Update(frame, true)
 			end)
 			colorInput:SetPoint("TOPLEFT", 0, y)
 			y = y - INPUT_HEIGHT
@@ -783,12 +787,12 @@ function Properties:InitializeDefaultSections()
 			local textInput = self.inputs:Text(parent, _L("Text"), frame:GetText(), "text", function(val)
 				frame:SetText(val)
 				self:TrackChange("text", val)
-				self:Update(frame)
+				self:Update(frame, true)
 			end, function()
 				local val = self.originalValues.text
 				frame:SetText(val)
 				self.pendingChanges.text = nil
-				self:Update(frame)
+				self:Update(frame, true)
 			end)
 			textInput:SetPoint("TOPLEFT", 0, y)
 			y = y - INPUT_HEIGHT
@@ -797,12 +801,12 @@ function Properties:InitializeDefaultSections()
 			local colorInput = self.inputs:Color(parent, _L("Text Color"), r, g, b, a, "textColor", function(nr, ng, nb, na)
 				frame:SetTextColor(nr, ng, nb, na)
 				self:TrackChange("textColor", {r=nr, g=ng, b=nb, a=na})
-				self:Update(frame)
+				self:Update(frame, true)
 			end, function()
 				local val = self.originalValues.textColor
 				frame:SetTextColor(val.r, val.g, val.b, val.a)
 				self.pendingChanges.textColor = nil
-				self:Update(frame)
+				self:Update(frame, true)
 			end)
 			colorInput:SetPoint("TOPLEFT", 0, y)
 			y = y - INPUT_HEIGHT
@@ -927,7 +931,7 @@ function Properties:ResetChanges()
 		end
 	end
 	
-	self:Update(frame)
+	self:Update(frame, true)
 end
 
 function Properties:IsFenUIComponent(frame)
