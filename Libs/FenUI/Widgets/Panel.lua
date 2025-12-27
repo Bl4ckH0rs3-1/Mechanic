@@ -45,9 +45,7 @@ function PanelMixin:Init(config)
 
     -- Default padding (from SafeZone edges to content)
     self.padding = { left = 0, right = 0, top = 0, bottom = 0 }
-    if config.padding then
-        self:SetPadding(config.padding)
-    end
+    self:SetPadding(config.padding)
     
     if config.title then
         self:SetTitle(config.title)
@@ -270,6 +268,13 @@ function PanelMixin:SetPadding(padding)
         self.padding.top = padding.top or self.padding.top
         self.padding.bottom = padding.bottom or self.padding.bottom
     end
+
+    -- Apply individual side overrides from config
+    local config = self.config
+    if config.paddingTop then self.padding.top = FenUI:GetSpacing(config.paddingTop) end
+    if config.paddingBottom then self.padding.bottom = FenUI:GetSpacing(config.paddingBottom) end
+    if config.paddingLeft then self.padding.left = FenUI:GetSpacing(config.paddingLeft) end
+    if config.paddingRight then self.padding.right = FenUI:GetSpacing(config.paddingRight) end
     
     if self.contentFrame then
         self:UpdateContentAnchors()
@@ -367,7 +372,22 @@ function FenUI:CreatePanel(parent, config)
             background = bgConfig,
             shadow = config.shadow,
             padding = config.padding,
+            paddingTop = config.paddingTop,
+            paddingBottom = config.paddingBottom,
+            paddingLeft = config.paddingLeft,
+            paddingRight = config.paddingRight,
+            margin = config.margin,
+            marginTop = config.marginTop,
+            marginBottom = config.marginBottom,
+            marginLeft = config.marginLeft,
+            marginRight = config.marginRight,
             textureKit = textureKit,
+            minWidth = config.minWidth,
+            maxWidth = config.maxWidth,
+            minHeight = config.minHeight,
+            maxHeight = config.maxHeight,
+            aspectRatio = config.aspectRatio,
+            aspectBase = config.aspectBase,
         })
     else
         -- Fallback to direct frame creation
@@ -439,6 +459,44 @@ function PanelBuilder:height(height)
     return self
 end
 
+function PanelBuilder:minWidth(width)
+    self._config.minWidth = width
+    return self
+end
+
+function PanelBuilder:maxWidth(width)
+    self._config.maxWidth = width
+    return self
+end
+
+function PanelBuilder:minHeight(height)
+    self._config.minHeight = height
+    return self
+end
+
+function PanelBuilder:maxHeight(height)
+    self._config.maxHeight = height
+    return self
+end
+
+function PanelBuilder:minSize(width, height)
+    self._config.minWidth = width
+    self._config.minHeight = height
+    return self
+end
+
+function PanelBuilder:maxSize(width, height)
+    self._config.maxWidth = width
+    self._config.maxHeight = height
+    return self
+end
+
+function PanelBuilder:aspectRatio(ratio, base)
+    self._config.aspectRatio = ratio
+    self._config.aspectBase = base or "width"
+    return self
+end
+
 function PanelBuilder:theme(themeName)
     self._config.theme = themeName
     return self
@@ -461,6 +519,51 @@ end
 
 function PanelBuilder:padding(paddingConfig)
     self._config.padding = paddingConfig
+    return self
+end
+
+function PanelBuilder:paddingTop(paddingConfig)
+    self._config.paddingTop = paddingConfig
+    return self
+end
+
+function PanelBuilder:paddingBottom(paddingConfig)
+    self._config.paddingBottom = paddingConfig
+    return self
+end
+
+function PanelBuilder:paddingLeft(paddingConfig)
+    self._config.paddingLeft = paddingConfig
+    return self
+end
+
+function PanelBuilder:paddingRight(paddingConfig)
+    self._config.paddingRight = paddingConfig
+    return self
+end
+
+function PanelBuilder:margin(marginConfig)
+    self._config.margin = marginConfig
+    return self
+end
+
+function PanelBuilder:marginTop(marginConfig)
+    self._config.marginTop = marginConfig
+    return self
+end
+
+function PanelBuilder:marginBottom(marginConfig)
+    self._config.marginBottom = marginConfig
+    return self
+end
+
+function PanelBuilder:marginLeft(marginConfig)
+    self._config.marginLeft = marginConfig
+    return self
+end
+
+function PanelBuilder:marginRight(marginConfig)
+    self._config.marginRight = marginConfig
     return self
 end
 

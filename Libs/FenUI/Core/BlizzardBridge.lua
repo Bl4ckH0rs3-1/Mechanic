@@ -120,12 +120,15 @@ end
 ---@param frame Frame The target frame
 ---@param borderKey string The border pack key from Tokens.lua
 ---@param colorToken string|nil Optional color token to tint the border
-function FenUI:ApplyBorder(frame, borderKey, colorToken)
+---@param margin table|nil Optional margin {top, bottom, left, right}
+function FenUI:ApplyBorder(frame, borderKey, colorToken, margin)
     local pack = self:GetBorderPack(borderKey)
     if not pack then
         self:Debug("Border pack not found:", borderKey)
         return false
     end
+
+    local m = margin or { top = 0, bottom = 0, left = 0, right = 0 }
 
     -- 1. Create or clear existing border textures
     frame.customBorder = frame.customBorder or {}
@@ -161,16 +164,16 @@ function FenUI:ApplyBorder(frame, borderKey, colorToken)
     -- 3. Positioning
     local size = pack.slice
     pieces.TopLeftCorner:SetSize(size, size)
-    pieces.TopLeftCorner:SetPoint("TOPLEFT", 0, 0)
+    pieces.TopLeftCorner:SetPoint("TOPLEFT", m.left, -m.top)
     
     pieces.TopRightCorner:SetSize(size, size)
-    pieces.TopRightCorner:SetPoint("TOPRIGHT", 0, 0)
+    pieces.TopRightCorner:SetPoint("TOPRIGHT", -m.right, -m.top)
     
     pieces.BottomLeftCorner:SetSize(size, size)
-    pieces.BottomLeftCorner:SetPoint("BOTTOMLEFT", 0, 0)
+    pieces.BottomLeftCorner:SetPoint("BOTTOMLEFT", m.left, m.bottom)
     
     pieces.BottomRightCorner:SetSize(size, size)
-    pieces.BottomRightCorner:SetPoint("BOTTOMRIGHT", 0, 0)
+    pieces.BottomRightCorner:SetPoint("BOTTOMRIGHT", -m.right, m.bottom)
     
     pieces.TopEdge:SetPoint("TOPLEFT", pieces.TopLeftCorner, "TOPRIGHT")
     pieces.TopEdge:SetPoint("TOPRIGHT", pieces.TopRightCorner, "TOPLEFT")
@@ -220,8 +223,9 @@ end
 ---@param frame Frame The frame to apply the layout to
 ---@param layoutName string The layout name (FenUI alias or Blizzard name)
 ---@param textureKit string|nil Optional texture kit for themed layouts
+---@param margin table|nil Optional margin {top, bottom, left, right}
 ---@return boolean success
-function FenUI:ApplyLayout(frame, layoutName, textureKit)
+function FenUI:ApplyLayout(frame, layoutName, textureKit, margin)
     if not NineSliceUtil or not NineSliceLayouts then
         self:Debug("NineSliceUtil not available")
         return false
@@ -237,6 +241,29 @@ function FenUI:ApplyLayout(frame, layoutName, textureKit)
     
     -- Apply the layout
     NineSliceUtil.ApplyLayout(frame, layout, textureKit)
+
+    -- Apply margins if provided
+    if margin then
+        local m = margin
+        if frame.TopLeftCorner then
+            frame.TopLeftCorner:ClearAllPoints()
+            frame.TopLeftCorner:SetPoint("TOPLEFT", m.left, -m.top)
+        end
+        if frame.TopRightCorner then
+            frame.TopRightCorner:ClearAllPoints()
+            frame.TopRightCorner:SetPoint("TOPRIGHT", -m.right, -m.top)
+        end
+        if frame.BottomLeftCorner then
+            frame.BottomLeftCorner:ClearAllPoints()
+            frame.BottomLeftCorner:SetPoint("BOTTOMLEFT", m.left, m.bottom)
+        end
+        if frame.BottomRightCorner then
+            frame.BottomRightCorner:ClearAllPoints()
+            frame.BottomRightCorner:SetPoint("BOTTOMRIGHT", -m.right, m.bottom)
+        end
+        -- Note: Edges are usually anchored to corners by NineSliceUtil, 
+        -- so they should follow automatically.
+    end
     
     -- Store layout info on the frame
     frame.fenUILayout = blizzardLayoutName

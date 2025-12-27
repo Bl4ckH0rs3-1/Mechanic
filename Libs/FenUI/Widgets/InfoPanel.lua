@@ -22,33 +22,24 @@ function InfoPanelMixin:InitInfoPanel(config)
     -- Use the Panel's content area
     local content = self:GetContentFrame()
     
-    -- Create scroll frame for content
-    -- We use UIPanelScrollFrameTemplate which includes a scroll bar.
-    -- To align the scrollbar correctly, we anchor the ScrollFrame 
-    -- such that there is space on the right for the bar.
-    local scrollFrame = CreateFrame("ScrollFrame", nil, content, "UIPanelScrollFrameTemplate")
-    
+    -- Create scroll panel for content
     local scrollBarWidth = FenUI:GetLayout("scrollBarWidth") or 20
-    scrollFrame:SetPoint("TOPLEFT", 0, 0)
-    scrollFrame:SetPoint("BOTTOMRIGHT", -scrollBarWidth, 0)
-    self.scrollFrame = scrollFrame
+    local scrollPanel = FenUI:CreateScrollPanel(content, {
+        padding = 0,
+        showScrollBar = true,
+    })
+    scrollPanel:SetAllPoints()
+    self.scrollFrame = scrollPanel.scrollFrame
+    self.scrollChild = scrollPanel.scrollChild
 
-    -- Adjust the scroll bar position to be flush with the right edge
-    if scrollFrame.ScrollBar then
-        scrollFrame.ScrollBar:ClearAllPoints()
-        scrollFrame.ScrollBar:SetPoint("TOPLEFT", scrollFrame, "TOPRIGHT", 4, -16)
-        scrollFrame.ScrollBar:SetPoint("BOTTOMLEFT", scrollFrame, "BOTTOMRIGHT", 4, 16)
+    -- Adjust scroll panel if close button is shown
+    if config.showCloseButton then
+        scrollPanel:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", 0, 40)
     end
 
-    -- Scroll child for sections
-    local scrollChild = CreateFrame("Frame", nil, scrollFrame)
-    scrollChild:SetWidth(scrollFrame:GetWidth())
-    scrollFrame:SetScrollChild(scrollChild)
-    self.scrollChild = scrollChild
-
-    -- Keep scroll child width synced
-    scrollFrame:SetScript("OnSizeChanged", function(sf, width)
-        scrollChild:SetWidth(width)
+    -- Update scroll child width and layout sections on size change
+    self.scrollFrame:SetScript("OnSizeChanged", function(sf, width)
+        self.scrollChild:SetWidth(width)
         self:LayoutSections()
     end)
 

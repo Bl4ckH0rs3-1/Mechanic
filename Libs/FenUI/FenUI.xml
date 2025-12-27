@@ -22,9 +22,12 @@
     <!-- Widgets (load order matters: Image -> Layout -> Panel/Containers) -->
     <Script file="Widgets\Image.lua"/>
     <Script file="Widgets\ImageButton.lua"/>
+    <Script file="Widgets\Group.lua"/>
     <Script file="Widgets\Layout.lua"/>
+    <Script file="Widgets\Stack.lua"/>
     <Script file="Widgets\SplitLayout.lua"/>
     <Script file="Widgets\Panel.lua"/>
+    <Script file="Widgets\ScrollBar.lua"/>
     <Script file="Widgets\Containers.lua"/>
     <Script file="Widgets\Tabs.lua"/>
     <Script file="Widgets\Buttons.lua"/>

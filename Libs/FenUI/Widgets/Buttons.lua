@@ -86,11 +86,34 @@ function FenUI:CreateButton(parent, config)
     -- Apply mixin
     FenUI.Mixin(button, ButtonMixin)
     
-    -- Set default size
-    button:SetSize(config.width or 100, config.height or 24)
-    
     -- Initialize
     button:Init(config)
+
+    -- Auto-sizing support
+    if config.width == "auto" then
+        local textObj = button:GetFontString()
+        if textObj then
+            -- Standard Blizzard button padding is ~40px total (20 each side)
+            local width = textObj:GetStringWidth() + 40
+            button:SetWidth(math.max(config.minWidth or 100, width))
+            
+            -- Update when text changes
+            hooksecurefunc(button, "SetText", function()
+                local w = textObj:GetStringWidth() + 40
+                button:SetWidth(math.max(config.minWidth or 100, w))
+            end)
+        end
+    elseif config.width then
+        button:SetWidth(config.width)
+    else
+        button:SetWidth(100) -- Default
+    end
+
+    if config.height then
+        button:SetHeight(config.height)
+    else
+        button:SetHeight(24) -- Default
+    end
     
     -- Set up scripts
     button:SetScript("OnClick", function(self, mouseButton, down)

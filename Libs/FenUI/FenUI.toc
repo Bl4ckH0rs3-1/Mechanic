@@ -18,6 +18,7 @@ Validation\DependencyChecker.lua
 # Widgets (load order matters: Image -> Layout -> Panel/Containers)
 Widgets\Image.lua
 Widgets\Layout.lua
+Widgets\Stack.lua
 Widgets\Panel.lua
 Widgets\Containers.lua
 Widgets\Tabs.lua

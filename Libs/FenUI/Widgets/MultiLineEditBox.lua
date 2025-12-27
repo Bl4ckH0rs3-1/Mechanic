@@ -16,19 +16,14 @@ local MultiLineEditBoxMixin = {}
 function MultiLineEditBoxMixin:Init(config)
     self.config = config or {}
     
-    -- Create scroll frame
-    self.scrollFrame = CreateFrame("ScrollFrame", nil, self, "UIPanelScrollFrameTemplate")
-    self.scrollFrame:SetPoint("TOPLEFT", 4, -4)
-    
+    -- Create scroll panel
     local scrollBarWidth = FenUI:GetLayout("scrollBarWidth") or 20
-    self.scrollFrame:SetPoint("BOTTOMRIGHT", -(scrollBarWidth + 4), 4)
-
-    -- Adjust the scroll bar position to be flush with the right edge
-    if self.scrollFrame.ScrollBar then
-        self.scrollFrame.ScrollBar:ClearAllPoints()
-        self.scrollFrame.ScrollBar:SetPoint("TOPLEFT", self.scrollFrame, "TOPRIGHT", 4, -16)
-        self.scrollFrame.ScrollBar:SetPoint("BOTTOMLEFT", self.scrollFrame, "BOTTOMRIGHT", 4, 16)
-    end
+    self.scrollPanel = FenUI:CreateScrollPanel(self, {
+        padding = 4,
+        showScrollBar = true,
+    })
+    self.scrollPanel:SetAllPoints()
+    self.scrollFrame = self.scrollPanel.scrollFrame
     
     -- Create edit box
     self.editBox = CreateFrame("EditBox", nil, self.scrollFrame)
@@ -43,6 +38,9 @@ function MultiLineEditBoxMixin:Init(config)
     self.editBox:SetAutoFocus(false)
     
     self.scrollFrame:SetScrollChild(self.editBox)
+    
+    -- Update ScrollPanel child reference
+    self.scrollPanel.scrollChild = self.editBox
     
     -- Create hidden measurement font string
     self.measureFS = self:CreateFontString(nil, "ARTWORK")

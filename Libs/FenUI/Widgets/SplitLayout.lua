@@ -43,19 +43,17 @@ function SplitLayoutMixin:InitSplit(config)
     self.navSeparator:SetColorTexture(FenUI:GetColorRGB("borderSubtle"))
     
     -- Navigation Scroll Frame
-    local navScroll = CreateFrame("ScrollFrame", nil, navCell, "UIPanelScrollFrameTemplate")
-    navScroll:SetPoint("TOPLEFT", 2, -2)
-    navScroll:SetPoint("BOTTOMRIGHT", -24, 2)
-    self.navScroll = navScroll
-    
-    local navContent = CreateFrame("Frame", nil, navScroll)
-    navContent:SetSize(navWidth - 30, 1)
-    navScroll:SetScrollChild(navContent)
-    self.navContent = navContent
+    local navScrollPanel = FenUI:CreateScrollPanel(navCell, {
+        padding = 2,
+    })
+    navScrollPanel:SetAllPoints()
+    self.navScrollPanel = navScrollPanel
+    self.navScroll = navScrollPanel.scrollFrame
+    self.navContent = navScrollPanel.scrollChild
     
     -- Sync navContent width
-    navScroll:SetScript("OnSizeChanged", function(frame, width)
-        navContent:SetWidth(width)
+    self.navScroll:SetScript("OnSizeChanged", function(frame, width)
+        self.navContent:SetWidth(width)
         self:RefreshNav()
     end)
     
@@ -141,6 +139,9 @@ function SplitLayoutMixin:RefreshNav()
     end
 
     self.navContent:SetHeight(math.max(1, yOffset))
+    if self.navScrollPanel then
+        self.navScrollPanel:UpdateScrollBar()
+    end
     self:UpdateButtonStates()
 
     -- Ensure content frame for selected key is shown

@@ -36,6 +36,19 @@ Design components by *function*, not *purpose*. Components should describe what 
 
 Leverage patterns developers already know. FenUI borrows concepts from CSS Grid, web component slots, and design token systems—making it intuitive for developers with modern UI experience.
 
+### 4. Zero Default Spacing
+
+Containers and widgets should never have built-in padding or margins by default. This ensures that when you compose components, you don't have to "fight" hidden offsets. Spacing is always intentional and explicit.
+
+### 5. Responsive Sizing
+
+FenUI supports responsive sizing units beyond just raw pixels. This allows containers to adapt to their parent's size or the screen viewport.
+
+- **Percentages (`"50%"`)**: Relative to the parent container's width/height.
+- **Viewport Units (`"10vh"`, `"5vw"`)**: Relative to the total screen size.
+- **Fit to Content (`"auto"`)**: The container automatically resizes to perfectly wrap its children. This is reactive—if content grows (e.g. text), the container grows.
+- **Auto-Updating**: Components with percentage sizes automatically resize when their parent container changes size.
+
 ---
 
 ## Technical Principles
@@ -145,24 +158,31 @@ Slots let developers compose components freely. Props lock them into predefined 
 
 ### Container Architecture
 
-The `Layout` component is the foundation for all containers. It handles:
+FenUI differentiates between **structural** and **visual** containers.
 
-- **Background** — Color, image, gradient, or conditional
-- **Border** — NineSlice via BlizzardBridge
-- **Shadow** — Inner (Blizzard textures) or drop (custom textures)
-- **Cells** — Single content area or multi-row structure
+- **Group (Structural)**: A skinless container with no background, border, or shadows. Equivalent to a `<div>`. Use for semantics and layout grouping.
+- **Layout (Visual Foundation)**: The base for all styled containers. Handles backgrounds, borders, and shadows.
 
-Higher-level components build on Layout:
+Higher-level visual components build on Layout:
 
 ```
-Layout (foundation)
+Layout (visual foundation)
   ├── Panel = Layout + title + close button
   ├── Inset = Layout with inset styling
   ├── Card = Layout with subtle border
   └── Dialog = Layout with shadow preset
 ```
 
-Use Layout directly when you need custom containers:
+Use `Group` for minimal structural needs:
+
+```lua
+local sidebar = FenUI:CreateGroup(parent, {
+    width = 200,
+    padding = "spacingElement",
+})
+```
+
+Use `Layout` directly when you need custom visual containers:
 
 ```lua
 local custom = FenUI:CreateLayout(parent, {

@@ -5,6 +5,17 @@ All notable changes to FenUI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 
+## [2.7.0] - 2025-12-26
+
+### Added
+- **New `Stack` and `Flex` layout widgets** - Flexbox-inspired stacking system for declarative UI.
+  - Supports `vertical` and `horizontal` directions.
+  - Full alignment support (`start`, `center`, `end`, `stretch`).
+  - Full justification support (`start`, `center`, `end`, `space-between`, `space-around`).
+  - Dynamic `grow` and `shrink` child properties.
+  - Wrapping support with `rowGap` for responsive flows.
+  - Inherits from `Layout` for borders, backgrounds, and shadows.
+
 ## [2.6.0] - 2025-12-26
 
 ### Added

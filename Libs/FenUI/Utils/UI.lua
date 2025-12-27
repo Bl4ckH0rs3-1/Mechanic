@@ -124,6 +124,232 @@ function Utils:ShowMenu(menuList, anchor)
     print("|cffff4444[FenUI Error]|r No menu system available (EasyMenu and MenuUtil both missing).")
 end
 
+--- Resolve a size value (number or responsive string) to pixels.
+--- Supports: 
+--- - number: direct pixels
+--- - "50%": percentage of relativeTo
+--- - "10vh": 10% of viewport height
+--- - "10vw": 10% of viewport width
+--- - "100px": explicit pixels
+--- - "auto": returns -1 (marker for intrinsic sizing)
+---@param value number|string The value to resolve
+---@param relativeTo number The pixel value to calculate percentages against
+---@param isHeight boolean Whether this is a height calculation (for vh/vw)
+---@return number pixels
+function Utils:ParseSize(value, relativeTo, isHeight)
+    if not value then return 0 end
+    if type(value) == "number" then return value end
+    
+    if type(value) == "string" then
+        if value == "auto" then return -1 end
+        
+        -- 1. Pixels (e.g. "100px")
+        local px = value:match("^(%d+)px$")
+        if px then return tonumber(px) end
+        
+        -- 2. Percentages (e.g. "50%")
+        local pct = value:match("^(%d+)%%$")
+        if pct then
+            return (tonumber(pct) / 100) * (relativeTo or 0)
+        end
+        
+        -- 3. Viewport Units (vh/vw)
+        local vUnit = value:match("^(%d+)v[hw]$")
+        if vUnit then
+            local unitType = value:match("v([hw])$")
+            local viewportSize = (unitType == "h") and UIParent:GetHeight() or UIParent:GetWidth()
+            return (tonumber(vUnit) / 100) * viewportSize
+        end
+    end
+    
+    return tonumber(value) or 0
+end
+
+--- Parses an aspect ratio string or number.
+--- Supports: 1.777, "16:9", "4/3"
+---@param value string|number
+---@return number|nil
+function Utils:ParseAspectRatio(value)
+    if not value then return nil end
+    if type(value) == "number" then return value end
+    if type(value) == "string" then
+        -- 16:9 or 4/3
+        local w, h = value:match("^(%d+)[:/](%d+)$")
+        if w and h then
+            return tonumber(w) / tonumber(h)
+        end
+        return tonumber(value)
+    end
+    return nil
+end
+
+--- Internal storage for resize hooks to avoid multiple hooks on same parent
+local parentResizeHooks = {}
+
+--- Hooks a parent's OnSizeChanged to notify children.
+---@param child Frame The child frame to notify
+---@param parent Frame The parent frame to watch
+function Utils:HookParentResize(child, parent)
+    if not parent or parent == UIParent then return end
+    
+    if not parentResizeHooks[parent] then
+        parentResizeHooks[parent] = {}
+        parent:HookScript("OnSizeChanged", function()
+            for _, c in ipairs(parentResizeHooks[parent]) do
+                if c.UpdateDynamicSize then
+                    c:UpdateDynamicSize()
+                end
+            end
+        end)
+    end
+    
+    -- Add child to registry if not already there
+    local found = false
+    for _, c in ipairs(parentResizeHooks[parent]) do
+        if c == child then found = true; break end
+    end
+    
+    if not found then
+        table.insert(parentResizeHooks[parent], child)
+    end
+end
+
+--- Generic sizing handler for widgets.
+---@param frame Frame The widget frame
+---@param width number|string
+---@param height number|string
+---@param constraints table|nil { minWidth, maxWidth, minHeight, maxHeight, aspectRatio, aspectBase }
+function Utils:ApplySize(frame, width, height, constraints)
+    if not frame then return end
+    
+    frame.dynamicSize = { width = width, height = height }
+    frame._fenui_constraints = constraints
+
+    -- Parse aspect ratio if provided as string
+    if constraints and constraints.aspectRatio then
+        constraints.aspectRatio = self:ParseAspectRatio(constraints.aspectRatio)
+    end
+    
+    -- Initial application
+    self:UpdateDynamicSize(frame)
+    
+    -- Check if we need to watch parent for responsive updates
+    local isResponsive = (type(width) == "string" and (width:find("%%") or width:find("v[hw]")))
+                      or (type(height) == "string" and (height:find("%%") or height:find("v[hw]")))
+                      
+    if isResponsive then
+        local parent = frame:GetParent() or UIParent
+        self:HookParentResize(frame, parent)
+    end
+
+    -- Check if we need to watch children for intrinsic (auto) sizing
+    if width == "auto" or height == "auto" then
+        -- This will be handled by the widget's content observer
+        frame.isAutoSizing = true
+    end
+end
+
+--- Internal storage for intrinsic size observers
+local sizeObservers = {}
+
+--- Registers an observer to update parent size when child size changes.
+---@param parent Frame The frame to resize
+---@param child Frame The child frame to watch
+function Utils:ObserveIntrinsicSize(parent, child)
+    if not parent or not child then return end
+    
+    if not sizeObservers[child] then
+        sizeObservers[child] = {}
+        child:HookScript("OnSizeChanged", function()
+            for _, p in ipairs(sizeObservers[child]) do
+                if p.UpdateDynamicSize then
+                    p:UpdateDynamicSize()
+                end
+            end
+        end)
+    end
+    
+    -- Add parent to registry if not already there
+    local found = false
+    for _, p in ipairs(sizeObservers[child]) do
+        if p == parent then found = true; break end
+    end
+    
+    if not found then
+        table.insert(sizeObservers[child], parent)
+    end
+end
+
+--- Updates a frame's size based on its dynamicSize config.
+---@param frame Frame
+function Utils:UpdateDynamicSize(frame)
+    if not frame or not frame.dynamicSize then return end
+    
+    local parent = frame:GetParent() or UIParent
+    local pW, pH = parent:GetWidth(), parent:GetHeight()
+    local constraints = frame._fenui_constraints
+    
+    local finalW, finalH
+    
+    -- 1. Resolve base sizes
+    -- Width
+    if frame.dynamicSize.width == "auto" then
+        if frame.GetContentFrame then
+            local content = frame:GetContentFrame()
+            local p = frame:GetPadding()
+            local m = frame:GetMargin()
+            finalW = content:GetWidth() + p.left + p.right + m.left + m.right
+        end
+    elseif frame.dynamicSize.width then
+        finalW = self:ParseSize(frame.dynamicSize.width, pW, false)
+    end
+    
+    -- Height
+    if frame.dynamicSize.height == "auto" then
+        if frame.GetContentFrame then
+            local content = frame:GetContentFrame()
+            local p = frame:GetPadding()
+            local m = frame:GetMargin()
+            finalH = content:GetHeight() + p.top + p.bottom + m.top + m.bottom
+        end
+    elseif frame.dynamicSize.height then
+        finalH = self:ParseSize(frame.dynamicSize.height, pH, true)
+    end
+
+    -- 2. Apply initial constraints
+    if finalW and constraints then
+        if constraints.minWidth then finalW = math.max(finalW, self:ParseSize(constraints.minWidth, pW, false)) end
+        if constraints.maxWidth then finalW = math.min(finalW, self:ParseSize(constraints.maxWidth, pW, false)) end
+    end
+    
+    if finalH and constraints then
+        if constraints.minHeight then finalH = math.max(finalH, self:ParseSize(constraints.minHeight, pH, true)) end
+        if constraints.maxHeight then finalH = math.min(finalH, self:ParseSize(constraints.maxHeight, pH, true)) end
+    end
+
+    -- 3. Apply Aspect Ratio
+    if constraints and constraints.aspectRatio then
+        local ratio = constraints.aspectRatio
+        local base = constraints.aspectBase or "width"
+        
+        if base == "width" and finalW then
+            finalH = finalW / ratio
+            -- Re-apply height constraints
+            if constraints.minHeight then finalH = math.max(finalH, self:ParseSize(constraints.minHeight, pH, true)) end
+            if constraints.maxHeight then finalH = math.min(finalH, self:ParseSize(constraints.maxHeight, pH, true)) end
+        elseif base == "height" and finalH then
+            finalW = finalH * ratio
+            -- Re-apply width constraints
+            if constraints.minWidth then finalW = math.max(finalW, self:ParseSize(constraints.minWidth, pW, false)) end
+            if constraints.maxWidth then finalW = math.min(finalW, self:ParseSize(constraints.maxWidth, pW, false)) end
+        end
+    end
+
+    -- 4. Apply to frame
+    if finalW then frame:SetWidth(math.max(1, finalW)) end
+    if finalH then frame:SetHeight(math.max(1, finalH)) end
+end
+
 --- Generic widget factory to ensure single instance per parent.
 ---@param parent table
 ---@param key string

@@ -157,6 +157,11 @@ FenUI.Tokens.semantic = {
     backgroundCard = "surfaceElevated",    -- Card components
     backgroundDialog = "surfacePanel",     -- Dialog/modal windows
     
+    -- SCROLLBAR
+    surfaceScrollTrack = "gray950",        -- Scroll track background
+    interactiveScrollThumb = "gray600",    -- Scroll thumb (normal)
+    interactiveScrollThumbHover = "gray500",-- Scroll thumb (hover)
+    
     -- SHADOW
     shadowColor = "black",              -- Shadow color (inner/drop)
     shadowAlphaInner = 0.5,             -- Inner shadow opacity (note: stored as number, not token)

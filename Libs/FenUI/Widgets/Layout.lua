@@ -86,19 +86,23 @@ function LayoutMixin:Init(config)
     self.config = config or {}
     self.cells = {}
     
-    -- Apply size if specified
-    if config.width then
-        self:SetWidth(config.width)
-    end
-    if config.height then
-        self:SetHeight(config.height)
-    end
-    
     -- Create layers in order (bottom to top)
     self:CreateBackgroundLayer()
     self:CreateBorderLayer()
     self:CreateShadowLayer()
     self:CreateContentLayer()
+
+    -- Apply size (supports responsive strings like "50%" and "auto", and constraints)
+    if config.width or config.height or config.minWidth or config.maxWidth or config.minHeight or config.maxHeight or config.aspectRatio then
+        self:ApplySize(config.width, config.height, {
+            minWidth = config.minWidth,
+            maxWidth = config.maxWidth,
+            minHeight = config.minHeight,
+            maxHeight = config.maxHeight,
+            aspectRatio = config.aspectRatio,
+            aspectBase = config.aspectBase,
+        })
+    end
     
     -- Apply border FIRST (sets background inset for chamfered corners)
     if config.border then
@@ -118,6 +122,11 @@ function LayoutMixin:Init(config)
     -- Create cells if multi-row or multi-column mode
     if config.rows or config.cols then
         self:CreateCells()
+    end
+
+    -- Hook content for auto-sizing
+    if self.isAutoSizing then
+        FenUI.Utils:ObserveIntrinsicSize(self, self:GetContentFrame())
     end
 end
 
@@ -150,6 +159,19 @@ end
 -- the border's visual edge without leaving large transparent gaps.
 local DEFAULT_BG_INSET = 2
 
+--- Set the size of the layout (supports responsive units)
+---@param width number|string
+---@param height number|string
+---@param constraints table|nil { minWidth, maxWidth, minHeight, maxHeight, aspectRatio, aspectBase }
+function LayoutMixin:ApplySize(width, height, constraints)
+    FenUI.Utils:ApplySize(self, width, height, constraints)
+end
+
+--- Internal method called when parent resizes (for responsive units)
+function LayoutMixin:UpdateDynamicSize()
+    FenUI.Utils:UpdateDynamicSize(self)
+end
+
 function LayoutMixin:CreateBackgroundLayer()
     -- Create a dedicated background frame
     -- We don't set a fixed frame level of 0, as that can put it behind the parent
@@ -157,6 +179,13 @@ function LayoutMixin:CreateBackgroundLayer()
     -- Instead, we let it inherit and we'll manage layering via draw layers
     -- or a slightly lower frame level than the parent.
     self.bgFrame = CreateFrame("Frame", nil, self)
+    
+    -- INSPECT SUPPORT: Enable mouse to be visible to GetMouseFoci(), 
+    -- but disable clicking so it remains transparent to user interaction.
+    self.bgFrame:EnableMouse(true)
+    if self.bgFrame.SetMouseClickEnabled then
+        self.bgFrame:SetMouseClickEnabled(false)
+    end
     
     -- Ensure it's at the bottom of the parent's internal stack
     local parentLevel = self:GetFrameLevel()
@@ -210,6 +239,13 @@ function LayoutMixin:ApplyBackgroundAnchors()
         left, right, top, bottom = inset, inset, inset, inset
     end
     
+    -- Incorporate margins
+    local m = self:GetMargin()
+    left = left + m.left
+    right = right + m.right
+    top = top + m.top
+    bottom = bottom + m.bottom
+
     -- Position the background frame inside the border (asymmetric)
     self.bgFrame:ClearAllPoints()
     self.bgFrame:SetPoint("TOPLEFT", self, "TOPLEFT", left, -top)
@@ -399,8 +435,9 @@ function LayoutMixin:SetBorder(borderKey)
     
     -- 1. Try Custom Border Engine First (Intentional Custom)
     local pack = FenUI:GetBorderPack(borderKey)
+    local margin = self:GetMargin()
     if pack then
-        if FenUI:ApplyBorder(self, borderKey, self.config.borderToken) then
+        if FenUI:ApplyBorder(self, borderKey, self.config.borderToken, margin) then
             self.borderApplied = true
             
             -- Apply pack-specific insets
@@ -415,7 +452,7 @@ function LayoutMixin:SetBorder(borderKey)
 
     -- 2. Legacy Fallback: Blizzard NineSlice (if key is in FenUI.Layouts)
     if FenUI.ApplyLayout and (FenUI.Layouts[borderKey] or NineSliceLayouts[borderKey]) then
-        FenUI:ApplyLayout(self, borderKey, self.config.textureKit)
+        FenUI:ApplyLayout(self, borderKey, self.config.textureKit, margin)
         self.borderApplied = true
         
         local inset = self.config.backgroundInset
@@ -609,9 +646,10 @@ function LayoutMixin:ApplyDropShadow(config)
     end
     
     -- Update frame position relative to main frame
+    local m = self:GetMargin()
     self.dropShadowFrame:ClearAllPoints()
-    self.dropShadowFrame:SetPoint("TOPLEFT", self, "TOPLEFT", -size + offsetX, size + offsetY)
-    self.dropShadowFrame:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", size + offsetX, -size + offsetY)
+    self.dropShadowFrame:SetPoint("TOPLEFT", self, "TOPLEFT", m.left - size + offsetX, -(m.top - size + offsetY))
+    self.dropShadowFrame:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", -(m.right - size + offsetX), m.bottom - size + offsetY)
     
     -- Apply tint color for glows
     local r, g, b = 0, 0, 0  -- Default black for shadows
@@ -722,8 +760,16 @@ function LayoutMixin:GetContentFrame()
         self.contentFrame = CreateFrame("Frame", nil, self)
         
         local p = self:GetPadding()
-        self.contentFrame:SetPoint("TOPLEFT", p.left, -p.top)
-        self.contentFrame:SetPoint("BOTTOMRIGHT", -p.right, p.bottom)
+        local m = self:GetMargin()
+        self.contentFrame:SetPoint("TOPLEFT", m.left + p.left, -(m.top + p.top))
+        
+        -- In auto-sizing mode, we don't anchor the bottom-right to the parent,
+        -- as that would create a circular dependency.
+        if self.dynamicSize and (self.dynamicSize.width == "auto" or self.dynamicSize.height == "auto") then
+            -- Let children define the size
+        else
+            self.contentFrame:SetPoint("BOTTOMRIGHT", -(m.right + p.right), m.bottom + p.bottom)
+        end
     end
     return self.contentFrame
 end
@@ -740,11 +786,48 @@ function LayoutMixin:SetContent(frame)
     frame:Show()
 end
 
+--- Get margin values (from config or tokens)
+--- Supports: number (symmetric), string (token), table { top, bottom, left, right }
+--- Individual overrides: marginTop, marginBottom, marginLeft, marginRight
+---@return table { top, bottom, left, right }
+function LayoutMixin:GetMargin()
+    local config = self.config
+    local margin = config.margin
+    local base = { top = 0, bottom = 0, left = 0, right = 0 }
+    
+    if margin then
+        if type(margin) == "number" then
+            base = { top = margin, bottom = margin, left = margin, right = margin }
+        elseif type(margin) == "string" then
+            local val = FenUI:GetSpacing(margin)
+            if val == 0 then val = FenUI:GetLayout(margin) end
+            base = { top = val, bottom = val, left = val, right = val }
+        elseif type(margin) == "table" then
+            base = {
+                top = margin.top or 0,
+                bottom = margin.bottom or 0,
+                left = margin.left or 0,
+                right = margin.right or 0,
+            }
+        end
+    end
+
+    -- Apply individual side overrides
+    if config.marginTop then base.top = FenUI:GetSpacing(config.marginTop) end
+    if config.marginBottom then base.bottom = FenUI:GetSpacing(config.marginBottom) end
+    if config.marginLeft then base.left = FenUI:GetSpacing(config.marginLeft) end
+    if config.marginRight then base.right = FenUI:GetSpacing(config.marginRight) end
+
+    return base
+end
+
 --- Get padding values (from config or tokens)
 --- Supports: number (symmetric), string (token), table { top, bottom, left, right }
+--- Individual overrides: paddingTop, paddingBottom, paddingLeft, paddingRight
 ---@return table { top, bottom, left, right }
 function LayoutMixin:GetPadding()
-    local padding = self.config.padding
+    local config = self.config
+    local padding = config.padding
     local base = { top = 0, bottom = 0, left = 0, right = 0 }
     
     if padding then
@@ -763,6 +846,12 @@ function LayoutMixin:GetPadding()
             }
         end
     end
+
+    -- Apply individual side overrides
+    if config.paddingTop then base.top = FenUI:GetSpacing(config.paddingTop) end
+    if config.paddingBottom then base.bottom = FenUI:GetSpacing(config.paddingBottom) end
+    if config.paddingLeft then base.left = FenUI:GetSpacing(config.paddingLeft) end
+    if config.paddingRight then base.right = FenUI:GetSpacing(config.paddingRight) end
 
     -- Add border-mandated content inset
     local offset = self.contentInset or 0
@@ -822,6 +911,12 @@ function LayoutMixin:CreateCells()
         local cell = CreateFrame("Frame", nil, self)
         cell.index = i
         cell.def = parsedDefs[i]
+        
+        -- INSPECT SUPPORT: Cells are structural, but we want them pickable
+        cell:EnableMouse(true)
+        if cell.SetMouseClickEnabled then
+            cell:SetMouseClickEnabled(false)
+        end
         
         -- Apply cell-specific background
         local cellConfig = cellConfigs[i]
@@ -965,7 +1060,11 @@ function FenUI:CreateCard(parent, config)
         border = config.border or "Inset", -- Use our custom Inset border pack
         background = config.background or "surfaceInset",  -- Use inset (recessed) background
         shadow = config.shadow,
-        padding = config.padding or "spacingElement",
+        padding = config.padding or 0,
+        paddingTop = config.paddingTop,
+        paddingBottom = config.paddingBottom,
+        paddingLeft = config.paddingLeft,
+        paddingRight = config.paddingRight,
         rows = config.rows,
         cells = config.cells,
         gap = config.gap,
@@ -984,7 +1083,11 @@ function FenUI:CreateDialog(parent, config)
         border = config.border or "ModernDark", -- Use our custom ModernDark border pack
         background = config.background or "surfacePanel",
         shadow = config.shadow or "inner",
-        padding = config.padding or "spacingPanel",
+        padding = config.padding or 0,
+        paddingTop = config.paddingTop,
+        paddingBottom = config.paddingBottom,
+        paddingLeft = config.paddingLeft,
+        paddingRight = config.paddingRight,
         rows = config.rows,
         cells = config.cells,
         gap = config.gap,

@@ -16,6 +16,7 @@ FenUI is a **progressive enhancement layer** on top of Blizzard's native UI syst
 - **Blizzard-first**: Uses `NineSliceUtil`, Atlas textures, and native frame templates
 - **Graceful degradation**: Addons work without FenUI installed
 - **Design tokens**: Semantic colors, spacing, and fonts for consistent theming
+- **Responsive Sizing**: Support for percentages (`50%`), viewport units (`10vh`), and auto-updating layouts
 - **Familiar patterns**: CSS Grid-inspired layouts, slot-based composition
 
 ## Features
@@ -24,6 +25,7 @@ FenUI is a **progressive enhancement layer** on top of Blizzard's native UI syst
 |---------|-------------|
 | **Panel** | Window container with title, close button, and content slots |
 | **Tabs** | Tab groups with badges, disabled states, and keyboard navigation |
+| **Stack/Flex** | Flexbox-inspired stacking layouts with alignment and wrapping |
 | **Grid** | CSS Grid-inspired layout with column definitions and data binding |
 | **Toolbar** | Horizontal slot-based layout for buttons and controls |
 | **Buttons** | Standard, icon, and close buttons with consistent styling |
@@ -77,6 +79,28 @@ local panel = FenUI.Panel(UIParent)
     :size(400, 300)
     :movable()
     :closable()
+    :build()
+```
+
+### Create a Stack (Flexbox)
+
+```lua
+-- Vertical stack with spacing and alignment
+local stack = FenUI:CreateStack(parent, {
+    direction = "vertical",
+    gap = "md",
+    align = "stretch",
+    padding = "sm",
+})
+
+stack:AddChild(topButton)
+stack:AddChild(spacer, { grow = 1 }) -- Fills remaining space
+stack:AddChild(bottomButton)
+
+-- Or use the builder pattern for a horizontal flex wrap
+local flex = FenUI.Flex(parent)
+    :gap("xs")
+    :justify("center")
     :build()
 ```
 

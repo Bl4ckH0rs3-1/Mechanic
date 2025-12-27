@@ -38,7 +38,7 @@ function SectionMixin:Init(config)
     body:SetTextColor(br, bg, bb)
 
     -- Spacing between heading and body
-    local gap = FenUI:GetSpacing(config.gap or "xs") -- 4px default
+    local gap = FenUI:GetSpacing(config.gap or 0)
     body:SetPoint("TOPLEFT", heading, "BOTTOMLEFT", 0, -gap)
     body:SetPoint("TOPRIGHT", heading, "BOTTOMRIGHT", 0, -gap)
     self.body = body
@@ -55,7 +55,7 @@ end
 function SectionMixin:UpdateHeight()
     local headingHeight = self.heading:GetStringHeight()
     local bodyHeight = self.body:GetStringHeight()
-    local gap = FenUI:GetSpacing(self.config.gap or "xs")
+    local gap = FenUI:GetSpacing(self.config.gap or 0)
 
     self:SetHeight(headingHeight + gap + bodyHeight)
 end
@@ -77,7 +77,7 @@ function SectionMixin:SetContent(heading, body)
 end
 
 function SectionMixin:GetHeight()
-    return self.heading:GetStringHeight() + FenUI:GetSpacing(self.config.gap or "xs") + self.body:GetStringHeight()
+    return self.heading:GetStringHeight() + FenUI:GetSpacing(self.config.gap or 0) + self.body:GetStringHeight()
 end
 
 --------------------------------------------------------------------------------

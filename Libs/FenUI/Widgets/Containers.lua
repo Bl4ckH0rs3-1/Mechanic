@@ -95,9 +95,8 @@ function FenUI:CreateInset(parent, config)
     
     -- Position using layout constants or config
     -- NOTE: Systematic Margin Application
-    -- By default, insets are positioned using marginPanel (12px) 
-    -- to ensure they sit cleanly within the parent Panel's border.
-    local padding = GetSpacing(config.padding or "marginPanel")
+    -- By default, insets are positioned with 0 padding unless specified.
+    local padding = GetSpacing(config.padding or 0)
     local topOffset = config.topOffset or 0
     local bottomOffset = config.bottomOffset or 0
     
@@ -139,6 +138,7 @@ end
 
 function ScrollPanelMixin:SetContentHeight(height)
     self.scrollChild:SetHeight(height)
+    self:UpdateScrollBar()
 end
 
 function ScrollPanelMixin:ScrollToTop()
@@ -148,6 +148,28 @@ end
 function ScrollPanelMixin:ScrollToBottom()
     local maxScroll = self.scrollFrame:GetVerticalScrollRange()
     self.scrollFrame:SetVerticalScroll(maxScroll)
+end
+
+function ScrollPanelMixin:UpdateScrollBar()
+    if not self.scrollBar then return end
+    
+    local visibleHeight = self.scrollFrame:GetHeight()
+    local totalHeight = self.scrollChild:GetHeight()
+    
+    -- If height is 0, we might be in the first frame. 
+    -- Retry in next frame to ensure layout is done.
+    if visibleHeight <= 0 or totalHeight <= 0 then
+        if not self.initRetry then
+            self.initRetry = true
+            C_Timer.After(0.1, function()
+                self.initRetry = false
+                self:UpdateScrollBar()
+            end)
+        end
+        return
+    end
+    
+    self.scrollBar:UpdateThumbSize(visibleHeight, totalHeight)
 end
 
 --- Create a scroll panel (scrollable content area)
@@ -160,35 +182,65 @@ function FenUI:CreateScrollPanel(parent, config)
     local container = CreateFrame("Frame", nil, parent)
     FenUI.Mixin(container, ScrollPanelMixin)
     
-    -- Create scroll frame
-    local scrollFrame = CreateFrame("ScrollFrame", nil, container, "UIPanelScrollFrameTemplate")
-    local padding = GetSpacing(config.padding or "scrollPadding")
+    local padding = GetSpacing(config.padding or 0)
     local scrollBarWidth = config.showScrollBar ~= false and GetLayout("scrollBarWidth") or 0
     
+    -- 1. Create native ScrollFrame (no template)
+    local scrollFrame = CreateFrame("ScrollFrame", nil, container)
     scrollFrame:SetPoint("TOPLEFT", padding, -padding)
     scrollFrame:SetPoint("BOTTOMRIGHT", -(padding + scrollBarWidth), padding)
+    container.scrollFrame = scrollFrame
     
-    -- Adjust the scroll bar position to be flush with the right edge
-    if scrollFrame.ScrollBar then
-        scrollFrame.ScrollBar:ClearAllPoints()
-        scrollFrame.ScrollBar:SetPoint("TOPLEFT", scrollFrame, "TOPRIGHT", 4, -16)
-        scrollFrame.ScrollBar:SetPoint("BOTTOMLEFT", scrollFrame, "BOTTOMRIGHT", 4, 16)
+    -- 2. Create custom ScrollBar
+    if config.showScrollBar ~= false then
+        local scrollBar = self:CreateScrollBar(container, {
+            width = scrollBarWidth,
+        })
+        scrollBar:SetPoint("TOPRIGHT", -padding, -padding)
+        scrollBar:SetPoint("BOTTOMRIGHT", -padding, padding)
+        
+        -- Link scrollBar and scrollFrame
+        scrollBar:SetScript("OnValueChanged", function(_, value)
+            scrollFrame:SetVerticalScroll(value)
+        end)
+        
+        scrollFrame:SetScript("OnScrollRangeChanged", function(_, xrange, yrange)
+            container:UpdateScrollBar()
+        end)
+        
+        scrollFrame:SetScript("OnVerticalScroll", function(_, offset)
+            scrollBar:SetValue(offset)
+        end)
+        
+        -- Mouse wheel support
+        scrollFrame:EnableMouseWheel(true)
+        scrollFrame:SetScript("OnMouseWheel", function(_, delta)
+            local current = scrollBar:GetValue()
+            scrollBar:SetValue(current - (delta * 20)) -- 20px per scroll step
+        end)
+        
+        container.scrollBar = scrollBar
     end
     
-    -- Create scroll child
+    -- 3. Create scroll child
     local scrollChild = CreateFrame("Frame", nil, scrollFrame)
-    scrollChild:SetWidth(container:GetWidth() - (padding * 2) - scrollBarWidth)
+    scrollChild:SetWidth(1) -- Set by OnSizeChanged
     scrollChild:SetHeight(1) -- Will be set by content
-    scrollFrame:SetScrollChild(scrollChild)
     
-    -- Store references
-    container.scrollFrame = scrollFrame
+    -- INSPECT SUPPORT: Enable picking for the content area
+    scrollChild:EnableMouse(true)
+    if scrollChild.SetMouseClickEnabled then
+        scrollChild:SetMouseClickEnabled(false)
+    end
+    
+    scrollFrame:SetScrollChild(scrollChild)
     container.scrollChild = scrollChild
     
-    -- Update scroll child width when container resizes
+    -- Update scroll child width and scrollbar when container resizes
     container:SetScript("OnSizeChanged", function(self, width, height)
         local innerWidth = width - (padding * 2) - scrollBarWidth
         scrollChild:SetWidth(math.max(1, innerWidth))
+        self:UpdateScrollBar()
     end)
     
     container:Init(config)
@@ -212,7 +264,7 @@ function FenUI:CreateScrollInset(parent, config)
     
     -- Create scroll panel inside it
     local scrollPanel = self:CreateScrollPanel(inset, {
-        padding = config.scrollPadding or 5,
+        padding = config.scrollPadding or 0,
         showScrollBar = config.showScrollBar ~= false,
     })
     scrollPanel:SetAllPoints()
