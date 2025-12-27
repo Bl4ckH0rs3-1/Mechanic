@@ -168,6 +168,13 @@ function FenUI:CreateScrollPanel(parent, config)
     scrollFrame:SetPoint("TOPLEFT", padding, -padding)
     scrollFrame:SetPoint("BOTTOMRIGHT", -(padding + scrollBarWidth), padding)
     
+    -- Adjust the scroll bar position to be flush with the right edge
+    if scrollFrame.ScrollBar then
+        scrollFrame.ScrollBar:ClearAllPoints()
+        scrollFrame.ScrollBar:SetPoint("TOPLEFT", scrollFrame, "TOPRIGHT", 4, -16)
+        scrollFrame.ScrollBar:SetPoint("BOTTOMLEFT", scrollFrame, "BOTTOMRIGHT", 4, 16)
+    end
+    
     -- Create scroll child
     local scrollChild = CreateFrame("Frame", nil, scrollFrame)
     scrollChild:SetWidth(container:GetWidth() - (padding * 2) - scrollBarWidth)

@@ -8,6 +8,7 @@ local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
 local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME, true)
 local Console = {}
 Mechanic.Console = Console
+local ICON_PATH = [[Interface\AddOns\!Mechanic\Assets\Icons\]]
 
 local CATEGORY_COLORS = Mechanic.Utils.Colors.Categories
 local DEFAULT_CATEGORY_COLOR = Mechanic.Utils.Colors.Status.default
@@ -78,46 +79,61 @@ function Console:Initialize(parent)
 	end)
 	self.searchBox = searchBox
 
+	-- Line Count Label
+	self.lineCount = filterBar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	self.lineCount:SetPoint("RIGHT", -12, 0)
+	self.lineCount:SetTextColor(FenUI:GetColorRGB("textMuted"))
+	self.lineCount:SetText((L["Lines: %d"] or "Lines: %d"):format(0):gsub("(%d+)", "|cffffffff%1|r"))
+
 	-- Main Display (MultiLineEditBox)
 	local logDisplay = FenUI:CreateMultiLineEditBox(contentArea, {
 		readOnly = true,
 		background = "surfaceInset",
+		font = "fontMono",
 	})
 	logDisplay:SetPoint("TOPLEFT", filterBar, "BOTTOMLEFT", 0, -4)
 	logDisplay:SetPoint("BOTTOMRIGHT", 0, 0)
 	self.logDisplay = logDisplay
 
 	-- Clear Button
-	toolbar:AddButton({
-		text = L["Clear"],
-		width = 60,
+	toolbar:AddImageButton({
+		texture = ICON_PATH .. "icon-clear",
+		size = 24,
+		tooltip = L["Clear"],
 		onClick = function()
 			self:Clear()
 		end,
 	})
 
 	-- Dedup All Button
-	toolbar:AddButton({
-		text = L["Dedup All"],
-		width = 80,
+	self.dedupAllBtn = toolbar:AddImageButton({
+		texture = ICON_PATH .. "icon-dedup-all",
+		size = 24,
+		isToggle = true,
+		tooltip = L["Dedup All"],
 		onClick = function()
 			self:SetDedupMode("all")
 		end,
 	})
 
 	-- Dedup Adjacent Button
-	toolbar:AddButton({
-		text = L["Dedup Adjacent"],
-		width = 110,
+	self.dedupAdjBtn = toolbar:AddImageButton({
+		texture = ICON_PATH .. "icon-dedup-adjacent",
+		size = 24,
+		isToggle = true,
+		tooltip = L["Dedup Adjacent"],
 		onClick = function()
 			self:SetDedupMode("adjacent")
 		end,
 	})
 
 	-- Pause Button
-	self.pauseBtn = toolbar:AddButton({
-		text = L["Pause"] or "Pause",
-		width = 60,
+	self.pauseBtn = toolbar:AddImageButton({
+		texture = ICON_PATH .. (Console.paused and "icon-play" or "icon-pause"),
+		size = 24,
+		isToggle = true,
+		active = self.paused,
+		tooltip = function(tt) tt:SetText(self.paused and L["Resume"] or L["Pause"]) end,
 		onClick = function()
 			self:TogglePause()
 		end,
@@ -126,18 +142,24 @@ function Console:Initialize(parent)
 	toolbar:AddSpacer("flex")
 
 	-- Export Button
-	toolbar:AddButton({
-		text = L["Export Button"],
-		width = 90,
+	toolbar:AddImageButton({
+		texture = ICON_PATH .. "icon-export",
+		size = 24,
+		tooltip = L["Export Button"],
 		onClick = function()
 			self:Export()
 		end,
 	})
 
-	-- Line Count Label
-	self.lineCount = toolbar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-	self.lineCount:SetPoint("RIGHT", -8, 0)
-	self.lineCount:SetText(L["Lines: 0"])
+	-- Help Button
+	toolbar:AddImageButton({
+		texture = ICON_PATH .. "icon-help",
+		size = 24,
+		tooltip = L["Help"],
+		onClick = function()
+			Mechanic.Utils:ShowHelpDialog("console")
+		end,
+	})
 
 	-- Manually trigger initial selection now that ALL UI elements are created
 	local initialKey = self.layout:GetSelectedKey()
@@ -227,12 +249,17 @@ function Console:RefreshSourceList()
 end
 
 function Console:OnSourceSelected(key)
+	-- Guard: layout might not be assigned yet during initialization
+	if not self.layout then
+		return
+	end
+
 	self.selectedSource = key
 	self.filters.source = key
 	self:Refresh()
 end
 
-function Console:OnLog(event, source, message, category)
+function Console:OnLog(source, message, category)
 	if self.paused then
 		return
 	end
@@ -279,7 +306,10 @@ function Console:Refresh()
 			self.logDisplay:SetText(text)
 		end
 		if self.lineCount then
-			self.lineCount:SetText(string.format(L["Lines: %d"] or "Lines: %d", #filtered))
+			local countText = string.format(L["Lines: %d"] or "Lines: %d", #filtered)
+			-- Colorize the number part to white to match footer values
+			countText = countText:gsub("(%d+)", "|cffffffff%1|r")
+			self.lineCount:SetText(countText)
 		end
 	end)
 end
@@ -402,7 +432,8 @@ end
 function Console:TogglePause()
 	self.paused = not self.paused
 	if self.pauseBtn then
-		self.pauseBtn:SetText(self.paused and L["Resume"] or L["Pause"])
+		self.pauseBtn:SetActive(self.paused)
+		self.pauseBtn:SetTexture(ICON_PATH .. (self.paused and "icon-play" or "icon-pause"))
 	end
 	if not self.paused then
 		self:Refresh()
@@ -439,6 +470,15 @@ function Console:SetDedupMode(mode)
 	else
 		self.dedupMode = mode
 	end
+
+	-- Update toggle states
+	if self.dedupAllBtn then
+		self.dedupAllBtn:SetActive(self.dedupMode == "all")
+	end
+	if self.dedupAdjBtn then
+		self.dedupAdjBtn:SetActive(self.dedupMode == "adjacent")
+	end
+
 	self:Refresh()
 end
 
@@ -459,18 +499,15 @@ function Console:GetCopyText(includeHeader)
 end
 
 function Console:OnEnable()
-	-- Register with MechanicLib for logging
-	local MechanicLib = LibStub("MechanicLib-1.0", true)
-	if MechanicLib then
-		MechanicLib:RegisterCallback(self, "MechanicLib_Log", "OnLog")
+	if self.enabled then
+		return
 	end
+
+	self.enabled = true
 end
 
 function Console:OnDisable()
-	local MechanicLib = LibStub("MechanicLib-1.0", true)
-	if MechanicLib then
-		MechanicLib:UnregisterCallback(self, "MechanicLib_Log")
-	end
+	self.enabled = false
 end
 
 -- Initialize the console when called from Core
@@ -480,3 +517,6 @@ function Mechanic:InitializeConsole()
 	end
 	self.Console:Initialize(self.frame.moduleContent)
 end
+
+
+

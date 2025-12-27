@@ -56,7 +56,12 @@ function FrameResolver:GetFramePath(frame)
 	end
 
 	-- If it has a global name, return it
-	local name = frame:GetName()
+	local name
+	if frame.GetName then
+		local ok, n = pcall(frame.GetName, frame)
+		if ok then name = n end
+	end
+	
 	if name then
 		return name
 	end
@@ -65,14 +70,24 @@ function FrameResolver:GetFramePath(frame)
 	local parts = {}
 	local current = frame
 	while current do
-		local currentName = current:GetName()
+		local currentName
+		if current.GetName then
+			local ok, n = pcall(current.GetName, current)
+			if ok then currentName = n end
+		end
+
 		if currentName then
 			table.insert(parts, 1, currentName)
 			return table.concat(parts, ".")
 		end
 
 		-- If no name, look for this frame in the parent's members
-		local parent = current:GetParent()
+		local parent
+		if current.GetParent then
+			local ok, p = pcall(current.GetParent, current)
+			if ok then parent = p end
+		end
+
 		if parent then
 			local found = false
 			-- We can't easily iterate all members of a frame to find 'current'
@@ -111,13 +126,26 @@ function FrameResolver:GetChildren(frame)
 		return children
 	end
 
-	local childList = { frame:GetChildren() }
+	local ok, childList = pcall(function() return { frame:GetChildren() } end)
+	if not ok or not childList then return children end
+
 	for i, child in ipairs(childList) do
-		local name = child:GetName()
+		local name
+		if child.GetName then
+			local okN, n = pcall(child.GetName, child)
+			if okN then name = n end
+		end
+
+		local objType = "Frame"
+		if child.GetObjectType then
+			local okO, ot = pcall(child.GetObjectType, child)
+			if okO then objType = ot end
+		end
+
 		local key = name or (self:GetFramePath(child) or string.format("child%d", i))
 		table.insert(children, {
 			key = key,
-			text = name or string.format("<anonymous %s>", child:GetObjectType()),
+			text = name or string.format("<anonymous %s>", objType),
 			frame = child,
 		})
 	end

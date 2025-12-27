@@ -27,6 +27,7 @@ FenUI.Tokens = {
         gold700 = { 0.6, 0.5, 0.2, 1 },
         
         -- Gray spectrum (dark to light)
+        -- Neutral grays (lighter values)
         gray50 = { 0.98, 0.98, 0.98, 1 },
         gray100 = { 0.9, 0.9, 0.9, 1 },
         gray200 = { 0.8, 0.8, 0.8, 1 },
@@ -35,9 +36,10 @@ FenUI.Tokens = {
         gray500 = { 0.5, 0.5, 0.5, 1 },
         gray600 = { 0.4, 0.4, 0.4, 1 },
         gray700 = { 0.3, 0.3, 0.3, 1 },
-        gray800 = { 0.2, 0.2, 0.2, 1 },
-        gray900 = { 0.1, 0.1, 0.1, 1 },
-        gray950 = { 0.05, 0.05, 0.05, 1 },
+        -- Warm grays (modern Blizzard dark mode palette)
+        gray800 = { 0.23, 0.21, 0.19, 1 },  -- #3A3531 - Main panel background
+        gray900 = { 0.17, 0.15, 0.14, 1 },  -- Approx #2B2724 - Inset/recessed areas
+        gray950 = { 0.12, 0.11, 0.10, 1 },  -- Approx #1F1C1A - Deep inset/alternating rows
         
         -- Feedback colors
         red400 = { 0.9, 0.4, 0.4, 1 },
@@ -83,7 +85,7 @@ FenUI.Tokens = {
         highlight = "GameFontHighlight",
         highlightSmall = "GameFontHighlightSmall",
         disabled = "GameFontDisable",
-        mono = "ChatFontNormal",
+        mono = "ChatFontNormal", -- Safe default (Arial Narrow), will be upgraded if available
     },
 }
 
@@ -93,11 +95,13 @@ FenUI.Tokens = {
 --------------------------------------------------------------------------------
 
 FenUI.Tokens.semantic = {
-    -- SURFACES (backgrounds)
-    surfacePanel = "gray900",           -- Main panel/window backgrounds
-    surfaceElevated = "gray800",        -- Elevated elements (dropdowns, tooltips)
-    surfaceInset = "gray950",           -- Inset/recessed areas
-    surfaceOverlay = "gray900",         -- Modal overlays
+    -- SURFACES (backgrounds) - Modern Blizzard Dark Mode Hierarchy
+    -- Based on 11.0+ Settings Panel and FlatPanelBackgroundTemplate
+    surfacePanel = "gray800",           -- Main panel/window backgrounds (#3A3531)
+    surfaceElevated = "gray700",        -- Elevated elements (dropdowns, tooltips)
+    surfaceInset = "gray900",           -- Inset/recessed areas (#2B2724)
+    surfaceDeep = "gray950",            -- Deep recessed areas, alternating rows (#1F1C1A)
+    surfaceOverlay = "gray800",         -- Modal overlays
     
     -- TEXT
     textDefault = "gray100",            -- Primary readable text
@@ -122,9 +126,9 @@ FenUI.Tokens.semantic = {
     interactiveSelected = "gold500",    -- Selected state
     
     -- GRID / LISTS
-    surfaceRowAlt = "gray950",          -- Alternating row background
-    surfaceRowHover = "gray800",        -- Row hover state
-    surfaceRowSelected = "gray700",     -- Selected row state
+    surfaceRowAlt = "gray950",          -- Alternating row background (deep)
+    surfaceRowHover = "gray800",        -- Row hover state (Panel level)
+    surfaceRowSelected = "gray700",     -- Selected row state (Elevated level)
     
     -- FEEDBACK STATES
     feedbackSuccess = "green500",       -- Success messages/states
@@ -149,6 +153,7 @@ FenUI.Tokens.semantic = {
     backgroundDefault = "surfacePanel",    -- Default container background
     backgroundElevated = "surfaceElevated",-- Elevated/floating elements
     backgroundInset = "surfaceInset",      -- Inset/recessed areas
+    backgroundDeep = "surfaceDeep",        -- Deep recessed areas
     backgroundCard = "surfaceElevated",    -- Card components
     backgroundDialog = "surfacePanel",     -- Dialog/modal windows
     
@@ -178,6 +183,31 @@ FenUI.Tokens.semantic = {
     fontSmall = "bodySmall",            -- Small/caption text
     fontButton = "highlight",           -- Button labels
     fontMono = "mono",                  -- Monospaced text (console, code)
+}
+
+--------------------------------------------------------------------------------
+-- Border Packs (Visual Asset Definitions)
+-- These define the geometry and assets for custom NineSlice borders.
+--------------------------------------------------------------------------------
+
+FenUI.Tokens.borders = {
+    -- Clean, sharp dark border (matches modern Blizzard Settings UI)
+    ModernDark = {
+        file = [[Interface\AddOns\FenUI\Assets\border-modern-dark]],
+        slice = 8,          -- Corner size in the source texture
+        edgeSize = 1,       -- Visual thickness of the edge lines
+        contentInset = 2,   -- Space between border edge and content
+        bgInset = 1,        -- Space between border edge and background
+    },
+    
+    -- Recessed inset style
+    Inset = {
+        file = [[Interface\AddOns\FenUI\Assets\border-inset]],
+        slice = 4,
+        edgeSize = 1,
+        contentInset = 1,
+        bgInset = 0,
+    },
 }
 
 --------------------------------------------------------------------------------

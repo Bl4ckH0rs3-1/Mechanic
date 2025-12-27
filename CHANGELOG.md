@@ -2,6 +2,22 @@
 
 All notable changes to !Mechanic will be documented in this file.
 
+## [1.2.2] - 2025-12-26
+
+### Added
+- **Export All Errors**: The export button in the Errors tab now exports all errors in the currently selected category (e.g., specific addon or all sessions) instead of just the active error.
+
+### Fixed
+- **Console Crash**: Fixed a Lua error where `Console:OnEnable` attempted to call `RegisterCallback` on `MechanicLib` (which does not support it). Logging is now correctly handled via `Mechanic:OnLog` forwarding.
+- **Theme Manager Syntax Error**: Fixed a critical syntax error in `ThemeManager.lua` (FenUI) that prevented the library from loading in certain environments.
+- **Console Log Parameters**: Fixed a parameter mismatch in `Console:OnLog` that caused log messages to display incorrectly.
+
+## [1.2.1] - 2025-12-26
+
+### Fixed
+- **Background Error Monitoring**: Fixed an issue where the Errors tab and minimap icon would not update if the tab had never been opened. Modules (Errors and Console) now initialize their background capture listeners immediately on addon enable.
+- **UI Resilience**: Added defensive checks to ensure module initialization doesn't crash if called before the UI is fully created.
+
 ## [1.2.0] - 2025-12-25
 
 ### Added

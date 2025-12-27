@@ -5,6 +5,26 @@ All notable changes to FenUI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 
+## [2.6.0] - 2025-12-26
+
+### Added
+- **New `ImageButton` widget** - High-performance icon buttons built on the Image component logic.
+  - Supports tactile states (hover, pressed/dimmed, disabled) with optional 1px texture shift.
+  - Built-in toggle mode support (`isToggle = true`).
+  - Inherits all Image features (masking, sizing modes, conditional textures).
+- **Texture-based Checkboxes** - `CreateCheckbox` now supports custom icons via `checkedTexture` and `uncheckedTexture` config.
+  - Added `boxSize` option for easier checkbox sizing.
+- **Image Sharpness Improvements** - Icons now use `TRILINEAR` filtering and `SetSnapToPixelGrid(true)` for better clarity at non-power-of-two sizes.
+- **Monospaced Font Support** - Added infrastructure for modern custom fonts.
+  - Defaults to **JetBrains Mono** if the font file is present in `Assets/Fonts/`.
+  - Added `fontMono` token mapped to `FenUIMonoFont`.
+- **Tab Badge Enhancements** - `SetTabBadge()` now supports both text and icons (atlas or texture).
+  - Supports semantic color tokens for badge tinting (e.g., green for OK, red for Error).
+
+### Changed
+- **Toolbar** - Added `AddImageButton()` helper method.
+- **Image Mixin** - Exported `ImageMixin:InitImage()` for better extensibility.
+
 ## [2.5.0] - 2025-12-25
 
 ### Changed

@@ -12,116 +12,15 @@ local FenUI = FenUI
 --------------------------------------------------------------------------------
 
 FenUI.Themes = {
-    -- Default theme - uses base semantic tokens
+    -- Default theme - Modern dark style matching 11.0+ Blizzard Settings
     Default = {
         name = "Default",
-        description = "Standard WoW UI appearance",
-        textureKit = nil,
-        layout = "Panel",  -- FenUI layout alias
-        tokens = {},       -- No overrides
-    },
-    
-    -- The War Within theme
-    TWW = {
-        name = "The War Within",
-        description = "The War Within expansion theme",
-        textureKit = "warwithin",
-        layout = "Panel",
+        description = "Modern dark UI style",
+        layout = "ModernDark",  -- Uses custom BorderPack
         tokens = {
-            -- Slightly warmer gold for TWW
-            interactiveDefault = "gold600",
-            textHeading = "gold600",
-        },
-    },
-    
-    -- Dragonflight theme
-    Dragonflight = {
-        name = "Dragonflight",
-        description = "Dragonflight expansion theme",
-        textureKit = "dragonflight",
-        layout = "Dragonflight",
-        tokens = {
-            -- Dragon blue accents
-            interactiveDefault = "blue500",
-            interactiveHover = "blue400",
-            interactiveActive = "blue600",
-            borderFocus = "blue500",
-            textHeading = "blue400",
-        },
-    },
-    
-    -- Shadowlands theme
-    Shadowlands = {
-        name = "Shadowlands",
-        description = "Shadowlands expansion theme",
-        textureKit = "oribos",
-        layout = "Shadowlands",
-        tokens = {
-            -- Muted, ethereal colors
-            surfacePanel = "gray950",
-            surfaceElevated = "gray900",
-            textDefault = "gray200",
-            interactiveDefault = "gray300",
-            interactiveHover = "gray200",
-        },
-    },
-    
-    -- BFA Horde theme
-    Horde = {
-        name = "Horde",
-        description = "For the Horde!",
-        textureKit = "horde",
-        layout = "BFA_Horde",
-        tokens = {
-            interactiveDefault = "red500",
-            interactiveHover = "red400",
-            interactiveActive = "red600",
-            borderFocus = "red500",
-            textHeading = "red400",
-        },
-    },
-    
-    -- BFA Alliance theme
-    Alliance = {
-        name = "Alliance",
-        description = "For the Alliance!",
-        textureKit = "alliance",
-        layout = "BFA_Alliance",
-        tokens = {
-            interactiveDefault = "blue500",
-            interactiveHover = "blue400",
-            interactiveActive = "blue600",
-            borderFocus = "blue500",
-            textHeading = "blue400",
-        },
-    },
-    
-    -- Dark minimal theme
-    Dark = {
-        name = "Dark",
-        description = "Clean, dark minimal appearance",
-        textureKit = nil,
-        layout = "Simple",
-        tokens = {
-            surfacePanel = "gray950",
-            surfaceElevated = "gray900",
-            surfaceInset = "black",
-            borderDefault = "gray800",
-            borderSubtle = "gray900",
-            textDefault = "gray200",
-            textMuted = "gray600",
-        },
-    },
-    
-    -- Metal theme
-    Metal = {
-        name = "Metal",
-        description = "Classic metallic WoW style",
-        textureKit = nil,
-        layout = "Metal",
-        tokens = {
-            interactiveDefault = "gold500",
-            borderDefault = "gray500",
+            surfacePanel = "gray800",
+            surfaceInset = "gray900",
+            textHeading = "gold500",
         },
     },
 }
@@ -213,10 +112,14 @@ function FenUI.ThemeManager:ApplyToFrame(frame, themeName)
         return false
     end
     
-    -- Apply the Blizzard layout if frame supports it
-    if theme.layout and frame.fenUISupportsLayout then
-        local layoutName = FenUI:ResolveLayoutName(theme.layout)
-        FenUI:ApplyLayout(frame, layoutName, theme.textureKit)
+    -- Apply the border (custom pack or native layout)
+    if theme.layout and frame.fenUISupportsLayout and frame.SetBorder then
+        frame:SetBorder(theme.layout)
+    end
+    
+    -- Apply Blizzard textureKit if using legacy NineSlice
+    if theme.textureKit and frame.fenUISupportsLayout and frame.fenUILayout then
+        FenUI:ApplyLayout(frame, frame.fenUILayout, theme.textureKit)
     end
     
     -- Store theme info on frame

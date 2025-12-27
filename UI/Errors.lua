@@ -4,6 +4,7 @@
 local ADDON_NAME, ns = ...
 local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
 local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME, true)
+local ICON_PATH = [[Interface\AddOns\!Mechanic\Assets\Icons\]]
 local ErrorsModule = {}
 Mechanic.Errors = ErrorsModule
 
@@ -86,9 +87,11 @@ function Mechanic:InitializeErrors()
 	toolbar:AddSpacer(8)
 
 	-- Pause Button
-	local pauseBtn = toolbar:AddButton({
-		text = L["Pause"] or "Pause",
-		width = 80,
+	local pauseBtn = toolbar:AddImageButton({
+		texture = ICON_PATH .. "icon-pause",
+		size = 24,
+		isToggle = true,
+		tooltip = L["Pause"] or "Pause",
 		onClick = function()
 			ErrorsModule:TogglePause()
 		end,
@@ -98,17 +101,19 @@ function Mechanic:InitializeErrors()
 	toolbar:AddSpacer("flex")
 
 	-- Actions
-	local consoleBtn = toolbar:AddButton({
-		text = L["To Console"],
-		width = 90,
+	local consoleBtn = toolbar:AddImageButton({
+		texture = ICON_PATH .. "icon-record",
+		size = 24,
+		tooltip = L["To Console"],
 		onClick = function()
 			ErrorsModule:SendToConsole()
 		end,
 	})
 
-	local wipeBtn = toolbar:AddButton({
-		text = L["Wipe"],
-		width = 60,
+	local wipeBtn = toolbar:AddImageButton({
+		texture = ICON_PATH .. "icon-clear",
+		size = 24,
+		tooltip = L["Wipe"],
 		onClick = function()
 			ErrorsModule:WipeSession()
 		end,
@@ -116,11 +121,22 @@ function Mechanic:InitializeErrors()
 
 	toolbar:AddSpacer(8)
 
-	local exportBtn = toolbar:AddButton({
-		text = L["Export Button"],
-		width = 90,
+	local exportBtn = toolbar:AddImageButton({
+		texture = ICON_PATH .. "icon-export",
+		size = 24,
+		tooltip = L["Export All"] or "Export All",
 		onClick = function()
 			ErrorsModule:Export()
+		end,
+	})
+
+	-- Help Button
+	toolbar:AddImageButton({
+		texture = ICON_PATH .. "icon-help",
+		size = 24,
+		tooltip = L["Help"],
+		onClick = function()
+			Mechanic.Utils:ShowHelpDialog("errors")
 		end,
 	})
 
@@ -128,6 +144,7 @@ function Mechanic:InitializeErrors()
 	local editBox = FenUI:CreateMultiLineEditBox(contentArea, {
 		readOnly = true,
 		background = "surfaceInset",
+		font = "fontMono",
 	})
 	editBox:SetPoint("TOPLEFT", toolbar, "BOTTOMLEFT", 0, -4)
 	editBox:SetPoint("BOTTOMRIGHT", 0, 0)
@@ -181,8 +198,14 @@ function ErrorsModule:OnSourceSelected(key)
 end
 
 function ErrorsModule:OnEnable()
+	if self.enabled then
+		return
+	end
+
 	if not _G.BugGrabber then
-		self:ShowInstallMessage()
+		if self.editBox then
+			self:ShowInstallMessage()
+		end
 		return
 	end
 
@@ -191,11 +214,18 @@ function ErrorsModule:OnEnable()
 
 	-- Get current session
 	self.currentSession = _G.BugGrabber:GetSessionId()
-	self:UpdateSessionList()
+	if self.sessionDropdown then
+		self:UpdateSessionList()
+	end
+
 	self:RefreshErrors()
 	self.currentIndex = #self.errors
 	self:UpdateDisplay()
+
+	local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
 	Mechanic:UpdateMinimapIcon()
+
+	self.enabled = true
 end
 
 function ErrorsModule:UpdateSessionList()
@@ -316,7 +346,8 @@ end
 
 function ErrorsModule:TogglePause()
 	self.paused = not self.paused
-	self.pauseButton:SetText(self.paused and (L["Resume"] or "Resume") or (L["Pause"] or "Pause"))
+	self.pauseButton:SetTexture(ICON_PATH .. (self.paused and "icon-play" or "icon-pause"))
+	self.pauseButton:SetActive(self.paused)
 
 	if not self.paused then
 		self:RefreshErrors()
@@ -359,13 +390,13 @@ function ErrorsModule:Export()
 		"%s : %s : %s",
 		tostring(L["Errors"] or "Errors"),
 		tostring(navName or "All Sessions"),
-		tostring(L["Export"] or "Export")
+		tostring(L["Export All"] or "Export All")
 	)
-	local text = self:GetCopyText(Mechanic.db.profile.includeEnvHeader)
+	local text = self:GetCopyText(Mechanic.db.profile.includeEnvHeader, true)
 	Mechanic.Utils:ShowExportDialog(title, text)
 end
 
-function ErrorsModule:GetCopyText(includeHeader)
+function ErrorsModule:GetCopyText(includeHeader, allErrors)
 	local lines = {}
 
 	if includeHeader then
@@ -375,9 +406,8 @@ function ErrorsModule:GetCopyText(includeHeader)
 			table.insert(
 				lines,
 				string.format(
-					L["Session: %s | Error: %d/%d"] or "Session: %s | Error: %d/%d",
+					L["Session: %s | Errors: %d"] or "Session: %s | Errors: %d",
 					tostring(self.currentSession or "all"),
-					self.currentIndex or 0,
 					#self.errors
 				)
 			)
@@ -385,15 +415,29 @@ function ErrorsModule:GetCopyText(includeHeader)
 		end
 	end
 
-	local err = self.errors[self.currentIndex]
-	if err then
-		table.insert(lines, Mechanic.Utils:FormatError(err))
+	if allErrors then
+		for i, err in ipairs(self.errors) do
+			table.insert(lines, string.format("Error %d/%d:", i, #self.errors))
+			table.insert(lines, Mechanic.Utils:FormatError(err))
+			if i < #self.errors then
+				table.insert(lines, "\n" .. string.rep("=", 40) .. "\n")
+			end
+		end
+	else
+		local err = self.errors[self.currentIndex]
+		if err then
+			table.insert(lines, Mechanic.Utils:FormatError(err))
+		end
 	end
 
 	return table.concat(lines, "\n")
 end
 
 function ErrorsModule:ShowInstallMessage()
+	if not self.editBox then
+		return
+	end
+
 	local message = string.format(
 		"|cffff4411%s|r\n\n%s\n\n%s\n- CurseForge: curseforge.com/wow/addons/bug-grabber\n- WoWInterface: wowinterface.com/downloads/info5883\n\n%s",
 		tostring(L["!BugGrabber Required"] or "!BugGrabber Required"),
@@ -406,3 +450,5 @@ function ErrorsModule:ShowInstallMessage()
 	)
 	self.editBox:SetText(message)
 end
+
+

@@ -19,13 +19,26 @@ function MultiLineEditBoxMixin:Init(config)
     -- Create scroll frame
     self.scrollFrame = CreateFrame("ScrollFrame", nil, self, "UIPanelScrollFrameTemplate")
     self.scrollFrame:SetPoint("TOPLEFT", 4, -4)
-    self.scrollFrame:SetPoint("BOTTOMRIGHT", -26, 4)
+    
+    local scrollBarWidth = FenUI:GetLayout("scrollBarWidth") or 20
+    self.scrollFrame:SetPoint("BOTTOMRIGHT", -(scrollBarWidth + 4), 4)
+
+    -- Adjust the scroll bar position to be flush with the right edge
+    if self.scrollFrame.ScrollBar then
+        self.scrollFrame.ScrollBar:ClearAllPoints()
+        self.scrollFrame.ScrollBar:SetPoint("TOPLEFT", self.scrollFrame, "TOPRIGHT", 4, -16)
+        self.scrollFrame.ScrollBar:SetPoint("BOTTOMLEFT", self.scrollFrame, "BOTTOMRIGHT", 4, 16)
+    end
     
     -- Create edit box
     self.editBox = CreateFrame("EditBox", nil, self.scrollFrame)
     self.editBox:SetMultiLine(true)
     self.editBox:SetMaxLetters(0)
-    self.editBox:SetFontObject(FenUI:GetFont("fontMono") or "ChatFontNormal")
+    
+    local fontToken = config.font or "fontBody"
+    local fontObject = FenUI:GetFont(fontToken) or "ChatFontNormal"
+    self.editBox:SetFontObject(fontObject)
+    
     self.editBox:SetWidth(self.scrollFrame:GetWidth())
     self.editBox:SetAutoFocus(false)
     
@@ -35,7 +48,9 @@ function MultiLineEditBoxMixin:Init(config)
     self.measureFS = self:CreateFontString(nil, "ARTWORK")
     self.measureFS:Hide()
     local font, size, flags = self.editBox:GetFont()
-    self.measureFS:SetFont(font, size, flags)
+    if font then
+        self.measureFS:SetFont(font, size, flags)
+    end
     self.measureFS:SetWidth(self.scrollFrame:GetWidth())
 
     -- Helper to get text height

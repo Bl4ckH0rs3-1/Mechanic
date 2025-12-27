@@ -110,11 +110,28 @@ local MASK_TEXTURES = {
 local ImageMixin = {}
 
 function ImageMixin:Init(config)
+    self:InitImage(config)
+end
+
+function ImageMixin:InitImage(config)
     self.config = config or {}
     
     -- Create main texture
-    self.texture = self:CreateTexture(nil, config.drawLayer or "ARTWORK")
-    self.texture:SetAllPoints()
+    if not self.texture then
+        self.texture = self:CreateTexture(nil, config.drawLayer or "ARTWORK")
+        self.texture:SetAllPoints()
+        
+        -- Improve sharpness for small icons
+        if self.texture.SetFilterMode then
+            self.texture:SetFilterMode("TRILINEAR")
+        end
+        if self.texture.SetTexelSnappingBias then
+            self.texture:SetTexelSnappingBias(0.0)
+        end
+        if self.texture.SetSnapToPixelGrid then
+            self.texture:SetSnapToPixelGrid(true)
+        end
+    end
     
     -- Frame sizing - fill mode vs explicit size
     if config.fill then
@@ -125,7 +142,8 @@ function ImageMixin:Init(config)
         self.isFillMode = true
     else
         -- Explicit size mode
-        local width = config.width or 64
+        local size = config.size or 64
+        local width = config.width or size
         local height = config.height or width
         self:SetSize(width, height)
         self.isFillMode = false
@@ -426,3 +444,9 @@ function FenUI:GetImageConditions()
     end
     return conditions
 end
+
+--------------------------------------------------------------------------------
+-- Export Mixin
+--------------------------------------------------------------------------------
+
+FenUI.ImageMixin = ImageMixin

@@ -13,12 +13,16 @@ local FenUI = FenUI
 --------------------------------------------------------------------------------
 
 FenUI.Layouts = {
-    -- Standard frames
+    -- Standard frames (Legacy)
     Panel = "ButtonFrameTemplateNoPortrait",
     PanelMinimizable = "ButtonFrameTemplateNoPortraitMinimizable",
     Simple = "SimplePanelTemplate",
     Portrait = "PortraitFrameTemplate",
     PortraitMinimizable = "PortraitFrameTemplateMinimizable",
+    
+    -- Modern frames (11.0+ Dark Mode style)
+    Modern = "GenericMetal",              -- Clean, modern dark border
+    Metal = "GenericMetal",               -- Alias for backward compatibility
     
     -- Content sections
     Inset = "InsetFrameTemplate",
@@ -26,8 +30,10 @@ FenUI.Layouts = {
     -- Dialogs and modals
     Dialog = "Dialog",
     
-    -- Generic styles
-    Metal = "GenericMetal",
+    -- Tooltips (modern dark style)
+    Tooltip = "TooltipGluesLayout", -- Using TooltipGluesLayout as a general tooltip style
+    TooltipDefault = "TooltipDefaultLayout",
+    TooltipGlues = "TooltipGluesLayout",
     
     -- Expansion-themed
     Dragonflight = "DragonflightMissionFrame",
@@ -89,6 +95,121 @@ function FenUI:GetAvailableLayouts(includeBlizzard)
     
     table.sort(layouts)
     return layouts
+end
+
+--------------------------------------------------------------------------------
+-- Custom Border Engine (Intentional Custom)
+--
+-- Replaces Blizzard's black-box NineSliceUtil with an explicit 8-texture
+-- implementation that provides total control over layering and sub-levels.
+--------------------------------------------------------------------------------
+
+local BORDER_PIECES = {
+    "TopLeftCorner", "TopRightCorner", "BottomLeftCorner", "BottomRightCorner",
+    "TopEdge", "BottomEdge", "LeftEdge", "RightEdge"
+}
+
+--- Resolve a border key to its pack definition
+---@param borderKey string The border pack name (e.g., "ModernDark")
+---@return table|nil pack
+function FenUI:GetBorderPack(borderKey)
+    return self.Tokens.borders and self.Tokens.borders[borderKey]
+end
+
+--- Apply a custom 8-texture border to a frame
+---@param frame Frame The target frame
+---@param borderKey string The border pack key from Tokens.lua
+---@param colorToken string|nil Optional color token to tint the border
+function FenUI:ApplyBorder(frame, borderKey, colorToken)
+    local pack = self:GetBorderPack(borderKey)
+    if not pack then
+        self:Debug("Border pack not found:", borderKey)
+        return false
+    end
+
+    -- 1. Create or clear existing border textures
+    frame.customBorder = frame.customBorder or {}
+    local pieces = frame.customBorder
+    
+    -- Ensure we have all 8 pieces
+    for _, name in ipairs(BORDER_PIECES) do
+        if not pieces[name] then
+            pieces[name] = frame:CreateTexture(nil, "BORDER", nil, 5)
+        end
+        local tex = pieces[name]
+        tex:SetTexture(pack.file)
+        tex:Show()
+    end
+
+    -- 2. Setup TexCoords (Slicing)
+    -- The texture is assumed to be a grid where corners are 'slice' pixels square
+    -- and edges are 1px thick between corners.
+    -- We use standard 0-1 normalized coordinates.
+    -- Note: This implementation assumes a square texture atlas for simplicity.
+    local s = pack.slice / 64 -- Standardizing on 64px source textures for now
+    
+    pieces.TopLeftCorner:SetTexCoord(0, s, 0, s)
+    pieces.TopRightCorner:SetTexCoord(1-s, 1, 0, s)
+    pieces.BottomLeftCorner:SetTexCoord(0, s, 1-s, 1)
+    pieces.BottomRightCorner:SetTexCoord(1-s, 1, 1-s, 1)
+    
+    pieces.TopEdge:SetTexCoord(s, 1-s, 0, s)
+    pieces.BottomEdge:SetTexCoord(s, 1-s, 1-s, 1)
+    pieces.LeftEdge:SetTexCoord(0, s, s, 1-s)
+    pieces.RightEdge:SetTexCoord(1-s, 1, s, 1-s)
+
+    -- 3. Positioning
+    local size = pack.slice
+    pieces.TopLeftCorner:SetSize(size, size)
+    pieces.TopLeftCorner:SetPoint("TOPLEFT", 0, 0)
+    
+    pieces.TopRightCorner:SetSize(size, size)
+    pieces.TopRightCorner:SetPoint("TOPRIGHT", 0, 0)
+    
+    pieces.BottomLeftCorner:SetSize(size, size)
+    pieces.BottomLeftCorner:SetPoint("BOTTOMLEFT", 0, 0)
+    
+    pieces.BottomRightCorner:SetSize(size, size)
+    pieces.BottomRightCorner:SetPoint("BOTTOMRIGHT", 0, 0)
+    
+    pieces.TopEdge:SetPoint("TOPLEFT", pieces.TopLeftCorner, "TOPRIGHT")
+    pieces.TopEdge:SetPoint("TOPRIGHT", pieces.TopRightCorner, "TOPLEFT")
+    pieces.TopEdge:SetHeight(size)
+    
+    pieces.BottomEdge:SetPoint("BOTTOMLEFT", pieces.BottomLeftCorner, "BOTTOMRIGHT")
+    pieces.BottomEdge:SetPoint("BOTTOMRIGHT", pieces.BottomRightCorner, "BOTTOMLEFT")
+    pieces.BottomEdge:SetHeight(size)
+    
+    pieces.LeftEdge:SetPoint("TOPLEFT", pieces.TopLeftCorner, "BOTTOMLEFT")
+    pieces.LeftEdge:SetPoint("BOTTOMLEFT", pieces.BottomLeftCorner, "TOPLEFT")
+    pieces.LeftEdge:SetWidth(size)
+    
+    pieces.RightEdge:SetPoint("TOPRIGHT", pieces.TopRightCorner, "BOTTOMRIGHT")
+    pieces.RightEdge:SetPoint("BOTTOMRIGHT", pieces.BottomRightCorner, "TOPRIGHT")
+    pieces.RightEdge:SetWidth(size)
+
+    -- 4. Theming (Coloring)
+    local r, g, b, a = self:GetColor(colorToken or "borderDefault")
+    for _, tex in pairs(pieces) do
+        tex:SetVertexColor(r, g, b, a)
+    end
+
+    -- Store state
+    frame.borderApplied = true
+    frame.fenUIBorderKey = borderKey
+    
+    return true
+end
+
+--- Hide the custom border
+---@param frame Frame
+function FenUI:HideCustomBorder(frame)
+    if frame.customBorder then
+        for _, tex in pairs(frame.customBorder) do
+            tex:Hide()
+        end
+    end
+    frame.borderApplied = false
 end
 
 --------------------------------------------------------------------------------
@@ -289,11 +410,18 @@ end
 
 -- Known texture kits that work with expansion-themed layouts
 FenUI.TextureKits = {
+    -- Modern (11.0+)
     warwithin = true,
+    midnight = true,
+    
+    -- Previous expansions
     dragonflight = true,
     oribos = true,
+    
+    -- Faction
     horde = true,
     alliance = true,
+    neutral = true,
 }
 
 --- Check if a texture kit is known to work

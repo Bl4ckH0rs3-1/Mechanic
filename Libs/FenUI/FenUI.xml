@@ -12,6 +12,7 @@
     <Script file="Utils\UI.lua"/>
     <Script file="Utils\Colors.lua"/>
     <Script file="Core\Tokens.lua"/>
+    <Script file="Core\Fonts.lua"/>
     <Script file="Core\BlizzardBridge.lua"/>
     <Script file="Core\ThemeManager.lua"/>
     
@@ -20,7 +21,9 @@
     
     <!-- Widgets (load order matters: Image -> Layout -> Panel/Containers) -->
     <Script file="Widgets\Image.lua"/>
+    <Script file="Widgets\ImageButton.lua"/>
     <Script file="Widgets\Layout.lua"/>
+    <Script file="Widgets\SplitLayout.lua"/>
     <Script file="Widgets\Panel.lua"/>
     <Script file="Widgets\Containers.lua"/>
     <Script file="Widgets\Tabs.lua"/>
@@ -31,6 +34,8 @@
     <Script file="Widgets\StatusRow.lua"/>
     <Script file="Widgets\EmptyState.lua"/>
     <Script file="Widgets\SectionHeader.lua"/>
+    <Script file="Widgets\Section.lua"/>
+    <Script file="Widgets\InfoPanel.lua"/>
     <Script file="Widgets\Tree.lua"/>
     <Script file="Widgets\Input.lua"/>
     <Script file="Widgets\Dropdown.lua"/>

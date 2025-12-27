@@ -7,6 +7,7 @@
 local ADDON_NAME, ns = ...
 local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
 local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME, true)
+local ICON_PATH = [[Interface\AddOns\!Mechanic\Assets\Icons\]]
 local PerformanceModule = {}
 Mechanic.Perf = PerformanceModule
 
@@ -62,6 +63,10 @@ function Mechanic:InitializePerformance()
 		return
 	end
 
+	-- Initialize state tables early to prevent nil errors during restored selection
+	PerformanceModule.addonRows = {}
+	PerformanceModule.addonDetailFrames = {}
+
 	local parent = self.frame.moduleContent
 	local frame = CreateFrame("Frame", nil, parent)
 	frame:SetAllPoints()
@@ -108,6 +113,9 @@ function Mechanic:InitializePerformance()
 		label = L["Auto-Refresh"],
 		checked = PerformanceModule.autoRefresh,
 		width = 120,
+		boxSize = 20,
+		checkedTexture = ICON_PATH .. "icon-checkbox-checked",
+		uncheckedTexture = ICON_PATH .. "icon-checkbox-unchecked",
 		onChange = function(_, checked)
 			PerformanceModule:ToggleAutoRefresh()
 		end,
@@ -122,6 +130,9 @@ function Mechanic:InitializePerformance()
 		label = L["CPU Profiling"],
 		checked = GetCVarBool("scriptProfile"),
 		width = 120,
+		boxSize = 20,
+		checkedTexture = ICON_PATH .. "icon-checkbox-checked",
+		uncheckedTexture = ICON_PATH .. "icon-checkbox-unchecked",
 		onChange = function(_, checked)
 			PerformanceModule:ToggleCPUProfiling()
 		end,
@@ -132,14 +143,25 @@ function Mechanic:InitializePerformance()
 	toolbar:AddSpacer("flex")
 
 	-- Export Button
-	local exportBtn = toolbar:AddButton({
-		text = L["Export Button"],
-		width = 90,
+	local exportBtn = toolbar:AddImageButton({
+		texture = ICON_PATH .. "icon-export",
+		size = 24,
+		tooltip = L["Export Button"],
 		onClick = function()
 			PerformanceModule:Export()
 		end,
 	})
 	PerformanceModule.exportButton = exportBtn
+
+	-- Help Button
+	toolbar:AddImageButton({
+		texture = ICON_PATH .. "icon-help",
+		size = 24,
+		tooltip = L["Help"],
+		onClick = function()
+			Mechanic.Utils:ShowHelpDialog("performance")
+		end,
+	})
 
 	-- --- General View UI ---
 
@@ -207,7 +229,6 @@ function Mechanic:InitializePerformance()
 	end)
 
 	-- Addon list rows
-	PerformanceModule.addonRows = {}
 	for i = 1, 20 do -- Pre-create some rows
 		local row = PerformanceModule:CreateAddonRow(content, COLUMNS)
 		row:Hide()
@@ -215,7 +236,6 @@ function Mechanic:InitializePerformance()
 	end
 
 	-- --- Addon Details View UI ---
-	PerformanceModule.addonDetailFrames = {}
 
 	-- Initial state
 	PerformanceModule:OnEnable()
@@ -283,6 +303,11 @@ function PerformanceModule:RefreshNavItems()
 end
 
 function PerformanceModule:OnNavSelected(key)
+	-- Guard: layout might not be assigned yet during initialization
+	if not self.layout then
+		return
+	end
+
 	self.selectedAddon = key
 	self:UpdateDisplay()
 end
@@ -294,7 +319,9 @@ function PerformanceModule:CreateAddonRow(parent, columns)
 	local labels = {}
 	local xOffset = 0
 	for _, col in ipairs(columns) do
-		local label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		local font = FenUI:GetFont("fontMono")
+		local label = row:CreateFontString(nil, "OVERLAY", font)
+		if not label:GetFont() then label:SetFontObject("ChatFontNormal") end
 		label:SetPoint("LEFT", xOffset, 0)
 		label:SetWidth(col.width)
 		label:SetJustifyH("LEFT")
@@ -326,8 +353,16 @@ end
 function PerformanceModule:CreateHeaderRow(parent, columns)
 	parent.labels = {}
 	local xOffset = 0
+	local font = FenUI:GetFont("fontMono")
+	
 	for _, col in ipairs(columns) do
-		local headerLabel = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		local headerLabel = parent:CreateFontString(nil, "OVERLAY", font)
+		
+		-- Defensive check: if font failed to set during creation, fallback explicitly
+		if not headerLabel:GetFont() then
+			headerLabel:SetFontObject("ChatFontNormal")
+		end
+		
 		headerLabel:SetPoint("LEFT", xOffset, 0)
 		headerLabel:SetWidth(col.width)
 		headerLabel:SetJustifyH("LEFT")
@@ -339,13 +374,17 @@ end
 
 function PerformanceModule:UpdateDisplay()
 	-- Hide all managed content frames
-	for _, frame in pairs(self.layout.contentFrames) do
-		frame:Hide()
+	if self.layout and self.layout.contentFrames then
+		for _, frame in pairs(self.layout.contentFrames) do
+			frame:Hide()
+		end
 	end
 
 	-- Hide all addon detail frames (which are managed locally)
-	for _, frame in pairs(self.addonDetailFrames) do
-		frame:Hide()
+	if self.addonDetailFrames then
+		for _, frame in pairs(self.addonDetailFrames) do
+			frame:Hide()
+		end
 	end
 
 	-- Show selected content frame
@@ -881,7 +920,7 @@ function PerformanceModule:ToggleAutoRefresh()
 	end
 
 	if self.autoRefreshCheck then
-		self.autoRefreshCheck:SetChecked(self.autoRefresh)
+		self.autoRefreshCheck:SetChecked(self.autoRefresh, true)
 	end
 end
 
@@ -907,7 +946,7 @@ function PerformanceModule:ToggleCPUProfiling()
 
 	-- Revert checkbox state until reload
 	if self.cpuProfilingCheck then
-		self.cpuProfilingCheck:SetChecked(current)
+		self.cpuProfilingCheck:SetChecked(current, true)
 	end
 end
 
@@ -968,3 +1007,7 @@ end
 function PerformanceModule:OnEnable()
 	-- Initial registration or setup if needed
 end
+
+
+
+

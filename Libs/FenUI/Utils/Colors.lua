@@ -50,3 +50,4 @@ function Utils:Colorize(text, hex)
     end
     return hex .. text .. "|r"
 end
+

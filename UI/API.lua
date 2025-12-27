@@ -19,6 +19,7 @@ APIModule.navDirty = true
 local API_DEFINITIONS = ns.APIDefinitions
 local API_CATEGORIES = ns.APICategories
 local API_REGISTRY = ns.APIRegistry
+local ICON_PATH = [[Interface\AddOns\!Mechanic\Assets\Icons\]]
 
 --------------------------------------------------------------------------------
 -- Initialization
@@ -62,14 +63,25 @@ function Mechanic:InitializeAPI()
 	toolbar:AddSpacer("flex")
 
 	-- Export Button
-	local exportBtn = toolbar:AddButton({
-		text = L["Export Button"],
-		width = 90,
+	local exportBtn = toolbar:AddImageButton({
+		texture = ICON_PATH .. "icon-export",
+		size = 24,
+		tooltip = L["Export Button"],
 		onClick = function()
 			APIModule:Export()
 		end,
 	})
 	APIModule.exportButton = exportBtn
+
+	-- Help Button
+	toolbar:AddImageButton({
+		texture = ICON_PATH .. "icon-help",
+		size = 24,
+		tooltip = L["Help"],
+		onClick = function()
+			Mechanic.Utils:ShowHelpDialog("api")
+		end,
+	})
 
 	-- Select first API by default if nothing was restored from storage
 	local initialKey = APIModule.layout.selectedKey
@@ -262,9 +274,10 @@ function APIModule:BuildAPIPanel(parent, apiDef)
 	buttonRow:Show()
 
 	local runBtn = Mechanic.Utils:GetOrCreateWidget(buttonRow, "runBtn", function(p)
-		return FenUI:CreateButton(p, {
-			text = L["Run"],
-			width = 80,
+		return FenUI:CreateImageButton(p, {
+			texture = ICON_PATH .. "icon-play",
+			size = 24,
+			tooltip = L["Run"],
 			onClick = function()
 				self:RunAPI(apiDef)
 			end,
@@ -274,27 +287,29 @@ function APIModule:BuildAPIPanel(parent, apiDef)
 	runBtn:Show()
 
 	local runCatBtn = Mechanic.Utils:GetOrCreateWidget(buttonRow, "runCatBtn", function(p)
-		return FenUI:CreateButton(p, {
-			text = L["Run Category"],
-			width = 110,
+		return FenUI:CreateImageButton(p, {
+			texture = ICON_PATH .. "icon-play-auto",
+			size = 24,
+			tooltip = L["Run Category"],
 			onClick = function()
 				self:RunCategory(apiDef.category)
 			end,
 		})
 	end)
-	runCatBtn:SetPoint("LEFT", runBtn, "RIGHT", 8, 0)
+	runCatBtn:SetPoint("LEFT", runBtn, "RIGHT", 12, 0)
 	runCatBtn:Show()
 
 	local copyBtn = Mechanic.Utils:GetOrCreateWidget(buttonRow, "copyBtn", function(p)
-		return FenUI:CreateButton(p, {
-			text = L["Copy Report"],
-			width = 100,
+		return FenUI:CreateImageButton(p, {
+			texture = ICON_PATH .. "icon-export",
+			size = 24,
+			tooltip = L["Copy Report"],
 			onClick = function()
 				self:CopyAPIReport(apiDef)
 			end,
 		})
 	end)
-	copyBtn:SetPoint("LEFT", runCatBtn, "RIGHT", 8, 0)
+	copyBtn:SetPoint("LEFT", runCatBtn, "RIGHT", 12, 0)
 	copyBtn:Show()
 
 	yOffset = yOffset - 40
@@ -335,6 +350,7 @@ function APIModule:BuildAPIPanel(parent, apiDef)
 		return FenUI:CreateMultiLineEditBox(p, {
 			readOnly = true,
 			background = "surfaceInset",
+		font = "fontMono",
 		})
 	end)
 	resultsBox:SetPoint("TOPLEFT", 8, yOffset)
@@ -353,6 +369,7 @@ function APIModule:BuildAPIPanel(parent, apiDef)
 	local apiNotesBox = Mechanic.Utils:GetOrCreateWidget(parent, "notesBox", function(p)
 		local box = FenUI:CreateMultiLineEditBox(p, {
 			background = "surfaceInset",
+		font = "fontMono",
 		})
 		box:SetHeight(55)
 		return box
@@ -799,3 +816,4 @@ function APIModule:GetCopyText(includeHeader)
 	end
 	return L["No API selected."]
 end
+

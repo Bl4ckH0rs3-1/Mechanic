@@ -4,6 +4,7 @@
 local ADDON_NAME, ns = ...
 local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
 local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME, true)
+local ICON_PATH = [[Interface\AddOns\!Mechanic\Assets\Icons\]]
 
 function Mechanic:CreateMainFrame()
 	if self.frame then
@@ -69,8 +70,8 @@ function Mechanic:CreateMainFrame()
 		},
 		-- onChange set later after initial selection to prevent overwriting saved state during init
 	})
-	tabs:SetPoint("TOPLEFT", 0, -25)
-	tabs:SetPoint("TOPRIGHT", 0, -25)
+	tabs:SetPoint("TOPLEFT", 0, 0)
+	tabs:SetPoint("TOPRIGHT", 0, 0)
 	frame.tabs = tabs
 
 	-- Anchor content to tabs and status bar
@@ -78,10 +79,10 @@ function Mechanic:CreateMainFrame()
 	contentFrame:SetPoint("BOTTOMRIGHT", statusBar, "TOPRIGHT", 0, 4)
 
 	-- Reload button on status bar
-	local reloadBtn = FenUI:CreateButton(statusBar, {
-		text = L["Reload UI"],
-		width = 90,
-		height = 20,
+	local reloadBtn = FenUI:CreateImageButton(statusBar, {
+		texture = ICON_PATH .. "icon-reload",
+		size = 20,
+		tooltip = L["Reload UI"],
 		onClick = function()
 			ReloadUI()
 		end,
@@ -92,11 +93,31 @@ function Mechanic:CreateMainFrame()
 	local registerSelfCheckbox = FenUI:CreateCheckbox(statusBar, {
 		label = L["Register Mechanic"] or "Register Mechanic",
 		checked = self.db.profile.registerSelf,
+		boxSize = 14,
+		checkedTexture = ICON_PATH .. "icon-checkbox-checked",
+		uncheckedTexture = ICON_PATH .. "icon-checkbox-unchecked",
 		onChange = function(_, checked)
 			self:SetRegisterSelf(checked)
 		end,
 	})
-	registerSelfCheckbox:SetPoint("RIGHT", reloadBtn, "LEFT", -16, 0)
+	
+	-- Match status bar font and color
+	registerSelfCheckbox.label:SetFontObject("GameFontNormalSmall")
+	registerSelfCheckbox.label:SetTextColor(FenUI:GetColorRGB("gray300"))
+	registerSelfCheckbox.checkmark:SetFontObject("GameFontNormalSmall")
+	
+	-- Lighten the checkbox textures
+	if registerSelfCheckbox.boxBg then
+		registerSelfCheckbox.boxBg:SetVertexColor(FenUI:GetColor("gray200"))
+	end
+	
+	-- Anchor to the last status item for a unified left-aligned look
+	local lastStatusItem = statusBar.items and statusBar.items[#statusBar.items]
+	if lastStatusItem then
+		registerSelfCheckbox:SetPoint("LEFT", lastStatusItem.valueFS, "RIGHT", 32, 0)
+	else
+		registerSelfCheckbox:SetPoint("LEFT", statusBar, "LEFT", 400, 0)
+	end
 	frame.registerSelfCheckbox = registerSelfCheckbox
 
 	-- Select initial tab
@@ -265,5 +286,19 @@ end
 function Mechanic:UpdateStatusBar()
 	if self.frame and self.frame.statusBar then
 		self.frame.statusBar:SetValues(self:GetStatusItems())
+		
+		-- Re-anchor the checkbox to the new last item
+		if self.frame.registerSelfCheckbox then
+			local statusBar = self.frame.statusBar
+			local lastStatusItem = statusBar.items and statusBar.items[#statusBar.items]
+			if lastStatusItem then
+				self.frame.registerSelfCheckbox:ClearAllPoints()
+				self.frame.registerSelfCheckbox:SetPoint("LEFT", lastStatusItem.valueFS, "RIGHT", 32, 0)
+			end
+		end
 	end
 end
+
+
+
+

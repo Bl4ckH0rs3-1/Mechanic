@@ -5,14 +5,51 @@ local ADDON_NAME, ns = ...
 local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
 local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME, true)
 local InspectModule = Mechanic.Inspect
+local ICON_PATH = [[Interface\AddOns\!Mechanic\Assets\Icons\]]
 
 function InspectModule:InitializeWatch(parent)
 	local title = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-	title:SetPoint("TOPLEFT", 8, -8)
+	title:SetPoint("TOPLEFT", 8, -12)
 	title:SetText(L["Watch List"])
 
+	-- Clear All Button
+	local clearAllBtn = FenUI:CreateImageButton(parent, {
+		texture = ICON_PATH .. "icon-clear",
+		size = 16,
+		tooltip = L["Clear Watch List"] or "Clear Watch List",
+		onClick = function()
+			local MechanicLib = LibStub("MechanicLib-1.0", true)
+			if MechanicLib then
+				local watchList = MechanicLib:GetWatchList()
+				local targets = {}
+				for _, data in pairs(watchList) do
+					if data.source == "Manual" then
+						table.insert(targets, data.target)
+					end
+				end
+				for _, target in ipairs(targets) do
+					MechanicLib:RemoveFromWatchList(target)
+				end
+			end
+		end,
+	})
+	clearAllBtn:SetPoint("TOPRIGHT", -8, -12)
+	self.clearAllBtn = clearAllBtn
+
+	-- Watch Button (moved from toolbar to watch list header)
+	local watchBtn = FenUI:CreateImageButton(parent, {
+		texture = ICON_PATH .. "icon-watch",
+		size = 18,
+		tooltip = L["+ Watch Current"],
+		onClick = function()
+			self:WatchCurrent()
+		end,
+	})
+	watchBtn:SetPoint("RIGHT", clearAllBtn, "LEFT", -6, 0)
+	self.watchBtn = watchBtn
+
 	local scrollFrame = CreateFrame("ScrollFrame", nil, parent, "UIPanelScrollFrameTemplate")
-	scrollFrame:SetPoint("TOPLEFT", 4, -30)
+	scrollFrame:SetPoint("TOPLEFT", 4, -40)
 	scrollFrame:SetPoint("BOTTOMRIGHT", -24, 4)
 	self.watchScroll = scrollFrame
 
@@ -46,10 +83,25 @@ function InspectModule:RefreshWatchList()
 
 	local watchList = MechanicLib:GetWatchList()
 	local sortedKeys = {}
-	for key in pairs(watchList) do
+	local hasManual = false
+	for key, data in pairs(watchList) do
 		table.insert(sortedKeys, key)
+		if data.source == "Manual" then
+			hasManual = true
+		end
 	end
 	table.sort(sortedKeys)
+
+	-- Update Clear All button state
+	if self.clearAllBtn then
+		if hasManual then
+			self.clearAllBtn:Enable()
+			self.clearAllBtn:SetAlpha(1.0)
+		else
+			self.clearAllBtn:Disable()
+			self.clearAllBtn:SetAlpha(0.3)
+		end
+	end
 
 	for _, node in ipairs(self.watchNodes) do
 		node:Hide()
@@ -71,34 +123,42 @@ function InspectModule:RefreshWatchList()
 			node.source:SetTextColor(0.5, 0.5, 0.5)
 			node.source:SetJustifyH("LEFT")
 		end
-		node.source:SetPoint("BOTTOMLEFT", 4, 4)
 		node.source:SetText(data.source or "Manual")
 
-		-- Add unwatch button for manual watches
+		-- Add unwatch button
 		if not node.removeBtn then
-			node.removeBtn = CreateFrame("Button", nil, node)
-			node.removeBtn:SetSize(18, 18)
-			node.removeBtn:SetPoint("TOPRIGHT", -4, -4)
-			
-			local tex = node.removeBtn:CreateTexture(nil, "OVERLAY")
-			tex:SetAllPoints()
-			-- Use a high-visibility delete icon
-			tex:SetAtlas("sharedxml-inv-delete")
-			node.removeBtn.tex = tex
-
-			-- Visual feedback for the button
-			node.removeBtn:SetScript("OnEnter", function(s) s.tex:SetVertexColor(1, 0.2, 0.2) end)
-			node.removeBtn:SetScript("OnLeave", function(s) s.tex:SetVertexColor(1, 1, 1) end)
+			node.removeBtn = FenUI:CreateImageButton(node, {
+				texture = ICON_PATH .. "icon-clear",
+				size = 10,
+				tooltip = L["Remove from Watch List"] or "Remove from Watch List",
+				onClick = function()
+					local currentWatchList = MechanicLib:GetWatchList()
+					local currentData = currentWatchList[key]
+					if currentData then
+						MechanicLib:RemoveFromWatchList(currentData.target)
+					end
+				end,
+			})
 		end
 
+		node.source:ClearAllPoints()
 		if data.source == "Manual" then
 			node.removeBtn:Show()
+			node.removeBtn:ClearAllPoints()
+			node.removeBtn:SetPoint("BOTTOMLEFT", 4, 6)
+			node.source:SetPoint("LEFT", node.removeBtn, "RIGHT", 4, 0)
+
 			node.removeBtn:SetFrameLevel(node:GetFrameLevel() + 5)
-			node.removeBtn:SetScript("OnClick", function()
-				MechanicLib:RemoveFromWatchList(data.target)
-			end)
+			node.removeBtn.config.onClick = function()
+				local currentWatchList = MechanicLib:GetWatchList()
+				local currentData = currentWatchList[key]
+				if currentData then
+					MechanicLib:RemoveFromWatchList(currentData.target)
+				end
+			end
 		else
 			node.removeBtn:Hide()
+			node.source:SetPoint("BOTTOMLEFT", 4, 4)
 		end
 
 		local frame = type(data.target) == "string" and ns.FrameResolver:ResolvePath(data.target) or data.target
@@ -156,7 +216,7 @@ function InspectModule:RefreshWatchList()
 		node.value:SetWidth(node:GetWidth() - 80) -- Leave room for source
 		node.value:SetWordWrap(false)
 
-		node.label:SetWidth(node:GetWidth() - 24) -- Leave room for X
+		node.label:SetWidth(node:GetWidth() - 8)
 		node.label:SetWordWrap(false)
 		node.frame = frame
 		node.path = type(data.target) == "string" and data.target or nil
@@ -182,12 +242,13 @@ function InspectModule:GetOrCreateWatchNode(index)
 	node.bg = bg
 
 	local label = node:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-	label:SetPoint("TOPLEFT", 4, -4)
+	label:SetPoint("TOPLEFT", 0, -4)
 	label:SetPoint("TOPRIGHT", -4, -4)
 	label:SetJustifyH("LEFT")
 	node.label = label
 
 	local value = node:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	value:SetTextColor(1, 1, 1) -- Keep it white
 	value:SetPoint("BOTTOMLEFT", 4, 4)
 	value:SetPoint("BOTTOMRIGHT", -4, 4)
 	value:SetJustifyH("RIGHT")
@@ -200,3 +261,5 @@ function InspectModule:GetOrCreateWatchNode(index)
 	self.watchNodes[index] = node
 	return node
 end
+
+

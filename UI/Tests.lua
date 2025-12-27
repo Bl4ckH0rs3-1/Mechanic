@@ -4,6 +4,7 @@
 local ADDON_NAME, ns = ...
 local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
 local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME, true)
+local ICON_PATH = [[Interface\AddOns\!Mechanic\Assets\Icons\]]
 local TestsModule = {}
 Mechanic.Tests = TestsModule
 
@@ -49,11 +50,12 @@ function Mechanic:InitializeTests()
 
 	toolbar:AddSpacer("flex")
 
-	local exportBtn = toolbar:AddButton({
-		text = L["Export Button"],
-		width = 90,
+	local exportBtn = toolbar:AddImageButton({
+		texture = ICON_PATH .. "icon-export",
+		size = 24,
+		tooltip = L["Export Button"],
 		onClick = function()
-			TestsModule:Export()
+			self:Export()
 		end,
 	})
 	TestsModule.exportButton = exportBtn
@@ -63,6 +65,16 @@ function Mechanic:InitializeTests()
 		width = 60,
 		onClick = function()
 			TestsModule:ClearResults()
+		end,
+	})
+
+	-- Help Button
+	toolbar:AddImageButton({
+		texture = ICON_PATH .. "icon-help",
+		size = 24,
+		tooltip = L["Help"],
+		onClick = function()
+			Mechanic.Utils:ShowHelpDialog("tests")
 		end,
 	})
 
@@ -123,6 +135,7 @@ function Mechanic:InitializeTests()
 	local detailsBox = FenUI:CreateMultiLineEditBox(detailsFrame, {
 		readOnly = true,
 		background = "surfaceInset",
+		font = "fontMono",
 	})
 	detailsBox:SetPoint("TOPLEFT", descriptionLabel, "BOTTOMLEFT", 0, -12)
 	detailsBox:SetPoint("BOTTOMRIGHT", -8, 8)
@@ -581,3 +594,5 @@ function TestsModule:GetCopyText(includeHeader)
 
 	return table.concat(lines, "\n")
 end
+
+

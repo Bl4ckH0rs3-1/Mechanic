@@ -6,7 +6,17 @@ FenUI is a Blizzard-first UI widget library for World of Warcraft addon developm
 
 ## Core Philosophy
 
-### 1. Foundation First
+### 1. Manageability First (AI & Agent Friendly)
+
+The top priority for FenUI is ease of understanding and modification by both human developers and AI agents. If a native Blizzard asset or "black box" API makes the code harder to reason about, provides inconsistent results, or requires complex magic offsets, it should be replaced with a custom, intentional, and documented implementation.
+
+**In practice:** Instead of fighting Blizzard's aggressive `NineSliceUtil` which overwrites textures and sub-layers, we use a custom internal NineSlice renderer where every texture and anchor is explicitly defined in Lua.
+
+### 2. Performance
+
+While manageability is paramount, FenUI must remain performant. Avoid unnecessary `OnUpdate` polling, use frame pooling for repeated elements, and keep the drawing hierarchy flat where possible.
+
+### 3. Foundation First
 
 Build flexible, underlying systems before convenience shortcuts. A strong foundation ensures consistency and extensibility as the library grows.
 
@@ -30,15 +40,15 @@ Leverage patterns developers already know. FenUI borrows concepts from CSS Grid,
 
 ## Technical Principles
 
-### Blizzard-First
+### Intentional Custom (Formerly Blizzard-First)
 
-FenUI is a *progressive enhancement layer*, not a replacement for Blizzard's UI system.
+FenUI provides a standalone, intentional UI framework that prioritizes control and predictability. While we match Blizzard's aesthetic (colors, typography), we avoid direct dependencies on fragile internal Blizzard templates and "black box" utilities.
 
-- Use `NineSliceUtil` and `NineSliceLayouts` for frame styling
-- Leverage the native Atlas system for textures
-- Support `textureKit` theming for seamless integration with official UI
+- **Custom NineSlice Renderer:** We manually manage the 8 textures for borders to ensure pixel-perfect alignment and layering control.
+- **Theme Packs:** UI styles are defined in self-contained "Packs" that bundle border assets and color palettes.
+- **Template Decoupling:** We build widgets from base frames rather than inheriting from Blizzard's complex XML templates (e.g., `ButtonFrameTemplate`).
 
-**Why:** Native APIs are stable, performant, and future-proof. Fighting the platform creates maintenance burden.
+**Why:** Native Blizzard templates often carry legacy baggage, forced insets, and "double bevel" looks that are difficult to disable. Providing our own assets ensures total visual fidelity.
 
 ### Design Tokens
 

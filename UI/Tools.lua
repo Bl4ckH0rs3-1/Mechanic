@@ -7,6 +7,7 @@
 local ADDON_NAME, ns = ...
 local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
 local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME, true)
+local ICON_PATH = [[Interface\AddOns\!Mechanic\Assets\Icons\]]
 local ToolsModule = {}
 Mechanic.Tools = ToolsModule
 
@@ -35,14 +36,25 @@ function Mechanic:InitializeTools()
 
 	toolbar:AddSpacer("flex")
 
-	local exportBtn = toolbar:AddButton({
-		text = L["Export Button"],
-		width = 90,
+	local exportBtn = toolbar:AddImageButton({
+		texture = ICON_PATH .. "icon-export",
+		size = 24,
+		tooltip = L["Export Button"],
 		onClick = function()
-			ToolsModule:Export()
+			self:Export()
 		end,
 	})
 	ToolsModule.exportButton = exportBtn
+
+	-- Help Button
+	toolbar:AddImageButton({
+		texture = ICON_PATH .. "icon-help",
+		size = 24,
+		tooltip = L["Help"],
+		onClick = function()
+			Mechanic.Utils:ShowHelpDialog("tools")
+		end,
+	})
 
 	-- Create split nav layout
 	local SplitNavLayout = ns.SplitNavLayout
@@ -56,13 +68,9 @@ function Mechanic:InitializeTools()
 	})
 
 	-- Anchor layout below toolbar
-	ToolsModule.layout.navPanel:ClearAllPoints()
-	ToolsModule.layout.navPanel:SetPoint("TOPLEFT", toolbar, "BOTTOMLEFT", 0, -4)
-	ToolsModule.layout.navPanel:SetPoint("BOTTOMLEFT", 0, 0)
-
-	ToolsModule.layout.contentArea:ClearAllPoints()
-	ToolsModule.layout.contentArea:SetPoint("TOPLEFT", ToolsModule.layout.navPanel, "TOPRIGHT", 4, 0)
-	ToolsModule.layout.contentArea:SetPoint("BOTTOMRIGHT", 0, 0)
+	ToolsModule.layout:ClearAllPoints()
+	ToolsModule.layout:SetPoint("TOPLEFT", toolbar, "BOTTOMLEFT", 0, -4)
+	ToolsModule.layout:SetPoint("BOTTOMRIGHT", 0, 0)
 
 	-- Manually trigger initial selection now that layout is assigned
 	local initialKey = ToolsModule.layout:GetSelectedKey()
@@ -123,6 +131,11 @@ function ToolsModule:RefreshAddonList()
 end
 
 function ToolsModule:OnAddonSelected(addonName)
+	-- Guard: layout might not be assigned yet during initialization
+	if not self.layout then
+		return
+	end
+
 	-- Destroy previous panel if it exists
 	if self.activePanel and self.selectedAddon then
 		local MechanicLib = LibStub("MechanicLib-1.0", true)
@@ -239,3 +252,5 @@ function ToolsModule:GetCopyText(includeHeader)
 
 	return table.concat(lines, "\n")
 end
+
+

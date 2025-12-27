@@ -26,18 +26,40 @@ FenUI.NAME = "FenUI"
 -- Detect the addon path by looking at where this file was loaded from
 -- Uses debugstack to find the actual path
 local function DetectAddonPath()
-    local path = debugstack(1, 1, 0)
-    -- debugstack returns something like: "Interface/AddOns/Weekly/Libs/FenUI/Core/FenUI.lua:123: ..."
-    -- We need to extract up to and including FenUI
-    local addonPath = path:match("(Interface[/\\]AddOns[/\\][^/\\]+[/\\]Libs[/\\]FenUI)[/\\]")
-    if addonPath then
-        return addonPath:gsub("/", "\\")
+    local stack = debugstack(1, 1, 0)
+    -- debugstack returns formats like:
+    --   [string "Interface\AddOns\!Mechanic\Libs\FenUI\Core\FenUI.lua"]:45: in...
+    --   [string "@Interface\AddOns\!Mechanic\Libs\FenUI\Core\FenUI.lua"]:45: in...
+    --   Interface\AddOns\!Mechanic\Libs\FenUI\Core\FenUI.lua:45: in...
+    
+    -- Try multiple patterns to extract the file path
+    local path = stack:match('"@?(.-)"')           -- From [string "..."] or [string "@..."]
+              or stack:match('@([^:]+)')           -- From @path:line format
+              or stack:match('^([^:]+)')           -- From path:line format
+    
+    if not path then
+        return "Interface\\AddOns\\FenUI"
     end
-    -- Fallback: standalone addon
-    addonPath = path:match("(Interface[/\\]AddOns[/\\]FenUI)[/\\]")
-    if addonPath then
-        return addonPath:gsub("/", "\\")
+    
+    -- Remove trailing line number if present (e.g., "FenUI.lua:45" -> "FenUI.lua")
+    path = path:gsub(":%d+$", "")
+    
+    -- Normalize to backslashes for WoW pathing
+    path = path:gsub("/", "\\")
+    
+    -- Find the directory containing the Core folder
+    -- e.g. "Interface\AddOns\!Mechanic\Libs\FenUI\Core\FenUI.lua" -> "Interface\AddOns\!Mechanic\Libs\FenUI"
+    local addonDir = path:match("(.-)\\Core\\FenUI%.lua$")
+    if addonDir and addonDir ~= "" then
+        return addonDir
     end
+    
+    -- Try without the $ anchor in case of extra characters
+    addonDir = path:match("(.-)\\Core\\FenUI%.lua")
+    if addonDir and addonDir ~= "" then
+        return addonDir
+    end
+    
     -- Last resort fallback
     return "Interface\\AddOns\\FenUI"
 end

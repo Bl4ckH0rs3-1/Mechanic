@@ -236,13 +236,30 @@ end
 local CheckboxMixin = {}
 
 function CheckboxMixin:SetChecked(checked, silent)
-    if self.checked == checked then
-        return
-    end
     self.checked = checked
-    self.checkmark:SetShown(checked)
-    if self.hooks.onChange and not silent then
+    
+    if self.config.checkedTexture and self.config.uncheckedTexture then
+        self.boxBg:SetTexture(checked and self.config.checkedTexture or self.config.uncheckedTexture)
+        -- In texture mode, we hide the default checkmark and border
+        self.checkmark:Hide()
+        self.boxBorder:Hide()
+        self.boxBg:SetVertexColor(1, 1, 1, 1) -- Reset any tinting for the texture
+    else
+        self.checkmark:SetShown(checked)
+        self.boxBorder:Show()
+    end
+    
+    if not silent and self.hooks.onChange then
         self.hooks.onChange(self, checked)
+    end
+end
+
+function CheckboxMixin:UpdateVisual()
+    if self.config.checkedTexture and self.config.uncheckedTexture then
+        self.boxBg:SetTexture(self.checked and self.config.checkedTexture or self.config.uncheckedTexture)
+        self.boxBg:SetVertexColor(1, 1, 1, 1)
+    else
+        self.checkmark:SetShown(self.checked)
     end
 end
 
@@ -250,8 +267,8 @@ function CheckboxMixin:GetChecked()
     return self.checked
 end
 
-function CheckboxMixin:Toggle()
-    self:SetChecked(not self.checked)
+function CheckboxMixin:Toggle(silent)
+    self:SetChecked(not self.checked, silent)
 end
 
 function CheckboxMixin:SetLabel(text)
@@ -271,17 +288,17 @@ function FenUI:CreateCheckbox(parent, config)
     checkbox.hooks = {
         onChange = config.onChange,
     }
+    checkbox.config = config
     checkbox.checked = config.checked or false
     
     -- Box
     checkbox.box = CreateFrame("Button", nil, checkbox)
-    checkbox.box:SetSize(16, 16)
+    checkbox.box:SetSize(config.boxSize or 16, config.boxSize or 16)
     checkbox.box:SetPoint("LEFT")
     
     -- Box background
     checkbox.boxBg = checkbox.box:CreateTexture(nil, "BACKGROUND")
     checkbox.boxBg:SetAllPoints()
-    checkbox.boxBg:SetColorTexture(FenUI:GetColor("surfaceInset"))
     
     -- Box border
     checkbox.boxBorder = checkbox.box:CreateTexture(nil, "BORDER")
@@ -290,13 +307,22 @@ function FenUI:CreateCheckbox(parent, config)
     checkbox.boxBorder:SetDrawLayer("BORDER", 1)
     
     -- Checkmark
-    checkbox.checkmark = checkbox.box:CreateTexture(nil, "OVERLAY")
-    checkbox.checkmark:SetPoint("CENTER")
-    checkbox.checkmark:SetSize(14, 14)
-    checkbox.checkmark:SetAtlas("common-icon-checkmark")
+    checkbox.checkmark = checkbox.box:CreateFontString(nil, "OVERLAY")
+    checkbox.checkmark:SetFontObject("GameFontNormal")
+    checkbox.checkmark:SetText("✓")
+    checkbox.checkmark:SetPoint("CENTER", 0, 1)
     local r, g, b = FenUI:GetColor("interactiveDefault")
-    checkbox.checkmark:SetVertexColor(r, g, b)
-    checkbox.checkmark:SetShown(checkbox.checked)
+    checkbox.checkmark:SetTextColor(r, g, b)
+    
+    -- Initial visual state
+    if config.checkedTexture and config.uncheckedTexture then
+        checkbox.boxBg:SetTexture(checkbox.checked and config.checkedTexture or config.uncheckedTexture)
+        checkbox.boxBorder:Hide()
+        checkbox.checkmark:Hide()
+    else
+        checkbox.boxBg:SetColorTexture(FenUI:GetColor("surfaceInset"))
+        checkbox.checkmark:SetShown(checkbox.checked)
+    end
     
     -- Label
     checkbox.label = checkbox:CreateFontString(nil, "OVERLAY")
@@ -323,13 +349,17 @@ function FenUI:CreateCheckbox(parent, config)
     
     -- Hover effect
     checkbox.box:SetScript("OnEnter", function()
-        local hr, hg, hb = FenUI:GetColor("interactiveHover")
-        checkbox.boxBorder:SetColorTexture(hr, hg, hb, 1)
+        if not checkbox.config.checkedTexture then
+            local hr, hg, hb = FenUI:GetColor("interactiveHover")
+            checkbox.boxBorder:SetColorTexture(hr, hg, hb, 1)
+        end
     end)
     
     checkbox.box:SetScript("OnLeave", function()
-        local br, bg, bb = FenUI:GetColor("borderInteractive")
-        checkbox.boxBorder:SetColorTexture(br, bg, bb, 1)
+        if not checkbox.config.checkedTexture then
+            local br, bg, bb = FenUI:GetColor("borderInteractive")
+            checkbox.boxBorder:SetColorTexture(br, bg, bb, 1)
+        end
     end)
     
     return checkbox

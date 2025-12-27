@@ -102,3 +102,4 @@ end
 
 -- Initialize capabilities
 Utils:DetectCapabilities()
+

@@ -6,6 +6,7 @@
 
 local ADDON_NAME, ns = ...
 local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME, true)
+local ICON_PATH = [[Interface\AddOns\!Mechanic\Assets\Icons\]]
 
 local Mechanic = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceConsole-3.0", "AceEvent-3.0")
 _G.Mechanic = Mechanic -- luacheck: ignore W122 -- Global for MechanicLib:IsEnabled() check
@@ -95,8 +96,8 @@ function Mechanic:UpdateMinimapIcon()
 		end
 	end
 
-	local icon = hasErrors and "Interface\\AddOns\\!Mechanic\\assets\\mechanic-icon-error-64"
-		or "Interface\\AddOns\\!Mechanic\\assets\\mechanic-icon-normal-64"
+	local icon = hasErrors and "Interface\\AddOns\\!Mechanic\\assets\\Icons\\icon-minimap-error-64"
+		or "Interface\\AddOns\\!Mechanic\\assets\\Icons\\icon-minimap-normal-64"
 
 	if self.ldbObj.icon ~= icon then
 		self.ldbObj.icon = icon
@@ -106,32 +107,31 @@ function Mechanic:UpdateMinimapIcon()
 	self:UpdateErrorBadge()
 end
 
---- Update the error indicator badge on the main frame tabs.
 function Mechanic:UpdateErrorBadge()
 	if not self.frame or not self.frame.tabs then
 		return
 	end
 
-	local hasErrors = false
-	if self.Errors and self.Errors.errors and #self.Errors.errors > 0 then
-		hasErrors = true
+	local errorCount = 0
+	if self.Errors and self.Errors.errors then
+		errorCount = #self.Errors.errors
 	elseif _G.BugGrabber and _G.BugGrabber.GetSessionId then
 		local sessionId = _G.BugGrabber:GetSessionId()
 		local db = _G.BugGrabber:GetDB()
 		if db then
-			for i = #db, 1, -1 do
+			for i = 1, #db do
 				if db[i].session == sessionId then
-					hasErrors = true
-					break
+					errorCount = errorCount + 1
 				end
 			end
 		end
 	end
 
-	if hasErrors then
-		self.frame.tabs:SetTabBadge("errors", "atlas:plunderstorm-new-dot-sm", "feedbackError")
+	local badgeText = string.format("(%d)", errorCount)
+	if errorCount > 0 then
+		self.frame.tabs:SetTabBadge("errors", badgeText, "feedbackError")
 	else
-		self.frame.tabs:SetTabBadge("errors", "atlas:plunderstorm-new-dot-sm", "feedbackSuccess")
+		self.frame.tabs:SetTabBadge("errors", badgeText, "feedbackSuccess")
 	end
 end
 
@@ -140,6 +140,14 @@ function Mechanic:OnEnable()
 	-- MUST happen before CreateMainFrame to avoid race conditions with persistence
 	if self.db.profile.registerSelf then
 		self:RegisterSelf()
+	end
+
+	-- Initialize background modules early to capture data before UI is shown
+	if self.Errors and self.Errors.OnEnable then
+		self.Errors:OnEnable()
+	end
+	if self.Console and self.Console.OnEnable then
+		self.Console:OnEnable()
 	end
 
 	-- UI creation will happen here (Phase 1)
@@ -192,6 +200,40 @@ function Mechanic:RegisterSelf()
 			end,
 			run = function(id)
 				return self:RunSelfTest(id)
+			end,
+		},
+		-- Key frames for the Watch List (Inspect tool)
+		inspect = {
+			getWatchFrames = function()
+				local frames = {}
+				if self.frame then
+					table.insert(frames, { label = "Main Window", frame = self.frame, property = "Visibility" })
+					if self.frame.tabs then
+						table.insert(frames, { label = "Tabs", frame = self.frame.tabs, property = "Selected" })
+					end
+					if self.frame.moduleContent then
+						table.insert(frames, { label = "Content Area", frame = self.frame.moduleContent, property = "Visibility" })
+					end
+					if self.frame.statusBar then
+						table.insert(frames, { label = "Status Bar", frame = self.frame.statusBar, property = "Visibility" })
+					end
+				end
+				
+				-- Module-specific frames
+				if self.Console and self.Console.frame then
+					table.insert(frames, { label = "Console Module", frame = self.Console.frame, property = "Visibility" })
+				end
+				if self.Errors and self.Errors.frame then
+					table.insert(frames, { label = "Errors Module", frame = self.Errors.frame, property = "Visibility" })
+				end
+				if self.Perf and self.Perf.frame then
+					table.insert(frames, { label = "Perf Module", frame = self.Perf.frame, property = "Visibility" })
+				end
+				if self.Inspect and self.Inspect.frame then
+					table.insert(frames, { label = "Inspect Module", frame = self.Inspect.frame, property = "Visibility" })
+				end
+				
+				return frames
 			end,
 		},
 	})
@@ -758,7 +800,7 @@ function Mechanic:SetupDataBroker()
 
 	self.ldbObj = LDB:NewDataObject("Mechanic", {
 		type = "launcher",
-		icon = "Interface\\AddOns\\!Mechanic\\assets\\mechanic-icon-normal-64",
+		icon = "Interface\\AddOns\\!Mechanic\\assets\\Icons\\icon-minimap-normal-64",
 		iconCoords = { 0, 1, 0, 1 },
 		label = "Mechanic",
 		OnClick = function(_, button)

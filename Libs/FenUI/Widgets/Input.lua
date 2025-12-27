@@ -24,11 +24,11 @@ function WidgetMixin:Init(config)
     editBox:SetAllPoints(layout)
     editBox:SetFontObject("ChatFontNormal")
     editBox:SetAutoFocus(false)
-    editBox:SetTextInsets(4, 4, 0, 0)
+    editBox:SetTextInsets(8, 8, 0, 0)
     
     if self.config.placeholder then
         local placeholder = editBox:CreateFontString(nil, "OVERLAY", "ChatFontNormal")
-        placeholder:SetPoint("LEFT", 4, 0)
+        placeholder:SetPoint("LEFT", 8, 0)
         
         local U = FenUI.Utils
         local placeholderText = U and U:SanitizeText(self.config.placeholder, "Enter text...") or (self.config.placeholder == true and "Enter text..." or self.config.placeholder)

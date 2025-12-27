@@ -39,6 +39,13 @@ function ToolbarMixin:AddIconButton(config)
     return btn
 end
 
+function ToolbarMixin:AddImageButton(config)
+    local btn = FenUI:CreateImageButton(self, config)
+    table.insert(self.items, { type = "imageButton", frame = btn })
+    self:UpdateLayout()
+    return btn
+end
+
 function ToolbarMixin:AddSpacer(width)
     local spacer = { type = "spacer", width = width or "flex" }
     table.insert(self.items, spacer)

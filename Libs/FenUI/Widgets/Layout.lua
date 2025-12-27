@@ -156,11 +156,11 @@ function LayoutMixin:CreateBackgroundLayer()
     -- frame's background if the parent is at a high frame level.
     -- Instead, we let it inherit and we'll manage layering via draw layers
     -- or a slightly lower frame level than the parent.
-    self.bgFrame = _G.CreateFrame("Frame", nil, self)
+    self.bgFrame = CreateFrame("Frame", nil, self)
     
     -- Ensure it's at the bottom of the parent's internal stack
     local parentLevel = self:GetFrameLevel()
-    self.bgFrame:SetFrameLevel(_G.math.max(0, parentLevel - 1))
+    self.bgFrame:SetFrameLevel(math.max(0, parentLevel - 1))
     
     -- Create the background texture on bgFrame (not self)
     self.bgTexture = self.bgFrame:CreateTexture(nil, "BACKGROUND", nil, -8)
@@ -263,11 +263,18 @@ function LayoutMixin:ApplyColorBackground(values)
         self.bgImageFrame:Hide()
     end
     
+    -- Resolve the background color using FenUI's token system.
+    -- FenUI:GetColor(token) handles the multi-tier resolution:
+    -- 1. Active Theme overrides -> 2. Semantic token -> 3. Primitive value.
     local r, g, b, a = FenUI:GetColor(values.token)
+    
+    -- If a specific alpha was provided in the config, it overrides the token's alpha.
     if values.alpha then
         a = values.alpha
     end
     
+    -- Applying the final color to the dedicated bgFrame texture.
+    -- Using a dedicated child frame at level 0 avoids rendering conflicts with NineSlice borders.
     self.bgTexture:SetColorTexture(r, g, b, a)
     self:ApplyBackgroundAnchors()
     self.bgTexture:Show()
@@ -289,8 +296,8 @@ function LayoutMixin:ApplyGradientBackground(values)
     local orientation = values.orientation or "VERTICAL"
     self.bgTexture:SetGradient(
         orientation,
-        _G.CreateColor(fromR, fromG, fromB, fromA or 1),
-        _G.CreateColor(toR, toG, toB, toA or 1)
+        CreateColor(fromR, fromG, fromB, fromA or 1),
+        CreateColor(toR, toG, toB, toA or 1)
     )
     
     self:ApplyBackgroundAnchors()
@@ -363,38 +370,64 @@ end
 --   })
 --
 local BORDER_INSETS = {
+    -- Legacy borders
     Panel = { left = 6, right = 2, top = 6, bottom = 2 },  -- ButtonFrameTemplateNoPortrait (chamfered corners)
     Inset = { left = 2, right = 2, top = 2, bottom = 2 },  -- InsetFrameTemplate (small uniform edges)
     Dialog = { left = 6, right = 6, top = 6, bottom = 6 }, -- DialogBorderTemplate (symmetric chamfers)
+    
+    -- Modern borders (11.0+ style)
+    Modern = { left = 6, right = 6, top = 6, bottom = 6 }, -- GenericMetal (clean symmetric edges)
+    Metal = { left = 6, right = 6, top = 6, bottom = 6 },  -- Alias for Modern
+    
+    -- Tooltip borders
+    Tooltip = { left = 8, right = 8, top = 10, bottom = 7 }, -- TooltipGluesLayout
 }
 
---- Set the border using NineSlice
----@param borderName string|false NineSlice layout name or false to remove
-function LayoutMixin:SetBorder(borderName)
-    if not borderName or borderName == false then
-        -- Remove border by clearing backdrop
-        if self.SetBackdrop then
-            self:SetBackdrop(nil)
+--- Set the border
+---@param borderKey string|false Border pack name or false to remove
+function LayoutMixin:SetBorder(borderKey)
+    if not borderKey or borderKey == false then
+        if self.borderApplied then
+            FenUI:HideCustomBorder(self)
+            -- Also check for legacy NineSlice hide if we support both
+            if FenUI.HideLayout then FenUI:HideLayout(self) end
         end
         self.borderApplied = false
         self:SetBackgroundInset(0)
         return
     end
     
-    -- Apply NineSlice layout through FenUI's bridge
-    if FenUI.ApplyLayout then
-        FenUI:ApplyLayout(self, borderName, self.config.textureKit)
+    -- 1. Try Custom Border Engine First (Intentional Custom)
+    local pack = FenUI:GetBorderPack(borderKey)
+    if pack then
+        if FenUI:ApplyBorder(self, borderKey, self.config.borderToken) then
+            self.borderApplied = true
+            
+            -- Apply pack-specific insets
+            local bgInset = self.config.backgroundInset or pack.bgInset or 0
+            self:SetBackgroundInset(bgInset)
+            
+            -- Store padding adjustment if contentInset is provided
+            self.contentInset = pack.contentInset or 0
+            return true
+        end
+    end
+
+    -- 2. Legacy Fallback: Blizzard NineSlice (if key is in FenUI.Layouts)
+    if FenUI.ApplyLayout and (FenUI.Layouts[borderKey] or NineSliceLayouts[borderKey]) then
+        FenUI:ApplyLayout(self, borderKey, self.config.textureKit)
         self.borderApplied = true
         
-        -- Auto-apply background inset for chamfered corners
-        -- Can be overridden via config.backgroundInset
         local inset = self.config.backgroundInset
         if inset == nil then
-            -- Use border-specific inset (asymmetric table) or default
-            inset = BORDER_INSETS[borderName] or DEFAULT_BG_INSET
+            inset = BORDER_INSETS[borderKey] or DEFAULT_BG_INSET
         end
         self:SetBackgroundInset(inset)
+        return true
     end
+
+    self:Debug("SetBorder failed: unknown border key", borderKey)
+    return false
 end
 
 --- Get whether a border is applied
@@ -550,8 +583,8 @@ function LayoutMixin:ApplyDropShadow(config)
     
     -- Create shadow frame if needed (sits behind the main frame)
     if not self.dropShadowFrame then
-        self.dropShadowFrame = _G.CreateFrame("Frame", nil, self:GetParent())
-        self.dropShadowFrame:SetFrameLevel(_G.math.max(1, self:GetFrameLevel() - 1))
+        self.dropShadowFrame = CreateFrame("Frame", nil, self:GetParent())
+        self.dropShadowFrame:SetFrameLevel(math.max(1, self:GetFrameLevel() - 1))
         
         -- Create 9 textures for proper scaling: 4 corners, 4 edges, 1 center
         self.dropShadowTextures = {}
@@ -686,11 +719,11 @@ end
 ---@return Frame
 function LayoutMixin:GetContentFrame()
     if not self.contentFrame then
-        self.contentFrame = _G.CreateFrame("Frame", nil, self)
+        self.contentFrame = CreateFrame("Frame", nil, self)
         
-        local padding = self:GetPadding()
-        self.contentFrame:SetPoint("TOPLEFT", padding, -padding)
-        self.contentFrame:SetPoint("BOTTOMRIGHT", -padding, padding)
+        local p = self:GetPadding()
+        self.contentFrame:SetPoint("TOPLEFT", p.left, -p.top)
+        self.contentFrame:SetPoint("BOTTOMRIGHT", -p.right, p.bottom)
     end
     return self.contentFrame
 end
@@ -707,23 +740,38 @@ function LayoutMixin:SetContent(frame)
     frame:Show()
 end
 
---- Get padding value (from config or tokens)
----@return number
+--- Get padding values (from config or tokens)
+--- Supports: number (symmetric), string (token), table { top, bottom, left, right }
+---@return table { top, bottom, left, right }
 function LayoutMixin:GetPadding()
     local padding = self.config.padding
-    if not padding then return 0 end
+    local base = { top = 0, bottom = 0, left = 0, right = 0 }
     
-    if type(padding) == "string" then
-        -- Check if it's a spacing token or layout constant
-        local val = FenUI:GetSpacing(padding)
-        if val == 0 then
-            val = FenUI:GetLayout(padding)
+    if padding then
+        if type(padding) == "number" then
+            base = { top = padding, bottom = padding, left = padding, right = padding }
+        elseif type(padding) == "string" then
+            local val = FenUI:GetSpacing(padding)
+            if val == 0 then val = FenUI:GetLayout(padding) end
+            base = { top = val, bottom = val, left = val, right = val }
+        elseif type(padding) == "table" then
+            base = {
+                top = padding.top or 0,
+                bottom = padding.bottom or 0,
+                left = padding.left or 0,
+                right = padding.right or 0,
+            }
         end
-        return val
-    elseif type(padding) == "number" then
-        return padding
     end
-    return 0
+
+    -- Add border-mandated content inset
+    local offset = self.contentInset or 0
+    return {
+        top = base.top + offset,
+        bottom = base.bottom + offset,
+        left = base.left + offset,
+        right = base.right + offset,
+    }
 end
 
 --------------------------------------------------------------------------------
@@ -755,11 +803,11 @@ function LayoutMixin:CreateCells()
             parsedDefs[i] = { type = "fixed", value = def }
             fixedSize = fixedSize + def
         elseif type(def) == "string" and def:find("px$") then
-            local val = _G.tonumber(def:match("^(%d+)")) or 0
+            local val = tonumber(def:match("^(%d+)")) or 0
             parsedDefs[i] = { type = "fixed", value = val }
             fixedSize = fixedSize + val
         elseif type(def) == "string" and def:find("fr$") then
-            local val = _G.tonumber(def:match("^(%d+)")) or 1
+            local val = tonumber(def:match("^(%d+)")) or 1
             parsedDefs[i] = { type = "fr", value = val }
             totalFr = totalFr + val
         else
@@ -771,7 +819,7 @@ function LayoutMixin:CreateCells()
     
     -- Create cell frames
     for i = 1, #defs do
-        local cell = _G.CreateFrame("Frame", nil, self)
+        local cell = CreateFrame("Frame", nil, self)
         cell.index = i
         cell.def = parsedDefs[i]
         
@@ -803,13 +851,13 @@ end
 function LayoutMixin:LayoutCells()
     if #self.cells == 0 then return end
     
-    local padding = self:GetPadding()
+    local p = self:GetPadding()
     local gap = self:ResolveGap()
     local isVertical = self.orientation == "VERTICAL"
     
     local totalSize = isVertical 
-        and (self:GetHeight() - (padding * 2))
-        or (self:GetWidth() - (padding * 2))
+        and (self:GetHeight() - (p.top + p.bottom))
+        or (self:GetWidth() - (p.left + p.right))
         
     local totalGaps = gap * (#self.cells - 1)
     local availableSize = totalSize - totalGaps
@@ -829,7 +877,7 @@ function LayoutMixin:LayoutCells()
     local frSize = totalFr > 0 and (availableSize - fixedSize) / totalFr or 0
     
     -- Position cells
-    local offset = padding
+    local offset = isVertical and p.top or p.left
     for i, cell in ipairs(self.cells) do
         local cellSize
         if cell.def.type == "fixed" then
@@ -842,13 +890,13 @@ function LayoutMixin:LayoutCells()
         
         cell:ClearAllPoints()
         if isVertical then
-            cell:SetPoint("TOPLEFT", padding, -offset)
-            cell:SetPoint("TOPRIGHT", -padding, -offset)
-            cell:SetHeight(_G.math.max(1, cellSize))
+            cell:SetPoint("TOPLEFT", p.left, -offset)
+            cell:SetPoint("TOPRIGHT", -p.right, -offset)
+            cell:SetHeight(math.max(1, cellSize))
         else
-            cell:SetPoint("TOPLEFT", offset, -padding)
-            cell:SetPoint("BOTTOMLEFT", offset, padding)
-            cell:SetWidth(_G.math.max(1, cellSize))
+            cell:SetPoint("TOPLEFT", offset, -p.top)
+            cell:SetPoint("BOTTOMLEFT", offset, p.bottom)
+            cell:SetWidth(math.max(1, cellSize))
         end
         
         offset = offset + cellSize + gap
@@ -884,14 +932,13 @@ end
 ---@param parent Frame Parent frame
 ---@param config table Configuration
 ---@return Frame layout
--- luacheck: ignore 122
 function FenUI:CreateLayout(parent, config)
     config = config or {}
     
     -- NOTE: Don't use BackdropTemplate when using NineSlice
     -- NineSlice and BackdropTemplate conflict in WoW 9.1.5+.
     -- We use a dedicated bgFrame child at frameLevel 0 for backgrounds instead.
-    local layout = _G.CreateFrame("Frame", config.name, parent or _G.UIParent)
+    local layout = CreateFrame("Frame", config.name, parent or UIParent)
     
     -- Apply mixin
     FenUI.Mixin(layout, LayoutMixin)
@@ -910,14 +957,13 @@ end
 ---@param parent Frame Parent frame
 ---@param config table Configuration
 ---@return Frame card
--- luacheck: ignore 122
 function FenUI:CreateCard(parent, config)
     config = config or {}
     return self:CreateLayout(parent, {
         width = config.width,
         height = config.height,
-        border = config.border or "Inset",
-        background = config.background or "surfaceElevated",
+        border = config.border or "Inset", -- Use our custom Inset border pack
+        background = config.background or "surfaceInset",  -- Use inset (recessed) background
         shadow = config.shadow,
         padding = config.padding or "spacingElement",
         rows = config.rows,
@@ -926,17 +972,16 @@ function FenUI:CreateCard(parent, config)
     })
 end
 
---- Create a dialog container (Panel border + drop shadow)
+--- Create a dialog container (Modern border + drop shadow)
 ---@param parent Frame Parent frame
 ---@param config table Configuration
 ---@return Frame dialog
--- luacheck: ignore 122
 function FenUI:CreateDialog(parent, config)
     config = config or {}
     return self:CreateLayout(parent, {
         width = config.width or 400,
         height = config.height or 300,
-        border = config.border or "Panel",
+        border = config.border or "ModernDark", -- Use our custom ModernDark border pack
         background = config.background or "surfacePanel",
         shadow = config.shadow or "inner",
         padding = config.padding or "spacingPanel",

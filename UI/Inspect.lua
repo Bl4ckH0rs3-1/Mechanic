@@ -6,6 +6,8 @@
 local ADDON_NAME, ns = ...
 local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
 local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME, true)
+local ICON_PATH = [[Interface\AddOns\!Mechanic\Assets\Icons\]]
+local ICON_PATH = [[Interface\AddOns\!Mechanic\Assets\Icons\]]
 local InspectModule = {}
 Mechanic.Inspect = InspectModule
 
@@ -35,10 +37,11 @@ function Mechanic:InitializeInspect()
 	toolbarBg:SetColorTexture(0, 0, 0, 0.2)
 
 	-- Pick Button
-	local pickBtn = FenUI:CreateButton(toolbar, {
-		text = L["Pick"],
-		width = 60,
-		height = 24,
+	local pickBtn = FenUI:CreateImageButton(toolbar, {
+		texture = ICON_PATH .. "icon-pick",
+		size = 24,
+		isToggle = true,
+		tooltip = L["Pick"],
 		onClick = function()
 			InspectModule:TogglePickMode()
 		end,
@@ -46,37 +49,46 @@ function Mechanic:InitializeInspect()
 	pickBtn:SetPoint("LEFT", 8, 0)
 	InspectModule.pickBtn = pickBtn
 
-	-- Export Button (anchored from RIGHT)
-	local exportBtn = FenUI:CreateButton(toolbar, {
-		text = L["Export Button"],
-		width = 70,
-		height = 24,
+	-- Help Button (anchored from RIGHT)
+	local helpBtn = FenUI:CreateImageButton(toolbar, {
+		texture = ICON_PATH .. "icon-help",
+		size = 24,
+		tooltip = L["Help"],
+		onClick = function()
+			Mechanic.Utils:ShowHelpDialog("inspect")
+		end,
+	})
+	helpBtn:SetPoint("RIGHT", -8, 0)
+
+	-- Export Button (anchored from help)
+	local exportBtn = FenUI:CreateImageButton(toolbar, {
+		texture = ICON_PATH .. "icon-export",
+		size = 24,
+		tooltip = L["Export Button"],
 		onClick = function()
 			InspectModule:Export()
 		end,
 	})
-	exportBtn:SetPoint("RIGHT", -8, 0)
+	exportBtn:SetPoint("RIGHT", helpBtn, "LEFT", -8, 0)
 	InspectModule.exportBtn = exportBtn
-
-	-- Watch Button (anchored from export)
-	local watchBtn = FenUI:CreateButton(toolbar, {
-		text = L["+ Watch"],
-		width = 70,
-		height = 24,
-		onClick = function()
-			InspectModule:WatchCurrent()
-		end,
-	})
-	watchBtn:SetPoint("RIGHT", exportBtn, "LEFT", -8, 0)
-	InspectModule.watchBtn = watchBtn
 
 	-- Path Input (fills remaining space)
 	local pathInput = FenUI:CreateInput(toolbar, {
 		placeholder = L["Frame path or global table..."],
 	})
 	pathInput:SetPoint("LEFT", pickBtn, "RIGHT", 8, 0)
-	pathInput:SetPoint("RIGHT", watchBtn, "LEFT", -8, 0)
+	pathInput:SetPoint("RIGHT", exportBtn, "LEFT", -8, 0)
 	pathInput:SetHeight(24)
+	
+	-- Smaller font for path input
+	local ebFont, ebSize, ebFlags = pathInput.editBox:GetFont()
+	if ebFont then
+		pathInput.editBox:SetFont(ebFont, ebSize - 1, ebFlags)
+		if pathInput.placeholder then
+			pathInput.placeholder:SetFont(ebFont, ebSize - 1, ebFlags)
+		end
+	end
+
 	pathInput.editBox:SetScript("OnEnterPressed", function(eb)
 		eb:ClearFocus()
 		InspectModule:InspectPath(eb:GetText())
@@ -138,23 +150,16 @@ function InspectModule:TogglePickMode()
 	
 	-- Prevent re-entry from button click after GLOBAL_MOUSE_DOWN exit
 	if self.pickExitTime and (GetTime() - self.pickExitTime) < 0.2 then
-		-- #region agent log
-		Mechanic:Print("|cff00ffff[Pick Debug]|r Ignoring re-entry (cooldown)")
-		-- #endregion
 		return
 	end
 	
 	self.pickMode = not self.pickMode
-	
-	-- #region agent log
-	Mechanic:Print("|cff00ffff[Pick Debug]|r Toggle: " .. tostring(self.pickMode))
-	-- #endregion
 
 	if self.pickMode then
-		if self.pickBtn then self.pickBtn:SetText(L["Picking..."]) end
+		if self.pickBtn then self.pickBtn:SetActive(true) end
 		self:StartPicking()
 	else
-		if self.pickBtn then self.pickBtn:SetText(L["Pick"]) end
+		if self.pickBtn then self.pickBtn:SetActive(false) end
 		self:StopPicking()
 	end
 end
@@ -198,7 +203,19 @@ function InspectModule:GetOrCreateHighlight()
 end
 
 function InspectModule:ShowHighlight(frame, name)
-	if not frame or not frame.GetPoint or not frame:IsVisible() then
+	if not frame then
+		self:HideHighlight()
+		return
+	end
+
+	-- Safe visibility and point checks
+	local isVisible = false
+	if frame.IsVisible then
+		local ok, vis = pcall(frame.IsVisible, frame)
+		if ok then isVisible = vis end
+	end
+
+	if not isVisible or not frame.GetPoint then
 		self:HideHighlight()
 		return
 	end
@@ -212,11 +229,21 @@ function InspectModule:ShowHighlight(frame, name)
 	if name then
 		highlight.label:SetText("|cffFFD100" .. name .. "|r")
 	else
-		local frameName = (frame.GetDebugName and frame:GetDebugName())
-			or (frame.GetName and frame:GetName())
-			or (frame.GetObjectType and frame:GetObjectType())
-			or tostring(frame)
-		highlight.label:SetText("|cffFFD100" .. frameName .. "|r")
+		local frameName
+		if frame.GetDebugName then
+			local ok, n = pcall(frame.GetDebugName, frame)
+			if ok then frameName = n end
+		end
+		if not frameName and frame.GetName then
+			local ok, n = pcall(frame.GetName, frame)
+			if ok then frameName = n end
+		end
+		if not frameName and frame.GetObjectType then
+			local ok, n = pcall(frame.GetObjectType, frame)
+			if ok then frameName = "<" .. n .. ">" end
+		end
+		
+		highlight.label:SetText("|cffFFD100" .. (frameName or tostring(frame)) .. "|r")
 	end
 end
 
@@ -228,10 +255,6 @@ end
 
 function InspectModule:StartPicking()
 	local self = InspectModule
-	
-	-- #region agent log
-	Mechanic:Print("|cff00ffff[Run 12]|r StartPicking - NO OVERLAY approach")
-	-- #endregion
 	
 	-- 1. Instruction Bar (mouse-disabled, just visual feedback)
 	if not self.pickBar then
@@ -300,67 +323,33 @@ function InspectModule:StartPicking()
 		end
 	end)
 	
-	-- #region agent log
-	Mechanic:Print("|cff00ffff[Run 13]|r OnUpdate scanner active on pickBar")
-	-- #endregion
-	
 	-- 5. ESC key handling on pickBar
 	self.pickBar:EnableKeyboard(true)
 	self.pickBar:SetScript("OnKeyDown", function(s, key)
 		if key == "ESCAPE" then
-			-- #region agent log
-			Mechanic:Print("|cff00ffff[Run 13]|r ESC pressed - cancelling pick mode")
-			-- #endregion
 			self.pickMode = false
 			self.pickExitTime = GetTime()
 			self:StopPicking()
-			if self.pickBtn then self.pickBtn:SetText(L["Pick"]) end
+			if self.pickBtn then self.pickBtn:SetActive(false) end
 		end
 	end)
-	
-	-- #region agent log
-	Mechanic:Print("|cff00ffff[Run 13]|r ESC handler active on pickBar")
-	-- #endregion
-	
-	-- #region agent log
-	Mechanic:Print("|cff00ffff[Run 12]|r Delaying event registration by 0.15s...")
-	-- #endregion
 	
 	-- DELAYED EVENT REGISTRATION - Skip the initial Pick button click
 	C_Timer.After(0.15, function()
 		-- Check if we're still in pick mode (user might have cancelled)
 		if not self.pickMode then
-			-- #region agent log
-			Mechanic:Print("|cff00ffff[Run 12]|r Aborted - pickMode already false")
-			-- #endregion
 			return
 		end
 		
-		-- #region agent log
-		Mechanic:Print("|cff00ffff[Run 12]|r Registering GLOBAL_MOUSE_DOWN now")
-		-- #endregion
-		
 		self.pickEventFrame:RegisterEvent("GLOBAL_MOUSE_DOWN")
 		self.pickEventFrame:SetScript("OnEvent", function(s, event, button)
-			-- #region agent log
-			Mechanic:Print("|cff00ffff[Run 12]|r GLOBAL_MOUSE_DOWN fired: " .. tostring(button))
-			-- #endregion
 			
 			if event == "GLOBAL_MOUSE_DOWN" and button == "LeftButton" then
 				-- Get frames under cursor - NO OVERLAY BLOCKING!
 				local foci = GetMouseFoci()
 				
-				-- #region agent log
-				Mechanic:Print("|cff00ffff[Run 12]|r Foci count: " .. tostring(#foci))
-				-- #endregion
-				
 				local target = nil
-			for i, f in ipairs(foci) do
-					-- #region agent log
-					local fname = f and (f.GetName and f:GetName() or tostring(f)) or "nil"
-					Mechanic:Print("|cff00ffff[Run 12]|r Foci[" .. i .. "]: " .. fname)
-					-- #endregion
-					
+				for i, f in ipairs(foci) do
 					-- Filter out system frames and Mechanic frames
 					if f and f ~= UIParent and f ~= WorldFrame then
 					local isMechanic = false
@@ -383,21 +372,14 @@ function InspectModule:StartPicking()
 					local name = (target.GetDebugName and target:GetDebugName()) 
 						or (target.GetName and target:GetName()) 
 						or tostring(target)
-					-- #region agent log
-					Mechanic:Print("|cff00ff00[Run 12]|r SUCCESS! Selected: " .. name)
-					-- #endregion
 					self:SetSelectedFrame(target, name)
-				else
-					-- #region agent log
-					Mechanic:Print("|cffff0000[Run 12]|r No valid frame found in foci")
-					-- #endregion
 				end
 				
 				-- Always exit pick mode after a click
 				self.pickMode = false
 				self.pickExitTime = GetTime()  -- Prevent re-entry from button onClick
 				self:StopPicking()
-				if self.pickBtn then self.pickBtn:SetText(L["Pick"]) end
+				if self.pickBtn then self.pickBtn:SetActive(false) end
 			end
 		end)
 	end)
@@ -405,10 +387,6 @@ end
 
 function InspectModule:StopPicking()
 	local self = InspectModule
-	
-	-- #region agent log
-	Mechanic:Print("|cff00ffff[Run 13]|r StopPicking")
-	-- #endregion
 	
 	-- Unregister GLOBAL_MOUSE_DOWN event
 	if self.pickEventFrame then
@@ -465,7 +443,13 @@ function InspectModule:SetSelectedFrame(frame, path)
 	self.pathInput:SetText(displayPath or "<anonymous>")
 
 	-- Show highlight on the selected frame
-	if frame and frame.IsObjectType and frame:IsObjectType("Frame") then
+	local isFrame = false
+	if frame and frame.IsObjectType then
+		local ok, result = pcall(frame.IsObjectType, frame, "Frame")
+		if ok then isFrame = result end
+	end
+
+	if isFrame then
 		self:ShowHighlight(frame)
 	else
 		self:HideHighlight()
@@ -509,8 +493,20 @@ end
 
 function InspectModule:Export()
 	local obj = self.selectedFrame
-	local navName = obj and (obj.GetName and obj:GetName() or (obj.GetObjectType and obj:GetObjectType()) or "<table>")
-		or (L["None"] or "None")
+	local navName = "None"
+	if obj and type(obj) == "table" then
+		if obj.GetName then
+			local ok, n = pcall(obj.GetName, obj)
+			if ok and n then navName = n end
+		end
+		if navName == "None" and obj.GetObjectType then
+			local ok, ot = pcall(obj.GetObjectType, obj)
+			if ok and ot then navName = "<" .. ot .. ">" end
+		end
+	elseif obj then
+		navName = tostring(obj)
+	end
+
 	local title = string.format(
 		"%s : %s : %s",
 		tostring(L["Inspect"] or "Inspect"),
@@ -560,23 +556,97 @@ function InspectModule:GetCopyText(includeHeader)
 		return "[error]"
 	end
 
-	local obj = self.selectedFrame
-	local name = obj.GetName and obj:GetName()
-	if (not name or name == "") and obj.GetObjectType then
-		local path = ns.FrameResolver:GetFramePath(obj)
-		if path and type(path) == "string" then
-			name = path:match("([^%.]+)$")
+	-- Helper for consistent name resolution (matches UI)
+	local function resolveName(target)
+		if not target or type(target) ~= "table" then
+			return tostring(target or "None")
 		end
+
+		local name
+		if target.GetName then
+			local ok, n = pcall(target.GetName, target)
+			if ok and n and type(n) == "string" and n ~= "" then
+				name = n
+			end
+		end
+
+		if (not name or name == "") and target.GetObjectType then
+			local path = ns.FrameResolver:GetFramePath(target)
+			if path and type(path) == "string" then
+				name = path:match("([^%.]+)$")
+			end
+		end
+
+		if not name and target.GetObjectType then
+			local ok, objType = pcall(target.GetObjectType, target)
+			if ok and objType then
+				name = "<" .. objType .. ">"
+			end
+		end
+
+		return name or "<anonymous>"
 	end
-	name = name or (obj.GetObjectType and obj:GetObjectType()) or "<table>"
+
+	local obj = self.selectedFrame
+	local name = resolveName(obj)
 	table.insert(lines, string.format(L["Inspecting: %s"] or "Inspecting: %s", safeToString(name or "Unknown")))
 	table.insert(lines, "")
 
 	-- Simple property list for export
 	local props = {}
 	if type(obj) == "table" then
+		-- Header Info (New)
+		if obj.GetObjectType then
+			local parent = obj:GetParent()
+			local parentName = resolveName(parent)
+			table.insert(props, string.format("Type: %s", tostring(obj:GetObjectType() or "Unknown")))
+			if obj.GetFrameLevel then table.insert(props, string.format("Level: %d", obj:GetFrameLevel())) end
+			if obj.GetFrameStrata then table.insert(props, string.format("Strata: %s", obj:GetFrameStrata())) end
+			table.insert(props, string.format("Parent: %s", parentName))
+			local globalName = obj.GetName and obj:GetName()
+			table.insert(props, string.format("Global: %s", (globalName and globalName ~= "") and globalName or "<none>"))
+		end
+
+		-- FenUI Details (Ours)
+		if obj.fenUISupportsLayout or obj.config or obj.fenUILayout then
+			table.insert(props, "")
+			table.insert(props, "--- FenUI ---")
+			if obj.fenUILayout then table.insert(props, string.format("Layout: %s", tostring(obj.fenUILayout))) end
+			if obj.fenUITheme then table.insert(props, string.format("Theme: %s", tostring(obj.fenUITheme))) end
+			if obj.fenUIFrameId then table.insert(props, string.format("ID: %s", tostring(obj.fenUIFrameId))) end
+			if obj.borderApplied ~= nil then table.insert(props, string.format("Border: %s", obj.borderApplied and "Applied" or "None")) end
+			if obj.shadowType then table.insert(props, string.format("Shadow: %s", tostring(obj.shadowType))) end
+			if obj.orientation then table.insert(props, string.format("Orientation: %s", tostring(obj.orientation))) end
+
+			-- Show key config values
+			if obj.config and type(obj.config) == "table" then
+				if obj.config.background then
+					local bg = obj.config.background
+					if type(bg) == "string" then
+						table.insert(props, string.format("Config BG: %s", bg))
+					elseif type(bg) == "table" then
+						if bg.color then
+							table.insert(props, string.format("Config BG: %s (alpha %.2f)", tostring(bg.color), bg.alpha or 1))
+						elseif bg.image then
+							table.insert(props, string.format("Config BG: Image (%s)", tostring(bg.image)))
+						end
+					end
+				end
+				if obj.config.padding then
+					local p = obj.config.padding
+					if type(p) == "table" then
+						table.insert(props, string.format("Padding: L:%s R:%s T:%s B:%s", tostring(p.left or 0), tostring(p.right or 0), tostring(p.top or 0), tostring(p.bottom or 0)))
+					else
+						table.insert(props, string.format("Padding: %s", tostring(p)))
+					end
+				end
+			end
+		end
+
 		-- Common properties
-		local common = { "GetText", "GetValue", "GetID", "GetWidth", "GetHeight", "IsShown", "IsVisible" }
+		table.insert(props, "")
+		table.insert(props, "--- Properties ---")
+		local common = { "GetText", "GetValue", "GetID", "GetWidth", "GetHeight" }
 		for _, method in ipairs(common) do
 			if obj[method] and type(obj[method]) == "function" then
 				local ok, val = pcall(obj[method], obj)
@@ -591,7 +661,12 @@ function InspectModule:GetCopyText(includeHeader)
 			table.insert(props, "")
 			table.insert(props, "--- Interactivity ---")
 			table.insert(props, "Mouse: " .. (obj:IsMouseEnabled() and "Enabled" or "Disabled"))
-			table.insert(props, "Click: " .. (obj:IsMouseClickEnabled() and "Enabled" or "Disabled"))
+			if obj.IsMouseClickEnabled then
+				table.insert(props, "Click: " .. (obj:IsMouseClickEnabled() and "Enabled" or "Disabled"))
+			end
+			if obj.IsKeyboardEnabled then
+				table.insert(props, "Keyboard: " .. (obj:IsKeyboardEnabled() and "Enabled" or "Disabled"))
+			end
 			table.insert(props, "Protected: " .. (obj:IsProtected() and "Yes" or "No"))
 		end
 
@@ -599,15 +674,90 @@ function InspectModule:GetCopyText(includeHeader)
 		if obj.GetEffectiveScale then
 			table.insert(props, "")
 			table.insert(props, "--- Geometry ---")
+			local w, h = obj:GetSize()
+			table.insert(props, string.format("Size: %.2f x %.2f", w, h))
 			table.insert(props, "Scale: " .. safeToString(obj:GetScale()) .. " (Eff: " .. safeToString(obj:GetEffectiveScale()) .. ")")
 			table.insert(props, "Alpha: " .. safeToString(obj:GetAlpha()))
+			table.insert(props, "Visible: " .. tostring(obj:IsVisible()) .. " (Shown: " .. tostring(obj:IsShown()) .. ")")
+		end
+
+		-- Anchors (New)
+		if obj.GetNumPoints then
+			local numPoints = obj:GetNumPoints()
+			if numPoints > 0 then
+				table.insert(props, "")
+				table.insert(props, "--- Anchors ---")
+				for i = 1, numPoints do
+					local point, relativeTo, relativePoint, xOfs, yOfs = obj:GetPoint(i)
+					local relativeName = "<nil>"
+					if relativeTo then
+						relativeName = relativeTo.GetName and relativeTo:GetName() or (relativeTo.GetObjectType and relativeTo:GetObjectType()) or "<anonymous>"
+					end
+					table.insert(props, string.format("%s -> %s:%s (%.0f, %.0f)", point or "?", relativeName, relativePoint or "?", xOfs or 0, yOfs or 0))
+				end
+			end
+		end
+
+		-- Regions (New)
+		if obj.GetRegions then
+			local regions = { obj:GetRegions() }
+			if #regions > 0 then
+				table.insert(props, "")
+				table.insert(props, "--- Regions ---")
+				for _, region in ipairs(regions) do
+					local objType = region.GetObjectType and region:GetObjectType() or "Unknown"
+					local rName = region.GetName and region:GetName()
+					if rName and rName ~= "" then
+						table.insert(props, string.format("[%s] %s", objType, rName))
+					else
+						local extra = ""
+						if objType == "Texture" or objType == "MaskTexture" then
+							if region.GetAtlas then
+								local atlas = region:GetAtlas()
+								if atlas and atlas ~= "" then extra = " atlas:" .. atlas end
+							end
+							if extra == "" and region.GetTexture then
+								local texPath = region:GetTexture()
+								if texPath then
+									if type(texPath) == "number" then
+										extra = (texPath == 0) and " [empty]" or " fileID:" .. texPath
+									elseif type(texPath) == "string" and texPath ~= "" then
+										local fileID = texPath:match("FileData ID (%d+)") or texPath:match("^(%d+)$")
+										if fileID then
+											extra = (fileID == "0") and " [empty]" or " fileID:" .. fileID
+										else
+											extra = " file:" .. (texPath:match("([^\\]+)$") or texPath)
+										end
+									end
+								end
+							end
+						elseif objType == "FontString" then
+							local text = region.GetText and region:GetText()
+							if text and text ~= "" then
+								if #text > 20 then text = text:sub(1, 17) .. "..." end
+								extra = ' "' .. text .. '"'
+							end
+							if region.GetFont then
+								local font, size = region:GetFont()
+								if font then
+									extra = extra .. " font:" .. (font:match("([^\\]+)$") or font) .. "(" .. math.floor(size + 0.5) .. ")"
+								end
+							end
+						end
+						table.insert(props, string.format("[%s] <anonymous>%s", objType, extra))
+					end
+				end
+			end
 		end
 
 		-- Attributes (for frames)
 		if obj.GetAttribute then
-			local commonAttrs = { 
-				"type", "action", "unit", "spell", "item", "macro", 
-				"state-visibility", "state-parent", "state-unit" 
+			local commonAttrs = {
+				"type", "action", "unit", "spell", "item", "macro", "macrotext",
+				"target-slot", "attribute", "value", "pressbutton", "clickbutton",
+				"initialConfigFunction", "state-visibility", "state-parent",
+				"state-unit", "state-page", "tableIndex", "id", "name", "label",
+				"showPlayer", "showSolo", "showParty", "showRaid"
 			}
 			local attrs = {}
 			for _, attr in ipairs(commonAttrs) do
@@ -625,9 +775,12 @@ function InspectModule:GetCopyText(includeHeader)
 
 		-- Scripts (for frames)
 		if obj.HasScript then
-			local commonScripts = { 
-				"OnUpdate", "OnEvent", "OnShow", "OnHide", "OnClick", 
-				"OnEnter", "OnLeave", "OnAttributeChanged" 
+			local commonScripts = {
+				"OnUpdate", "OnEvent", "OnShow", "OnHide",
+				"OnEnter", "OnLeave", "OnMouseDown", "OnMouseUp", "OnClick",
+				"OnValueChanged", "OnSizeChanged", "OnAttributeChanged",
+				"OnDragStart", "OnDragStop", "OnTooltipShow",
+				"OnLoad", "OnScrollRangeChanged", "OnHorizontalScroll", "OnVerticalScroll"
 			}
 			local scripts = {}
 			for _, s in ipairs(commonScripts) do
@@ -640,6 +793,19 @@ function InspectModule:GetCopyText(includeHeader)
 				table.insert(props, "--- Scripts ---")
 				for _, s in ipairs(scripts) do table.insert(props, s) end
 			end
+		end
+
+		-- Hierarchy (New)
+		if obj.GetParent then
+			table.insert(props, "")
+			table.insert(props, "--- Hierarchy ---")
+			local current = obj
+			local stack = {}
+			while current do
+				table.insert(stack, resolveName(current))
+				current = current.GetParent and current:GetParent()
+			end
+			table.insert(props, table.concat(stack, " -> "))
 		end
 
 		-- Members (up to 20 for export)
@@ -669,6 +835,12 @@ function InspectModule:OnShow()
 	if not self.frame then
 		Mechanic:InitializeInspect()
 	end
+
+	-- Pick UIParent by default if nothing is selected to prevent empty state
+	if not self.selectedFrame then
+		self:SetSelectedFrame(UIParent, "UIParent")
+	end
+
 	if self.RefreshWatchList then
 		self:RefreshWatchList()
 	end
@@ -682,3 +854,5 @@ function InspectModule:OnHide()
 end
 
 return InspectModule
+
+

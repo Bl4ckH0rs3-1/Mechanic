@@ -295,6 +295,7 @@ function Utils:ShowExportDialog(title, content)
 		local editBox = FenUI:CreateMultiLineEditBox(dialog.safeZone, {
 			readOnly = true,
 			background = "surfaceInset",
+			font = "fontMono",
 			autoScroll = false,
 		})
 		editBox:SetPoint("TOPLEFT", 0, -24)
@@ -325,6 +326,104 @@ function Utils:ShowExportDialog(title, content)
 		self.exportDialog.editBox.editBox:SetFocus()
 		self.exportDialog.editBox.editBox:HighlightText()
 	end)
+end
+
+--------------------------------------------------------------------------------
+-- Help System
+--------------------------------------------------------------------------------
+
+-- Help content for each tab (structured for InfoPanel)
+Utils.HelpContent = {
+	inspect = {
+		title = L["HELP_INSPECT_TITLE"],
+		sections = {
+			{ heading = L["HELP_INSPECT_PICK_HEADING"], body = L["HELP_INSPECT_PICK_BODY"] },
+			{ heading = L["HELP_INSPECT_PATH_HEADING"], body = L["HELP_INSPECT_PATH_BODY"] },
+			{ heading = L["HELP_INSPECT_WATCH_HEADING"], body = L["HELP_INSPECT_WATCH_BODY"] },
+			{ heading = L["HELP_INSPECT_CHAT_HEADING"], body = L["HELP_INSPECT_CHAT_BODY"] },
+			{ heading = L["HELP_INSPECT_TREE_HEADING"], body = L["HELP_INSPECT_TREE_BODY"] },
+			{ heading = L["HELP_INSPECT_EXPORT_HEADING"], body = L["HELP_INSPECT_EXPORT_BODY"] },
+		},
+	},
+	console = {
+		title = L["HELP_CONSOLE_TITLE"],
+		sections = {
+			{ heading = L["HELP_CONSOLE_FILTER_HEADING"], body = L["HELP_CONSOLE_FILTER_BODY"] },
+			{ heading = L["HELP_CONSOLE_DEDUP_HEADING"], body = L["HELP_CONSOLE_DEDUP_BODY"] },
+			{ heading = L["HELP_CONSOLE_PAUSE_HEADING"], body = L["HELP_CONSOLE_PAUSE_BODY"] },
+			{ heading = L["HELP_CONSOLE_EXPORT_HEADING"], body = L["HELP_CONSOLE_EXPORT_BODY"] },
+		},
+	},
+	errors = {
+		title = L["HELP_ERRORS_TITLE"],
+		sections = {
+			{ heading = L["HELP_ERRORS_SESSION_HEADING"], body = L["HELP_ERRORS_SESSION_BODY"] },
+			{ heading = L["HELP_ERRORS_NAV_HEADING"], body = L["HELP_ERRORS_NAV_BODY"] },
+			{ heading = L["HELP_ERRORS_CONSOLE_HEADING"], body = L["HELP_ERRORS_CONSOLE_BODY"] },
+			{ heading = L["HELP_ERRORS_BUGGRABBER_HEADING"], body = L["HELP_ERRORS_BUGGRABBER_BODY"] },
+		},
+	},
+	tests = {
+		title = L["HELP_TESTS_TITLE"],
+		sections = {
+			{ heading = L["HELP_TESTS_TREE_HEADING"], body = L["HELP_TESTS_TREE_BODY"] },
+			{ heading = L["HELP_TESTS_RUN_HEADING"], body = L["HELP_TESTS_RUN_BODY"] },
+			{ heading = L["HELP_TESTS_AUTO_HEADING"], body = L["HELP_TESTS_AUTO_BODY"] },
+			{ heading = L["HELP_TESTS_RESULTS_HEADING"], body = L["HELP_TESTS_RESULTS_BODY"] },
+		},
+	},
+	perf = {
+		title = L["HELP_PERF_TITLE"],
+		sections = {
+			{ heading = L["HELP_PERF_CPU_HEADING"], body = L["HELP_PERF_CPU_BODY"] },
+			{ heading = L["HELP_PERF_REFRESH_HEADING"], body = L["HELP_PERF_REFRESH_BODY"] },
+			{ heading = L["HELP_PERF_SUBMETRICS_HEADING"], body = L["HELP_PERF_SUBMETRICS_BODY"] },
+			{ heading = L["HELP_PERF_RESET_HEADING"], body = L["HELP_PERF_RESET_BODY"] },
+		},
+	},
+	tools = {
+		title = L["HELP_TOOLS_TITLE"],
+		sections = {
+			{ heading = L["HELP_TOOLS_ADDON_HEADING"], body = L["HELP_TOOLS_ADDON_BODY"] },
+			{ heading = L["HELP_TOOLS_HEALTH_HEADING"], body = L["HELP_TOOLS_HEALTH_BODY"] },
+			{ heading = L["HELP_TOOLS_RESET_HEADING"], body = L["HELP_TOOLS_RESET_BODY"] },
+		},
+	},
+	api = {
+		title = L["HELP_API_TITLE"],
+		sections = {
+			{ heading = L["HELP_API_BROWSER_HEADING"], body = L["HELP_API_BROWSER_BODY"] },
+			{ heading = L["HELP_API_RUN_HEADING"], body = L["HELP_API_RUN_BODY"] },
+			{ heading = L["HELP_API_CATEGORY_HEADING"], body = L["HELP_API_CATEGORY_BODY"] },
+			{ heading = L["HELP_API_MIDNIGHT_HEADING"], body = L["HELP_API_MIDNIGHT_BODY"] },
+		},
+	},
+}
+
+--- Displays a help dialog for a specific tab.
+---@param tabKey string The tab key (e.g., "inspect", "console")
+function Utils:ShowHelpDialog(tabKey)
+	local content = self.HelpContent[tabKey]
+	if not content then
+		return
+	end
+
+	-- Create or retrieve singleton dialog using FenUI pattern
+	if not self.helpDialog then
+		self.helpDialog = FenUI:CreateInfoPanel(UIParent, {
+			title = L["Help"],
+			width = 500,
+			height = 450,
+			movable = true,
+			closable = true,
+		})
+	end
+
+	-- Update content and show
+	self.helpDialog:SetTitle(content.title)
+	self.helpDialog:SetSections(content.sections)
+	self.helpDialog:ScrollToTop()
+	self.helpDialog:Show()
 end
 
 --------------------------------------------------------------------------------
