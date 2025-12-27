@@ -104,6 +104,34 @@ local flex = FenUI.Flex(parent)
     :build()
 ```
 
+### Constraint System
+
+FenUI components support min/max boundaries and aspect ratio locking to ensure layouts remain usable across different screen sizes.
+
+```lua
+-- Component with min/max boundaries
+local panel = FenUI:CreatePanel(parent, {
+    width = "80%",
+    minWidth = 300,
+    maxWidth = 800,
+    height = "auto",
+    minHeight = 200,
+})
+
+-- Aspect ratio locking (supports "16:9", "4/3", or number)
+local card = FenUI:CreateLayout(parent, {
+    width = "100%",
+    aspectRatio = "16:9",
+})
+
+-- Aspect ratio based on height
+local icon = FenUI:CreateLayout(parent, {
+    height = 64,
+    aspectRatio = 1,
+    aspectBase = "height", -- width will be calculated from height
+})
+```
+
 ### Create Tabs
 
 ```lua

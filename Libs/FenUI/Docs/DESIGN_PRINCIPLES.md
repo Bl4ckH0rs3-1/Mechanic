@@ -48,6 +48,8 @@ FenUI supports responsive sizing units beyond just raw pixels. This allows conta
 - **Viewport Units (`"10vh"`, `"5vw"`)**: Relative to the total screen size.
 - **Fit to Content (`"auto"`)**: The container automatically resizes to perfectly wrap its children. This is reactive—if content grows (e.g. text), the container grows.
 - **Auto-Updating**: Components with percentage sizes automatically resize when their parent container changes size.
+- **Constraints**: Support for `minWidth`, `maxWidth`, `minHeight`, and `maxHeight` boundaries that apply regardless of the base size mode.
+- **Aspect Ratio Locking**: Components can lock their dimensions to a specific ratio (e.g., 16:9) while still respecting other constraints.
 
 ---
 

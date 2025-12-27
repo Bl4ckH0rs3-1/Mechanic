@@ -95,15 +95,15 @@ function Mechanic:InitializeInspect()
 	end)
 	InspectModule.pathInput = pathInput
 
-	-- Main Layout (Three Columns)
+	-- Main Layout (Four Columns)
 	local content = CreateFrame("Frame", nil, frame)
 	content:SetPoint("TOPLEFT", toolbar, "BOTTOMLEFT", 0, 0)
 	content:SetPoint("BOTTOMRIGHT", 0, 0)
 	InspectModule.content = content
 
-	-- 1. Frame Tree (Left)
+	-- 1. Frame Tree (Navigate) - Narrower
 	local treeFrame = CreateFrame("Frame", nil, content)
-	treeFrame:SetWidth(240)
+	treeFrame:SetWidth(180)
 	treeFrame:SetPoint("TOPLEFT", 0, 0)
 	treeFrame:SetPoint("BOTTOMLEFT", 0, 0)
 	InspectModule.treeFrame = treeFrame
@@ -112,9 +112,20 @@ function Mechanic:InitializeInspect()
 	treeBg:SetAllPoints()
 	treeBg:SetColorTexture(0, 0, 0, 0.3)
 
-	-- 2. Watch List (Right)
+	-- 2. Properties (Edit) - New
+	local propertiesFrame = CreateFrame("Frame", nil, content)
+	propertiesFrame:SetWidth(220)
+	propertiesFrame:SetPoint("TOPLEFT", treeFrame, "TOPRIGHT", 2, 0)
+	propertiesFrame:SetPoint("BOTTOMLEFT", treeFrame, "BOTTOMRIGHT", 2, 0)
+	InspectModule.propertiesFrame = propertiesFrame
+
+	local propBg = propertiesFrame:CreateTexture(nil, "BACKGROUND")
+	propBg:SetAllPoints()
+	propBg:SetColorTexture(0, 0, 0, 0.2)
+
+	-- 3. Watch List (Control) - Far Right, Narrower
 	local watchFrame = CreateFrame("Frame", nil, content)
-	watchFrame:SetWidth(200)
+	watchFrame:SetWidth(180)
 	watchFrame:SetPoint("TOPRIGHT", 0, 0)
 	watchFrame:SetPoint("BOTTOMRIGHT", 0, 0)
 	InspectModule.watchFrame = watchFrame
@@ -123,15 +134,18 @@ function Mechanic:InitializeInspect()
 	watchBg:SetAllPoints()
 	watchBg:SetColorTexture(0, 0, 0, 0.3)
 
-	-- 3. Details (Center)
+	-- 4. Details (Understand) - Fills the middle gap between Properties and Watch
 	local detailsFrame = CreateFrame("Frame", nil, content)
-	detailsFrame:SetPoint("TOPLEFT", treeFrame, "TOPRIGHT", 2, 0)
+	detailsFrame:SetPoint("TOPLEFT", propertiesFrame, "TOPRIGHT", 2, 0)
 	detailsFrame:SetPoint("BOTTOMRIGHT", watchFrame, "BOTTOMLEFT", -2, 0)
 	InspectModule.detailsFrame = detailsFrame
 
 	-- Initialize Sub-modules
 	if InspectModule.InitializeTree then
 		InspectModule:InitializeTree(treeFrame)
+	end
+	if InspectModule.Properties and InspectModule.Properties.Initialize then
+		InspectModule.Properties:Initialize(propertiesFrame)
 	end
 	if InspectModule.InitializeDetails then
 		InspectModule:InitializeDetails(detailsFrame)
@@ -473,6 +487,9 @@ function InspectModule:SetSelectedFrame(frame, path)
 
 	if self.UpdateTree then
 		self:UpdateTree(frame)
+	end
+	if self.Properties and self.Properties.Update then
+		self.Properties:Update(frame)
 	end
 	if self.UpdateDetails then
 		self:UpdateDetails(frame)

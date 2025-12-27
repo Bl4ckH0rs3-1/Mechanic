@@ -42,5 +42,6 @@ UI\API.lua
 UI\Inspect.lua
 UI\InspectTree.lua
 UI\InspectDetails.lua
+UI\InspectProperties.lua
 UI\InspectWatch.lua
 UI\Performance.lua

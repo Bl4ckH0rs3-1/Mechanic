@@ -28,12 +28,24 @@ function ButtonMixin:Init(config)
         self:SetText(config.text)
     end
     
-    -- Set size
-    if config.width then
-        self:SetWidth(config.width)
-    end
-    if config.height then
-        self:SetHeight(config.height)
+    -- Set size (with defaults if not provided)
+    local width = config.width or 100
+    local height = config.height or 24
+    
+    self:ApplySize(width, height, {
+        minWidth = config.minWidth,
+        maxWidth = config.maxWidth,
+        minHeight = config.minHeight,
+        maxHeight = config.maxHeight,
+        aspectRatio = config.aspectRatio,
+        aspectBase = config.aspectBase,
+    })
+
+    -- Auto-sizing support for buttons (hooks text changes)
+    if self.isAutoSizing then
+        hooksecurefunc(self, "SetText", function()
+            self:UpdateDynamicSize()
+        end)
     end
     
     -- Apply initial visual
@@ -65,6 +77,31 @@ function ButtonMixin:SetOnLeave(callback)
     self.hooks.onLeave = callback
 end
 
+--- Set the size of the button (supports responsive units and constraints)
+---@param width number|string
+---@param height number|string
+---@param constraints table|nil
+function ButtonMixin:ApplySize(width, height, constraints)
+    FenUI.Utils:ApplySize(self, width, height, constraints)
+end
+
+--- Internal method called when parent resizes (for responsive units)
+function ButtonMixin:UpdateDynamicSize()
+    FenUI.Utils:UpdateDynamicSize(self)
+end
+
+function ButtonMixin:GetContentFrame()
+    return self:GetFontString()
+end
+
+function ButtonMixin:GetPadding()
+    return { left = 20, right = 20, top = 0, bottom = 0 }
+end
+
+function ButtonMixin:GetMargin()
+    return { left = 0, right = 0, top = 0, bottom = 0 }
+end
+
 --------------------------------------------------------------------------------
 -- Button Factory
 --------------------------------------------------------------------------------
@@ -88,32 +125,6 @@ function FenUI:CreateButton(parent, config)
     
     -- Initialize
     button:Init(config)
-
-    -- Auto-sizing support
-    if config.width == "auto" then
-        local textObj = button:GetFontString()
-        if textObj then
-            -- Standard Blizzard button padding is ~40px total (20 each side)
-            local width = textObj:GetStringWidth() + 40
-            button:SetWidth(math.max(config.minWidth or 100, width))
-            
-            -- Update when text changes
-            hooksecurefunc(button, "SetText", function()
-                local w = textObj:GetStringWidth() + 40
-                button:SetWidth(math.max(config.minWidth or 100, w))
-            end)
-        end
-    elseif config.width then
-        button:SetWidth(config.width)
-    else
-        button:SetWidth(100) -- Default
-    end
-
-    if config.height then
-        button:SetHeight(config.height)
-    else
-        button:SetHeight(24) -- Default
-    end
     
     -- Set up scripts
     button:SetScript("OnClick", function(self, mouseButton, down)

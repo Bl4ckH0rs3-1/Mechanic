@@ -1,6 +1,6 @@
 # Phase 11: Live Frame Property Editor
 
-> **Status**: Planning  
+> **Status**: ✅ Complete  
 > **Priority**: High  
 > **Complexity**: Medium-High  
 > **Enables**: Phase 12 (FenUI Properties Integration)
@@ -113,24 +113,24 @@ frame:SetAlpha(0.9)
 ## Implementation Phases
 
 ### Phase 11.1: Foundation & Architecture
-- [ ] Refactor `Inspect.lua` to 4-column FenUI layout
-- [ ] Create `InspectProperties.lua` with header (title + icons) and scrollable body
-- [ ] **Implement Section Registry pattern** (for Phase 12 extensibility)
-- [ ] **Implement Input Widget Factory** (number, checkbox, dropdown, slider)
-- [ ] Implement Geometry editing as first registered section
+- [x] Refactor `Inspect.lua` to 4-column FenUI layout
+- [x] Create `InspectProperties.lua` with header (title + icons) and scrollable body
+- [x] **Implement Section Registry pattern** (for Phase 12 extensibility)
+- [x] **Implement Input Widget Factory** (number, checkbox, dropdown, slider)
+- [x] Implement Geometry editing as first registered section
 
 ### Phase 11.2: Core Editing
-- [ ] Add Visibility section (alpha slider, shown toggle)
-- [ ] Add Layering section (level input, strata dropdown)
-- [ ] Add Scale section
-- [ ] Implement change tracking (before/after diff per section)
-- [ ] **Add FenUI detection stub** (show badge, no editing yet)
+- [x] Add Visibility section (alpha slider, shown toggle)
+- [x] Add Layering section (level input, strata dropdown)
+- [x] Add Scale section
+- [x] Implement change tracking (before/after diff per section)
+- [x] **Add FenUI detection stub** (show badge, no editing yet)
 
 ### Phase 11.3: Export and Polish
-- [ ] Build export icon handler using **section contribution pattern**
-- [ ] Add reset icon handler (revert all changes across sections)
-- [ ] Add region-specific props (texture color, text color) as sections
-- [ ] Compress Details column (collapsible sections)
+- [x] Build export icon handler using **section contribution pattern**
+- [x] Add reset icon handler (revert all changes across sections)
+- [x] Add region-specific props (texture color, text color) as sections
+- [x] Compress Details column (collapsible sections)
 
 ### Phase 11.4: Future Enhancements (Out of Scope)
 - [ ] Draggable column widths

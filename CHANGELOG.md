@@ -2,6 +2,19 @@
 
 All notable changes to !Mechanic will be documented in this file.
 
+## [1.2.3] - 2025-12-27
+
+### Added
+- **Phase 11: Live Frame Property Editor**:
+  - Refactored Inspect tab to a 4-column layout: Tree | Properties | Details | Watch.
+  - New **Properties** module with live editing for Geometry, Visibility, Layering, and Scale.
+  - **Section Registry Pattern**: Allows easy extension of editable properties (prepares for FenUI integration).
+  - **Input Widget Factory**: Standardized widgets for Number, Checkbox, Slider, Dropdown, and ColorPicker.
+  - **DevTools Export**: Generate Markdown/Lua snippets of frame changes for AI agents and bug reports.
+  - **Live Reset**: Revert all pending changes to their original state with one click.
+  - **Collapsible Details**: Details column sections are now collapsible for better density.
+  - **FenUI Detection**: Automatic badge indicator on FenUI-managed frames.
+
 ## [1.2.2] - 2025-12-26
 
 ### Added

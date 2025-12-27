@@ -285,40 +285,36 @@ function StackMixin:LayoutStandard(childrenToLayout, totalWidth, totalHeight, pa
         
         if isVertical then
             if align == "start" then
-                frame:SetPoint("TOPLEFT", padding.left, -(padding.top + currentOffset))
+                frame:SetPoint("TOPLEFT", self, "TOPLEFT", padding.left, -(padding.top + currentOffset))
             elseif align == "center" then
-                frame:SetPoint("TOP", padding.left - padding.right, -(padding.top + currentOffset))
+                frame:SetPoint("TOP", self, "TOP", (padding.left - padding.right) / 2, -(padding.top + currentOffset))
             elseif align == "end" then
-                frame:SetPoint("TOPRIGHT", -padding.right, -(padding.top + currentOffset))
+                frame:SetPoint("TOPRIGHT", self, "TOPRIGHT", -padding.right, -(padding.top + currentOffset))
             elseif align == "stretch" then
-                frame:SetPoint("TOPLEFT", padding.left, -(padding.top + currentOffset))
-                frame:SetPoint("TOPRIGHT", -padding.right, -(padding.top + currentOffset))
+                frame:SetPoint("TOPLEFT", self, "TOPLEFT", padding.left, -(padding.top + currentOffset))
+                -- Use explicit width instead of TOPRIGHT anchor for better stability with various templates
                 childWidth = totalWidth
             end
             
             frame:SetHeight(math.max(1, childHeight))
-            if align ~= "stretch" then
-                frame:SetWidth(math.max(1, childWidth))
-            end
+            frame:SetWidth(math.max(1, childWidth))
             
             currentOffset = currentOffset + childHeight + justifiedGap
         else
             if align == "start" then
-                frame:SetPoint("TOPLEFT", padding.left + currentOffset, -padding.top)
+                frame:SetPoint("TOPLEFT", self, "TOPLEFT", padding.left + currentOffset, -padding.top)
             elseif align == "center" then
-                frame:SetPoint("LEFT", padding.left + currentOffset, (padding.bottom - padding.top) / 2)
+                frame:SetPoint("LEFT", self, "LEFT", padding.left + currentOffset, (padding.bottom - padding.top) / 2)
             elseif align == "end" then
-                frame:SetPoint("BOTTOMLEFT", padding.left + currentOffset, padding.bottom)
+                frame:SetPoint("BOTTOMLEFT", self, "BOTTOMLEFT", padding.left + currentOffset, padding.bottom)
             elseif align == "stretch" then
-                frame:SetPoint("TOPLEFT", padding.left + currentOffset, -padding.top)
-                frame:SetPoint("BOTTOMLEFT", padding.left + currentOffset, padding.bottom)
+                frame:SetPoint("TOPLEFT", self, "TOPLEFT", padding.left + currentOffset, -padding.top)
+                -- Use explicit height instead of BOTTOMLEFT anchor
                 childHeight = totalHeight
             end
             
             frame:SetWidth(math.max(1, childWidth))
-            if align ~= "stretch" then
-                frame:SetHeight(math.max(1, childHeight))
-            end
+            frame:SetHeight(math.max(1, childHeight))
             
             currentOffset = currentOffset + childWidth + justifiedGap
         end
@@ -493,6 +489,13 @@ function StackBuilder:align(val) self.config.align = val; return self end
 function StackBuilder:justify(val) self.config.justify = val; return self end
 function StackBuilder:wrap(val) self.config.wrap = val; return self end
 function StackBuilder:padding(val) self.config.padding = val; return self end
+function StackBuilder:width(val) self.config.width = val; return self end
+function StackBuilder:height(val) self.config.height = val; return self end
+function StackBuilder:minWidth(val) self.config.minWidth = val; return self end
+function StackBuilder:maxWidth(val) self.config.maxWidth = val; return self end
+function StackBuilder:minHeight(val) self.config.minHeight = val; return self end
+function StackBuilder:maxHeight(val) self.config.maxHeight = val; return self end
+function StackBuilder:aspectRatio(ratio, base) self.config.aspectRatio = ratio; self.config.aspectBase = base; return self end
 
 function StackBuilder:child(frame, childConfig)
     table.insert(self.config.children, { frame = frame, config = childConfig })

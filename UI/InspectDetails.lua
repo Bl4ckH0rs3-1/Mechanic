@@ -192,7 +192,7 @@ function InspectModule:AddDetailHeader(frame, yOffset)
 	end
 	section.content:SetText(info)
 
-	local height = TITLE_HEIGHT + (section.content:GetStringHeight() or 42) + BOTTOM_PADDING
+	local height = self:GetSectionHeight(section)
 	section:SetHeight(height)
 	section:Show()
 	return yOffset - height - SECTION_GAP
@@ -227,7 +227,7 @@ function InspectModule:AddDetailInteractivity(frame, yOffset)
 	)
 	section.content:SetText(info)
 
-	local height = TITLE_HEIGHT + (section.content:GetStringHeight() or 56) + BOTTOM_PADDING
+	local height = self:GetSectionHeight(section)
 	section:SetHeight(height)
 	section:Show()
 	return yOffset - height - SECTION_GAP
@@ -277,7 +277,7 @@ function InspectModule:AddDetailGeometry(frame, yOffset)
 	)
 	section.content:SetText(info)
 
-	local height = TITLE_HEIGHT + (section.content:GetStringHeight() or 56) + BOTTOM_PADDING
+	local height = self:GetSectionHeight(section)
 	section:SetHeight(height)
 	section:Show()
 	return yOffset - height - SECTION_GAP
@@ -319,7 +319,7 @@ function InspectModule:AddDetailAnchors(frame, yOffset)
 
 	section.content:SetText(table.concat(anchors, "\n"))
 
-	local height = TITLE_HEIGHT + (section.content:GetStringHeight() or 14) + BOTTOM_PADDING
+	local height = self:GetSectionHeight(section)
 	section:SetHeight(height)
 	section:Show()
 	return yOffset - height - SECTION_GAP
@@ -411,7 +411,7 @@ function InspectModule:AddDetailRegions(frame, yOffset)
 
 	section.content:SetText(table.concat(regionList, "\n"))
 
-	local height = TITLE_HEIGHT + (section.content:GetStringHeight() or 14) + BOTTOM_PADDING
+	local height = self:GetSectionHeight(section)
 	section:SetHeight(height)
 	section:Show()
 	return yOffset - height - SECTION_GAP
@@ -483,7 +483,7 @@ function InspectModule:AddDetailFenUI(frame, yOffset)
 
 	section.content:SetText(table.concat(details, "\n"))
 
-	local height = TITLE_HEIGHT + (section.content:GetStringHeight() or 14) + BOTTOM_PADDING
+	local height = self:GetSectionHeight(section)
 	section:SetHeight(height)
 	section:Show()
 	return yOffset - height - SECTION_GAP
@@ -556,7 +556,7 @@ function InspectModule:AddDetailProperties(frame, yOffset)
 	end
 	section.content:SetText(table.concat(props, "\n"))
 
-	local height = TITLE_HEIGHT + (section.content:GetStringHeight() or 14) + BOTTOM_PADDING
+	local height = self:GetSectionHeight(section)
 	section:SetHeight(height)
 	section:Show()
 	return yOffset - height - SECTION_GAP
@@ -602,7 +602,7 @@ function InspectModule:AddDetailAttributes(frame, yOffset)
 	end
 	section.content:SetText(table.concat(attributes, "\n"))
 
-	local height = TITLE_HEIGHT + (section.content:GetStringHeight() or 14) + BOTTOM_PADDING
+	local height = self:GetSectionHeight(section)
 	section:SetHeight(height)
 	section:Show()
 	return yOffset - height - SECTION_GAP
@@ -653,7 +653,7 @@ function InspectModule:AddDetailScripts(frame, yOffset)
 	end
 	section.content:SetText(table.concat(active, "\n"))
 
-	local height = TITLE_HEIGHT + (section.content:GetStringHeight() or 14) + BOTTOM_PADDING
+	local height = self:GetSectionHeight(section)
 	section:SetHeight(height)
 	section:Show()
 	return yOffset - height - SECTION_GAP
@@ -679,7 +679,7 @@ function InspectModule:AddDetailHierarchy(frame, yOffset)
 	local info = table.concat(stack, " -> ")
 	section.content:SetText(info)
 
-	local height = TITLE_HEIGHT + (section.content:GetStringHeight() or 14) + BOTTOM_PADDING
+	local height = self:GetSectionHeight(section)
 	section:SetHeight(height)
 	section:Show()
 	return yOffset - height - SECTION_GAP
@@ -690,8 +690,34 @@ function InspectModule:GetOrCreateDetailSection(name, yOffset)
 		local s = CreateFrame("Frame", nil, p)
 		s:SetPoint("RIGHT", p, "RIGHT", 0, 0)
 
+		-- Collapse Toggle
+		local toggle = CreateFrame("Button", nil, s)
+		toggle:SetSize(16, 16)
+		toggle:SetPoint("TOPLEFT", 0, 0)
+		
+		local toggleText = toggle:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+		toggleText:SetPoint("CENTER")
+		toggleText:SetText("▼")
+		toggle.text = toggleText
+		
+		s.isCollapsed = false
+		toggle:SetScript("OnClick", function()
+			s.isCollapsed = not s.isCollapsed
+			toggleText:SetText(s.isCollapsed and "▶" or "▼")
+			if s.isCollapsed then
+				s.content:Hide()
+				if s.parentBtn then s.parentBtn:Hide() end
+			else
+				s.content:Show()
+				if s.parentBtn then s.parentBtn:Show() end
+			end
+			-- Trigger update to recalculate layout
+			InspectModule:UpdateDetails(InspectModule.selectedFrame)
+		end)
+		s.toggle = toggle
+
 		s.title = s:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-		s.title:SetPoint("TOPLEFT", 0, 0)
+		s.title:SetPoint("TOPLEFT", 18, 0)
 
 		local font = FenUI:GetFont("fontMono")
 		s.content = s:CreateFontString(nil, "OVERLAY", font)
@@ -700,21 +726,38 @@ function InspectModule:GetOrCreateDetailSection(name, yOffset)
 		-- Use a smaller font for details content
 		local fontPath, fontSize, fontFlags = s.content:GetFont()
 		if fontPath then
-			s.content:SetFont(fontPath, fontSize - 0, fontFlags)
+			s.content:SetFont(fontPath, fontSize - 1, fontFlags)
 		end
 		
-		s.content:SetPoint("TOPLEFT", 0, -16)
+		s.content:SetPoint("TOPLEFT", 18, -16)
 		s.content:SetJustifyH("LEFT")
-		s.content:SetWidth(p:GetWidth())
+		s.content:SetWidth(p:GetWidth() - 20)
 
 		return s
 	end)
 
 	section:SetPoint("TOPLEFT", self.detailsContent, "TOPLEFT", 0, yOffset)
+	
+	-- Ensure visibility based on collapsed state
+	if section.isCollapsed then
+		section.content:Hide()
+		if section.parentBtn then section.parentBtn:Hide() end
+	else
+		section.content:Show()
+		if section.parentBtn then section.parentBtn:Show() end
+	end
+
 	self.detailSections[name] = section
 	if not _G.tContains(self.detailSections, section) then
 		table.insert(self.detailSections, section)
 	end
 
 	return section
+end
+
+function InspectModule:GetSectionHeight(section)
+	if section.isCollapsed then
+		return TITLE_HEIGHT + BOTTOM_PADDING
+	end
+	return TITLE_HEIGHT + (section.content:GetStringHeight() or 14) + BOTTOM_PADDING
 end
