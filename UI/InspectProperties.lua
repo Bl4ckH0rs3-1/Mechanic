@@ -5,6 +5,7 @@ local ADDON_NAME, ns = ...
 local Mechanic = LibStub("AceAddon-3.0"):GetAddon(ADDON_NAME)
 local L = LibStub("AceLocale-3.0"):GetLocale("!Mechanic", true)
 local InspectModule = Mechanic.Inspect
+local ICON_PATH = [[Interface\AddOns\!Mechanic\Assets\Icons\]]
 
 local Properties = {}
 InspectModule.Properties = Properties
@@ -13,21 +14,14 @@ InspectModule.Properties = Properties
 local HEADER_HEIGHT = 24
 local SECTION_MARGIN = 4
 local INPUT_HEIGHT = 20
-local LABEL_WIDTH = 70 -- Increased for longer labels
+local LABEL_WIDTH = 70 
+local RESET_BTN_SIZE = 14
 
 -- Section Registry
 Properties.sections = {}
 Properties.sortedSections = {}
 
 function Properties:RegisterSection(key, config)
-	-- config = { 
-	--   title = string, 
-	--   order = number, 
-	--   shouldShow = function(frame), 
-	--   createUI = function(parent, frame),
-	--   getExportData = function(frame), 
-	--   getExportLua = function(frame) 
-	-- }
 	self.sections[key] = config
 	self:SortSections()
 end
@@ -76,7 +70,7 @@ function Properties:Initialize(parent)
 
 	-- Export Button
 	local exportBtn = FenUI:CreateImageButton(icons, {
-		texture = [[Interface\AddOns\!Mechanic\Assets\Icons\icon-export]],
+		texture = ICON_PATH .. "icon-export",
 		size = 18,
 		tooltip = L and L["Export Changes"] or "Export Changes",
 		onClick = function()
@@ -88,7 +82,7 @@ function Properties:Initialize(parent)
 
 	-- Reset Button
 	local resetBtn = FenUI:CreateImageButton(icons, {
-		texture = [[Interface\AddOns\!Mechanic\Assets\Icons\icon-refresh]],
+		texture = ICON_PATH .. "icon-refresh",
 		size = 18,
 		tooltip = L and L["Reset All Changes"] or "Reset All Changes",
 		onClick = function()
@@ -113,7 +107,6 @@ function Properties:Initialize(parent)
 	self.originalValues = {}
 	self.pendingChanges = {}
 
-	-- Initialize default sections
 	self:InitializeDefaultSections()
 end
 
@@ -201,7 +194,20 @@ function Properties:CaptureOriginalValues(frame)
 end
 
 function Properties:TrackChange(key, value)
-	if value == self.originalValues[key] then
+	if not self.originalValues[key] then return end -- Don't track if we don't have original
+
+	local isOriginal = false
+	if type(value) == "table" and type(self.originalValues[key]) == "table" then
+		-- Simple comparison for color tables
+		isOriginal = (math.abs(value.r - self.originalValues[key].r) < 0.01) and
+		             (math.abs(value.g - self.originalValues[key].g) < 0.01) and
+		             (math.abs(value.b - self.originalValues[key].b) < 0.01) and
+		             (math.abs((value.a or 1) - (self.originalValues[key].a or 1)) < 0.01)
+	else
+		isOriginal = (value == self.originalValues[key])
+	end
+
+	if isOriginal then
 		self.pendingChanges[key] = nil
 	else
 		self.pendingChanges[key] = {
@@ -229,12 +235,11 @@ function Properties:GetOrCreateSectionFrame(key, title)
 		
 		self.sectionCache[key] = f
 	else
-		-- Clear existing widgets in this section to avoid accumulation
 		local inner = self.sectionCache[key].inner
 		local children = { inner:GetChildren() }
 		for _, child in ipairs(children) do
 			child:Hide()
-			child:SetParent(nil) -- Force detachment to avoid accumulation
+			child:SetParent(nil)
 		end
 	end
 	table.insert(self.sectionFrames, self.sectionCache[key])
@@ -247,7 +252,40 @@ end
 
 Properties.inputs = {}
 
-function Properties.inputs:Number(parent, label, value, onChange)
+-- Helper to add reset button and tooltip to any container
+function Properties.inputs:AddExtras(container, labelFS, key, onReset, tooltip)
+	if tooltip then
+		container:SetScript("OnEnter", function(s)
+			GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
+			GameTooltip:SetText(tooltip, 1, 1, 1, 1, true)
+			GameTooltip:Show()
+		end)
+		container:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	end
+
+	if onReset then
+		local resetBtn = FenUI:CreateImageButton(container, {
+			texture = ICON_PATH .. "icon-refresh",
+			size = RESET_BTN_SIZE,
+			tooltip = L["Reset"],
+			onClick = onReset,
+		})
+		resetBtn:SetPoint("RIGHT", 0, 0)
+		resetBtn:SetAlpha(0.4)
+		resetBtn:SetScript("OnEnter", function(s) s:SetAlpha(1) end)
+		resetBtn:SetScript("OnLeave", function(s) s:SetAlpha(0.4) end)
+		container.resetBtn = resetBtn
+		
+		-- Only show reset if changed
+		if InspectModule.Properties.pendingChanges[key] then
+			resetBtn:Show()
+		else
+			resetBtn:Hide()
+		end
+	end
+end
+
+function Properties.inputs:Number(parent, label, value, key, onChange, onReset, tooltip)
 	local container = CreateFrame("Frame", nil, parent)
 	container:SetSize(parent:GetWidth(), INPUT_HEIGHT)
 	
@@ -261,39 +299,48 @@ function Properties.inputs:Number(parent, label, value, onChange)
 		text = tostring(math.floor((value or 0) + 0.5)),
 	})
 	input:SetPoint("LEFT", lbl, "RIGHT", 4, 0)
-	input:SetPoint("RIGHT", 0, 0)
+	input:SetPoint("RIGHT", onReset and -RESET_BTN_SIZE - 4 or 0, 0)
 	input:SetHeight(INPUT_HEIGHT - 2)
 	
 	if input.editBox then
 		input.editBox:SetScript("OnEnterPressed", function(eb)
 			eb:ClearFocus()
 			local newVal = tonumber(eb:GetText())
-			if newVal then
-				onChange(newVal)
-			end
+			if newVal then onChange(newVal) end
 		end)
 	end
 	
+	self:AddExtras(container, lbl, key, onReset, tooltip)
 	return container
 end
 
-function Properties.inputs:Checkbox(parent, label, value, onChange)
+function Properties.inputs:Checkbox(parent, label, value, key, onChange, onReset, tooltip)
 	local container = CreateFrame("Frame", nil, parent)
 	container:SetSize(parent:GetWidth(), INPUT_HEIGHT)
 	
 	local cb = FenUI:CreateCheckbox(container, {
 		label = label,
 		checked = value,
-		onChange = function(_, checked)
-			onChange(checked)
-		end
+		boxSize = 14,
+		checkedTexture = ICON_PATH .. "icon-checkbox-checked",
+		uncheckedTexture = ICON_PATH .. "icon-checkbox-unchecked",
+		onChange = function(_, checked) onChange(checked) end
 	})
 	cb:SetPoint("LEFT", 0, 0)
+	
+	-- Match status bar style
+	cb.label:SetFontObject("GameFontHighlightSmall")
+	if cb.boxBg then cb.boxBg:SetVertexColor(1, 1, 1, 0.8) end
+
+	self:AddExtras(container, cb.label, key, onReset, tooltip)
+	if container.resetBtn then
+		container.resetBtn:SetPoint("RIGHT", 0, 0)
+	end
 	
 	return container
 end
 
-function Properties.inputs:Slider(parent, label, value, min, max, step, onChange)
+function Properties.inputs:Slider(parent, label, value, key, min, max, step, onChange, onReset, tooltip)
 	local container = CreateFrame("Frame", nil, parent)
 	container:SetSize(parent:GetWidth(), INPUT_HEIGHT + 10)
 	
@@ -303,28 +350,44 @@ function Properties.inputs:Slider(parent, label, value, min, max, step, onChange
 	lbl:SetJustifyH("LEFT")
 	lbl:SetText(label)
 
+	-- Number input alongside slider
+	local input = FenUI:CreateInput(container, {
+		text = string.format("%.2f", value or 0),
+	})
+	input:SetSize(40, INPUT_HEIGHT - 2)
+	input:SetPoint("TOPRIGHT", onReset and -RESET_BTN_SIZE - 4 or 0, 0)
+	
 	local slider = CreateFrame("Slider", nil, container, "OptionsSliderTemplate")
 	slider:SetPoint("TOPLEFT", lbl, "TOPRIGHT", 4, 0)
-	slider:SetPoint("RIGHT", -30, 0)
+	slider:SetPoint("RIGHT", input, "LEFT", -8, 0)
 	slider:SetHeight(12)
 	slider:SetMinMaxValues(min or 0, max or 1)
 	slider:SetValueStep(step or 0.01)
 	slider:SetValue(value or 0)
 	slider:SetObeyStepOnDrag(true)
 
-	local valText = container:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	valText:SetPoint("LEFT", slider, "RIGHT", 4, 0)
-	valText:SetText(string.format("%.2f", value or 0))
+	if input.editBox then
+		input.editBox:SetScript("OnEnterPressed", function(eb)
+			eb:ClearFocus()
+			local newVal = tonumber(eb:GetText())
+			if newVal then
+				newVal = math.max(min, math.min(max, newVal))
+				slider:SetValue(newVal)
+				onChange(newVal)
+			end
+		end)
+	end
 
 	slider:SetScript("OnValueChanged", function(s, val)
-		valText:SetText(string.format("%.2f", val))
+		input:SetText(string.format("%.2f", val))
 		onChange(val)
 	end)
 	
+	self:AddExtras(container, lbl, key, onReset, tooltip)
 	return container
 end
 
-function Properties.inputs:Dropdown(parent, label, options, selected, onChange)
+function Properties.inputs:Dropdown(parent, label, options, selected, key, onChange, onReset, tooltip)
 	local container = CreateFrame("Frame", nil, parent)
 	container:SetSize(parent:GetWidth(), INPUT_HEIGHT)
 	
@@ -336,7 +399,7 @@ function Properties.inputs:Dropdown(parent, label, options, selected, onChange)
 
 	local btn = CreateFrame("Button", nil, container, "UIMenuButtonStretchTemplate")
 	btn:SetPoint("LEFT", lbl, "RIGHT", 4, 0)
-	btn:SetPoint("RIGHT", 0, 0)
+	btn:SetPoint("RIGHT", onReset and -RESET_BTN_SIZE - 4 or 0, 0)
 	btn:SetHeight(INPUT_HEIGHT)
 	
 	local btnText = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -357,10 +420,11 @@ function Properties.inputs:Dropdown(parent, label, options, selected, onChange)
 		end
 	end)
 	
+	self:AddExtras(container, lbl, key, onReset, tooltip)
 	return container
 end
 
-function Properties.inputs:Color(parent, label, r, g, b, a, onChange)
+function Properties.inputs:Color(parent, label, r, g, b, a, key, onChange, onReset, tooltip)
 	local container = CreateFrame("Frame", nil, parent)
 	container:SetSize(parent:GetWidth(), INPUT_HEIGHT)
 	
@@ -418,10 +482,11 @@ function Properties.inputs:Color(parent, label, r, g, b, a, onChange)
 		end
 	end)
 	
+	self:AddExtras(container, lbl, key, onReset, tooltip)
 	return container
 end
 
-function Properties.inputs:Text(parent, label, value, onChange)
+function Properties.inputs:Text(parent, label, value, key, onChange, onReset, tooltip)
 	local container = CreateFrame("Frame", nil, parent)
 	container:SetSize(parent:GetWidth(), INPUT_HEIGHT)
 	
@@ -435,7 +500,7 @@ function Properties.inputs:Text(parent, label, value, onChange)
 		text = tostring(value or ""),
 	})
 	input:SetPoint("LEFT", lbl, "RIGHT", 4, 0)
-	input:SetPoint("RIGHT", 0, 0)
+	input:SetPoint("RIGHT", onReset and -RESET_BTN_SIZE - 4 or 0, 0)
 	input:SetHeight(INPUT_HEIGHT - 2)
 	
 	if input.editBox then
@@ -445,6 +510,7 @@ function Properties.inputs:Text(parent, label, value, onChange)
 		end)
 	end
 	
+	self:AddExtras(container, lbl, key, onReset, tooltip)
 	return container
 end
 
@@ -463,16 +529,28 @@ function Properties:InitializeDefaultSections()
 		createUI = function(parent, frame)
 			local y = 0
 			
-			local wInput = self.inputs:Number(parent, _L("Width"), frame:GetWidth(), function(val)
+			local wInput = self.inputs:Number(parent, _L("Width"), frame:GetWidth(), "width", function(val)
 				frame:SetWidth(val)
 				self:TrackChange("width", val)
+				self:Update(frame)
+			end, function()
+				local val = self.originalValues.width
+				frame:SetWidth(val)
+				self.pendingChanges.width = nil
+				self:Update(frame)
 			end)
 			wInput:SetPoint("TOPLEFT", 0, y)
 			y = y - INPUT_HEIGHT
 			
-			local hInput = self.inputs:Number(parent, _L("Height"), frame:GetHeight(), function(val)
+			local hInput = self.inputs:Number(parent, _L("Height"), frame:GetHeight(), "height", function(val)
 				frame:SetHeight(val)
 				self:TrackChange("height", val)
+				self:Update(frame)
+			end, function()
+				local val = self.originalValues.height
+				frame:SetHeight(val)
+				self.pendingChanges.height = nil
+				self:Update(frame)
 			end)
 			hInput:SetPoint("TOPLEFT", 0, y)
 			y = y - INPUT_HEIGHT
@@ -506,16 +584,27 @@ function Properties:InitializeDefaultSections()
 		createUI = function(parent, frame)
 			local y = 0
 			
-			local shownInput = self.inputs:Checkbox(parent, _L("Shown"), frame:IsShown(), function(val)
+			local shownInput = self.inputs:Checkbox(parent, _L("Shown"), frame:IsShown(), "shown", function(val)
 				if val then frame:Show() else frame:Hide() end
 				self:TrackChange("shown", val)
+				self:Update(frame)
+			end, function()
+				local val = self.originalValues.shown
+				if val then frame:Show() else frame:Hide() end
+				self.pendingChanges.shown = nil
+				self:Update(frame)
 			end)
 			shownInput:SetPoint("TOPLEFT", 0, y)
 			y = y - INPUT_HEIGHT
 			
-			local alphaInput = self.inputs:Slider(parent, _L("Alpha"), frame:GetAlpha(), 0, 1, 0.05, function(val)
+			local alphaInput = self.inputs:Slider(parent, _L("Alpha"), frame:GetAlpha(), "alpha", 0, 1, 0.05, function(val)
 				frame:SetAlpha(val)
 				self:TrackChange("alpha", val)
+			end, function()
+				local val = self.originalValues.alpha
+				frame:SetAlpha(val)
+				self.pendingChanges.alpha = nil
+				self:Update(frame)
 			end)
 			alphaInput:SetPoint("TOPLEFT", 0, y)
 			y = y - (INPUT_HEIGHT + 10)
@@ -552,20 +641,32 @@ function Properties:InitializeDefaultSections()
 		createUI = function(parent, frame)
 			local y = 0
 			
-			local levelInput = self.inputs:Number(parent, _L("Level"), frame:GetFrameLevel(), function(val)
+			local levelInput = self.inputs:Number(parent, _L("Level"), frame:GetFrameLevel(), "level", function(val)
 				frame:SetFrameLevel(val)
 				self:TrackChange("level", val)
-			end)
+				self:Update(frame)
+			end, function()
+				local val = self.originalValues.level
+				frame:SetFrameLevel(val)
+				self.pendingChanges.level = nil
+				self:Update(frame)
+			end, "Controls depth within the same strata. Higher numbers appear on top.")
 			levelInput:SetPoint("TOPLEFT", 0, y)
 			y = y - INPUT_HEIGHT
 			
 			local strataOptions = {
 				"BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCREEN", "FULLSCREEN_DIALOG", "TOOLTIP"
 			}
-			local strataInput = self.inputs:Dropdown(parent, _L("Strata"), strataOptions, frame:GetFrameStrata(), function(val)
+			local strataInput = self.inputs:Dropdown(parent, _L("Strata"), strataOptions, frame:GetFrameStrata(), "strata", function(val)
 				frame:SetFrameStrata(val)
 				self:TrackChange("strata", val)
-			end)
+				self:Update(frame)
+			end, function()
+				local val = self.originalValues.strata
+				frame:SetFrameStrata(val)
+				self.pendingChanges.strata = nil
+				self:Update(frame)
+			end, "Major render layers. DIALOG > HIGH > MEDIUM > LOW > BACKGROUND.")
 			strataInput:SetPoint("TOPLEFT", 0, y)
 			y = y - INPUT_HEIGHT
 			
@@ -601,9 +702,14 @@ function Properties:InitializeDefaultSections()
 		createUI = function(parent, frame)
 			local y = 0
 			
-			local scaleInput = self.inputs:Slider(parent, _L("Scale"), frame:GetScale(), 0.1, 5, 0.1, function(val)
+			local scaleInput = self.inputs:Slider(parent, _L("Scale"), frame:GetScale(), "scale", 0.1, 5, 0.1, function(val)
 				frame:SetScale(val)
 				self:TrackChange("scale", val)
+			end, function()
+				local val = self.originalValues.scale
+				frame:SetScale(val)
+				self.pendingChanges.scale = nil
+				self:Update(frame)
 			end)
 			scaleInput:SetPoint("TOPLEFT", 0, y)
 			y = y - (INPUT_HEIGHT + 10)
@@ -631,9 +737,15 @@ function Properties:InitializeDefaultSections()
 			local y = 0
 			
 			local r, g, b, a = frame:GetVertexColor()
-			local colorInput = self.inputs:Color(parent, _L("Vertex Color"), r, g, b, a, function(nr, ng, nb, na)
+			local colorInput = self.inputs:Color(parent, _L("Vertex Color"), r, g, b, a, "vertexColor", function(nr, ng, nb, na)
 				frame:SetVertexColor(nr, ng, nb, na)
 				self:TrackChange("vertexColor", {r=nr, g=ng, b=nb, a=na})
+				self:Update(frame)
+			end, function()
+				local val = self.originalValues.vertexColor
+				frame:SetVertexColor(val.r, val.g, val.b, val.a)
+				self.pendingChanges.vertexColor = nil
+				self:Update(frame)
 			end)
 			colorInput:SetPoint("TOPLEFT", 0, y)
 			y = y - INPUT_HEIGHT
@@ -667,17 +779,29 @@ function Properties:InitializeDefaultSections()
 		createUI = function(parent, frame)
 			local y = 0
 			
-			local textInput = self.inputs:Text(parent, _L("Text"), frame:GetText(), function(val)
+			local textInput = self.inputs:Text(parent, _L("Text"), frame:GetText(), "text", function(val)
 				frame:SetText(val)
 				self:TrackChange("text", val)
+				self:Update(frame)
+			end, function()
+				local val = self.originalValues.text
+				frame:SetText(val)
+				self.pendingChanges.text = nil
+				self:Update(frame)
 			end)
 			textInput:SetPoint("TOPLEFT", 0, y)
 			y = y - INPUT_HEIGHT
 
 			local r, g, b, a = frame:GetTextColor()
-			local colorInput = self.inputs:Color(parent, _L("Text Color"), r, g, b, a, function(nr, ng, nb, na)
+			local colorInput = self.inputs:Color(parent, _L("Text Color"), r, g, b, a, "textColor", function(nr, ng, nb, na)
 				frame:SetTextColor(nr, ng, nb, na)
 				self:TrackChange("textColor", {r=nr, g=ng, b=nb, a=na})
+				self:Update(frame)
+			end, function()
+				local val = self.originalValues.textColor
+				frame:SetTextColor(val.r, val.g, val.b, val.a)
+				self.pendingChanges.textColor = nil
+				self:Update(frame)
 			end)
 			colorInput:SetPoint("TOPLEFT", 0, y)
 			y = y - INPUT_HEIGHT
