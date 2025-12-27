@@ -447,14 +447,14 @@ function Properties:InitializeDefaultSections()
 		createUI = function(parent, frame)
 			local y = 0
 			
-			local wInput = self.inputs:Number(parent, "Width", frame:GetWidth(), function(val)
+			local wInput = self.inputs:Number(parent, L["Width"], frame:GetWidth(), function(val)
 				frame:SetWidth(val)
 				self:TrackChange("width", val)
 			end)
 			wInput:SetPoint("TOPLEFT", 0, y)
 			y = y - INPUT_HEIGHT
 			
-			local hInput = self.inputs:Number(parent, "Height", frame:GetHeight(), function(val)
+			local hInput = self.inputs:Number(parent, L["Height"], frame:GetHeight(), function(val)
 				frame:SetHeight(val)
 				self:TrackChange("height", val)
 			end)
@@ -466,10 +466,10 @@ function Properties:InitializeDefaultSections()
 		getExportData = function(frame)
 			local data = {}
 			if self.pendingChanges.width then
-				table.insert(data, { property = "Width", before = self.pendingChanges.width.before, after = self.pendingChanges.width.after })
+				table.insert(data, { property = L["Width"], before = self.pendingChanges.width.before, after = self.pendingChanges.width.after })
 			end
 			if self.pendingChanges.height then
-				table.insert(data, { property = "Height", before = self.pendingChanges.height.before, after = self.pendingChanges.height.after })
+				table.insert(data, { property = L["Height"], before = self.pendingChanges.height.before, after = self.pendingChanges.height.after })
 			end
 			return data
 		end,
@@ -558,10 +558,10 @@ function Properties:InitializeDefaultSections()
 		getExportData = function(frame)
 			local data = {}
 			if self.pendingChanges.level then
-				table.insert(data, { property = "Frame Level", before = self.pendingChanges.level.before, after = self.pendingChanges.level.after })
+				table.insert(data, { property = L["Frame Level"], before = self.pendingChanges.level.before, after = self.pendingChanges.level.after })
 			end
 			if self.pendingChanges.strata then
-				table.insert(data, { property = "Frame Strata", before = self.pendingChanges.strata.before, after = self.pendingChanges.strata.after })
+				table.insert(data, { property = L["Frame Strata"], before = self.pendingChanges.strata.before, after = self.pendingChanges.strata.after })
 			end
 			return #data > 0 and data or nil
 		end,
