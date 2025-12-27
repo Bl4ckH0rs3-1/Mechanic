@@ -291,7 +291,29 @@ function Properties.inputs:AddExtras(container, labelFS, key, onReset, tooltip)
 	end
 end
 
-function Properties.inputs:Number(parent, label, value, key, onChange, onReset, tooltip)
+function Properties.inputs:SetupKeyboardNav(editBox, currentVal, step, shiftStep, onChange)
+	editBox:SetScript("OnKeyDown", function(self, key)
+		local delta = 0
+		if key == "UP" then
+			delta = IsShiftKeyDown() and (shiftStep or 10) or (step or 1)
+		elseif key == "DOWN" then
+			delta = -(IsShiftKeyDown() and (shiftStep or 10) or (step or 1))
+		end
+		
+		if delta ~= 0 then
+			local newVal = (tonumber(self:GetText()) or currentVal or 0) + delta
+			-- Round to avoid float precision issues if using decimals
+			if step < 1 then
+				newVal = math.floor(newVal * 100 + 0.5) / 100
+			end
+			self:SetText(tostring(newVal))
+			onChange(newVal)
+			return true -- Consume the key
+		end
+	end)
+end
+
+function Properties.inputs:Number(parent, label, value, key, onChange, onReset, tooltip, step, shiftStep)
 	local container = CreateFrame("Frame", nil, parent)
 	container:SetSize(parent:GetWidth(), INPUT_HEIGHT)
 	
@@ -306,8 +328,10 @@ function Properties.inputs:Number(parent, label, value, key, onChange, onReset, 
 	input:SetPoint("RIGHT", onReset and -RESET_BTN_SIZE - 4 or 0, 0)
 	input:SetHeight(INPUT_HEIGHT - 2)
 	
-	-- EXPLICITLY set text because FenUI:CreateInput doesn't handle config.text
-	input:SetText(tostring(math.floor((value or 0) + 0.5)))
+	-- Determine formatting
+	local stepVal = step or 1
+	local fmt = stepVal < 1 and "%.2f" or "%d"
+	input:SetText(string.format(fmt, value or 0))
 	
 	if input.editBox then
 		input.editBox:SetScript("OnEnterPressed", function(eb)
@@ -315,6 +339,8 @@ function Properties.inputs:Number(parent, label, value, key, onChange, onReset, 
 			local newVal = tonumber(eb:GetText())
 			if newVal then onChange(newVal) end
 		end)
+		
+		self:SetupKeyboardNav(input.editBox, value, stepVal, shiftStep, onChange)
 	end
 	
 	self:AddExtras(container, lbl, key, onReset, tooltip)
@@ -379,6 +405,12 @@ function Properties.inputs:Slider(parent, label, value, key, min, max, step, onC
 				slider:SetValue(newVal)
 				onChange(newVal)
 			end
+		end)
+		
+		self:SetupKeyboardNav(input.editBox, value, step or 0.1, 1, function(val)
+			val = math.max(min, math.min(max, val))
+			slider:SetValue(val)
+			onChange(val)
 		end)
 	end
 
@@ -542,7 +574,7 @@ function Properties:InitializeDefaultSections()
 				frame:SetWidth(val)
 				self.pendingChanges.width = nil
 				self:Update(frame, true)
-			end)
+			end, nil, 1, 10)
 			wInput:SetPoint("TOPLEFT", 0, y)
 			y = y - INPUT_HEIGHT
 			
@@ -555,7 +587,7 @@ function Properties:InitializeDefaultSections()
 				frame:SetHeight(val)
 				self.pendingChanges.height = nil
 				self:Update(frame, true)
-			end)
+			end, nil, 1, 10)
 			hInput:SetPoint("TOPLEFT", 0, y)
 			y = y - INPUT_HEIGHT
 			
@@ -654,7 +686,7 @@ function Properties:InitializeDefaultSections()
 				frame:SetFrameLevel(val)
 				self.pendingChanges.level = nil
 				self:Update(frame, true)
-			end, "Controls depth within the same strata. Higher numbers appear on top.")
+			end, "Controls depth within the same strata. Higher numbers appear on top.", 1, 10)
 			levelInput:SetPoint("TOPLEFT", 0, y)
 			y = y - INPUT_HEIGHT
 			
@@ -715,7 +747,7 @@ function Properties:InitializeDefaultSections()
 				frame:SetScale(val)
 				self.pendingChanges.scale = nil
 				self:Update(frame, true)
-			end)
+			end, nil, 0.1, 1)
 			scaleInput:SetPoint("TOPLEFT", 0, y)
 			y = y - INPUT_HEIGHT
 			
