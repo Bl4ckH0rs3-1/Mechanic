@@ -162,8 +162,8 @@ function Properties:Update(frame, isRefresh)
 	-- Restore focus if needed
 	if self.activeEditKey and self.editBoxRegistry[self.activeEditKey] then
 		local eb = self.editBoxRegistry[self.activeEditKey]
-		-- Wrap in C_Timer to ensure frame visibility/layout is complete
-		C_Timer.After(0, function()
+		-- Use a small delay to ensure frame is interactive
+		C_Timer.After(0.01, function()
 			if eb and eb:IsVisible() then
 				eb:SetFocus()
 				eb:SetCursorPosition(string.len(eb:GetText()))
@@ -307,6 +307,25 @@ function Properties.inputs:AddExtras(container, labelFS, key, onReset, tooltip)
 	end
 end
 
+function Properties.inputs:CreateLabel(container, label, onReset)
+	local btn = CreateFrame("Button", nil, container)
+	btn:SetSize(LABEL_WIDTH, INPUT_HEIGHT)
+	btn:SetPoint("LEFT", 0, 0)
+	
+	local lbl = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	lbl:SetAllPoints()
+	lbl:SetJustifyH("LEFT")
+	lbl:SetText(label)
+	
+	if onReset then
+		btn:SetScript("OnClick", onReset)
+		btn:SetScript("OnEnter", function() lbl:SetTextColor(0, 0.8, 1) end) -- Highlight color
+		btn:SetScript("OnLeave", function() lbl:SetTextColor(1, 1, 1) end)
+	end
+	
+	return btn, lbl
+end
+
 function Properties.inputs:SetupKeyboardNav(editBox, currentVal, step, shiftStep, onChange, key)
 	editBox:SetScript("OnKeyDown", function(self, keyName)
 		local delta = 0
@@ -318,14 +337,14 @@ function Properties.inputs:SetupKeyboardNav(editBox, currentVal, step, shiftStep
 		
 		if delta ~= 0 then
 			local newVal = (tonumber(self:GetText()) or currentVal or 0) + delta
-			-- Round to avoid float precision issues if using decimals
+			-- Round to avoid float precision issues
 			if step < 1 then
 				newVal = math.floor(newVal * 100 + 0.5) / 100
 			end
 			self:SetText(tostring(newVal))
-			Properties.activeEditKey = key -- Mark as active edit to restore focus after refresh
+			Properties.activeEditKey = key
 			onChange(newVal)
-			return true -- Consume the key
+			return true
 		end
 	end)
 end
@@ -334,43 +353,27 @@ function Properties.inputs:Number(parent, label, value, key, onChange, onReset, 
 	local container = CreateFrame("Frame", nil, parent)
 	container:SetSize(parent:GetWidth(), INPUT_HEIGHT)
 	
-	local lbl = container:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	lbl:SetPoint("LEFT", 0, 0)
-	lbl:SetWidth(LABEL_WIDTH)
-	lbl:SetJustifyH("LEFT")
-	lbl:SetText(label)
+	local lblBtn, lbl = self:CreateLabel(container, label, onReset)
 	
 	local input = FenUI:CreateInput(container, {})
-	input:SetPoint("LEFT", lbl, "RIGHT", 4, 0)
+	input:SetPoint("LEFT", lblBtn, "RIGHT", 4, 0)
 	input:SetPoint("RIGHT", onReset and -RESET_BTN_SIZE - 4 or 0, 0)
 	input:SetHeight(INPUT_HEIGHT - 2)
 	
-	-- Determine formatting
 	local stepVal = step or 1
 	local fmt = stepVal < 1 and "%.2f" or "%d"
 	input:SetText(string.format(fmt, value or 0))
 	
 	if input.editBox then
-		Properties.editBoxRegistry[key] = input.editBox -- Register for focus restoration
-		
+		Properties.editBoxRegistry[key] = input.editBox
 		input.editBox:SetScript("OnEnterPressed", function(eb)
 			eb:ClearFocus()
 			local newVal = tonumber(eb:GetText())
 			if newVal then onChange(newVal) end
 		end)
-		
 		input.editBox:HookScript("OnEditFocusGained", function()
 			Properties.activeEditKey = key
 		end)
-		input.editBox:HookScript("OnEditFocusLost", function()
-			-- Only clear if we aren't about to restore it
-			C_Timer.After(0.01, function()
-				if Properties.activeEditKey == key and not input.editBox:HasFocus() then
-					-- Properties.activeEditKey = nil -- Don't clear yet, Update might need it
-				end
-			end)
-		end)
-		
 		self:SetupKeyboardNav(input.editBox, value, stepVal, shiftStep, onChange, key)
 	end
 	
@@ -391,27 +394,27 @@ function Properties.inputs:Checkbox(parent, label, value, key, onChange, onReset
 		onChange = function(_, checked) onChange(checked) end
 	})
 	cb:SetPoint("LEFT", 0, 0)
-	
 	cb.label:SetFontObject("GameFontHighlightSmall")
-	if cb.boxBg then cb.boxBg:SetVertexColor(1, 1, 1, 0.8) end
+	
+	-- Enable clicking label to reset
+	if onReset then
+		cb.labelBtn = CreateFrame("Button", nil, container)
+		cb.labelBtn:SetPoint("TOPLEFT", cb.label, "TOPLEFT")
+		cb.labelBtn:SetPoint("BOTTOMRIGHT", cb.label, "BOTTOMRIGHT")
+		cb.labelBtn:SetScript("OnClick", onReset)
+		cb.labelBtn:SetScript("OnEnter", function() cb.label:SetTextColor(0, 0.8, 1) end)
+		cb.labelBtn:SetScript("OnLeave", function() cb.label:SetTextColor(1, 1, 1) end)
+	end
 
 	self:AddExtras(container, cb.label, key, onReset, tooltip)
-	if container.resetBtn then
-		container.resetBtn:SetPoint("RIGHT", 0, 0)
-	end
-	
 	return container
 end
 
-function Properties.inputs:Slider(parent, label, value, key, min, max, step, onChange, onReset, tooltip)
+function Properties.inputs:Slider(parent, label, value, key, min, max, step, onChange, onReset, tooltip, shiftStep)
 	local container = CreateFrame("Frame", nil, parent)
 	container:SetSize(parent:GetWidth(), INPUT_HEIGHT + 10)
 	
-	local lbl = container:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	lbl:SetPoint("TOPLEFT", 0, 0)
-	lbl:SetWidth(LABEL_WIDTH)
-	lbl:SetJustifyH("LEFT")
-	lbl:SetText(label)
+	local lblBtn, lbl = self:CreateLabel(container, label, onReset)
 
 	local input = FenUI:CreateInput(container, {})
 	input:SetSize(40, INPUT_HEIGHT - 2)
@@ -419,7 +422,7 @@ function Properties.inputs:Slider(parent, label, value, key, min, max, step, onC
 	input:SetText(string.format("%.2f", value or 0))
 	
 	local slider = CreateFrame("Slider", nil, container, "OptionsSliderTemplate")
-	slider:SetPoint("TOPLEFT", lbl, "TOPRIGHT", 4, 0)
+	slider:SetPoint("TOPLEFT", lblBtn, "TOPRIGHT", 4, 0)
 	slider:SetPoint("RIGHT", input, "LEFT", -8, 0)
 	slider:SetHeight(12)
 	slider:SetMinMaxValues(min or 0, max or 1)
@@ -428,8 +431,7 @@ function Properties.inputs:Slider(parent, label, value, key, min, max, step, onC
 	slider:SetObeyStepOnDrag(true)
 
 	if input.editBox then
-		Properties.editBoxRegistry[key] = input.editBox -- Register for focus restoration
-		
+		Properties.editBoxRegistry[key] = input.editBox
 		input.editBox:SetScript("OnEnterPressed", function(eb)
 			eb:ClearFocus()
 			local newVal = tonumber(eb:GetText())
@@ -439,12 +441,10 @@ function Properties.inputs:Slider(parent, label, value, key, min, max, step, onC
 				onChange(newVal)
 			end
 		end)
-		
 		input.editBox:HookScript("OnEditFocusGained", function()
 			Properties.activeEditKey = key
 		end)
-		
-		self:SetupKeyboardNav(input.editBox, value, step or 0.1, 1, function(val)
+		self:SetupKeyboardNav(input.editBox, value, step or 0.1, shiftStep or 1, function(val)
 			val = math.max(min, math.min(max, val))
 			slider:SetValue(val)
 			onChange(val)
@@ -464,14 +464,10 @@ function Properties.inputs:Dropdown(parent, label, options, selected, key, onCha
 	local container = CreateFrame("Frame", nil, parent)
 	container:SetSize(parent:GetWidth(), INPUT_HEIGHT)
 	
-	local lbl = container:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	lbl:SetPoint("LEFT", 0, 0)
-	lbl:SetWidth(LABEL_WIDTH)
-	lbl:SetJustifyH("LEFT")
-	lbl:SetText(label)
+	local lblBtn, lbl = self:CreateLabel(container, label, onReset)
 
 	local btn = CreateFrame("Button", nil, container, "UIMenuButtonStretchTemplate")
-	btn:SetPoint("LEFT", lbl, "RIGHT", 4, 0)
+	btn:SetPoint("LEFT", lblBtn, "RIGHT", 4, 0)
 	btn:SetPoint("RIGHT", onReset and -RESET_BTN_SIZE - 4 or 0, 0)
 	btn:SetHeight(INPUT_HEIGHT)
 	
@@ -501,15 +497,11 @@ function Properties.inputs:Color(parent, label, r, g, b, a, key, onChange, onRes
 	local container = CreateFrame("Frame", nil, parent)
 	container:SetSize(parent:GetWidth(), INPUT_HEIGHT)
 	
-	local lbl = container:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	lbl:SetPoint("LEFT", 0, 0)
-	lbl:SetWidth(LABEL_WIDTH)
-	lbl:SetJustifyH("LEFT")
-	lbl:SetText(label)
+	local lblBtn, lbl = self:CreateLabel(container, label, onReset)
 
 	local swatch = CreateFrame("Button", nil, container)
 	swatch:SetSize(20, 20)
-	swatch:SetPoint("LEFT", lbl, "RIGHT", 4, 0)
+	swatch:SetPoint("LEFT", lblBtn, "RIGHT", 4, 0)
 	
 	local bg = swatch:CreateTexture(nil, "BACKGROUND")
 	bg:SetAllPoints()
@@ -563,27 +555,21 @@ function Properties.inputs:Text(parent, label, value, key, onChange, onReset, to
 	local container = CreateFrame("Frame", nil, parent)
 	container:SetSize(parent:GetWidth(), INPUT_HEIGHT)
 	
-	local lbl = container:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	lbl:SetPoint("LEFT", 0, 0)
-	lbl:SetWidth(LABEL_WIDTH)
-	lbl:SetJustifyH("LEFT")
-	lbl:SetText(label)
+	local lblBtn, lbl = self:CreateLabel(container, label, onReset)
 	
 	local input = FenUI:CreateInput(container, {})
-	input:SetPoint("LEFT", lbl, "RIGHT", 4, 0)
+	input:SetPoint("LEFT", lblBtn, "RIGHT", 4, 0)
 	input:SetPoint("RIGHT", onReset and -RESET_BTN_SIZE - 4 or 0, 0)
 	input:SetHeight(INPUT_HEIGHT - 2)
 	
 	input:SetText(tostring(value or ""))
 	
 	if input.editBox then
-		Properties.editBoxRegistry[key] = input.editBox -- Register for focus restoration
-		
+		Properties.editBoxRegistry[key] = input.editBox
 		input.editBox:SetScript("OnEnterPressed", function(eb)
 			eb:ClearFocus()
 			onChange(eb:GetText())
 		end)
-		
 		input.editBox:HookScript("OnEditFocusGained", function()
 			Properties.activeEditKey = key
 		end)
@@ -676,7 +662,7 @@ function Properties:InitializeDefaultSections()
 			shownInput:SetPoint("TOPLEFT", 0, y)
 			y = y - INPUT_HEIGHT
 			
-			local alphaInput = self.inputs:Slider(parent, _L("Alpha"), frame:GetAlpha(), "alpha", 0, 1, 0.05, function(val)
+			local alphaInput = self.inputs:Slider(parent, _L("Alpha"), frame:GetAlpha(), "alpha", 0, 1, 0.01, function(val)
 				frame:SetAlpha(val)
 				self:TrackChange("alpha", val)
 			end, function()
@@ -684,7 +670,7 @@ function Properties:InitializeDefaultSections()
 				frame:SetAlpha(val)
 				self.pendingChanges.alpha = nil
 				self:Update(frame, true)
-			end)
+			end, nil, 0.1) -- normal step 0.01, shift step 0.1
 			alphaInput:SetPoint("TOPLEFT", 0, y)
 			y = y - (INPUT_HEIGHT + 10)
 			
