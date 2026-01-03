@@ -4,6 +4,11 @@ All notable changes to Mechanic Desktop will be documented in this file.
 
 For the !Mechanic WoW addon changelog, see [!Mechanic/CHANGELOG.md](./!Mechanic/CHANGELOG.md).
 
+## [Unreleased]
+
+### Fixed
+- **MCP tool names**: Use dashes instead of dots in MCP tool names (`addon-lint` vs `addon.lint`) for Cursor agent compatibility. Cursor's agent tool injection doesn't handle dots in tool names.
+
 ## [0.4.0] - 2026-01-01
 
 ### Added
