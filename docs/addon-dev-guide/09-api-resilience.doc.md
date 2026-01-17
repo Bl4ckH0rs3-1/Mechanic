@@ -80,6 +80,12 @@ end
 
 > **Note**: `pcall` can prevent crashes, but it's a last resort. Prefer detecting secrets early and avoiding forbidden operations entirely.
 
+> [!CAUTION]
+> **12.0.1 Warning**: `type(secretValue)` currently returns the underlying type (e.g., `"number"`).
+> Blizzard has warned this **will change** to return `"secret"`.
+> Do NOT use `type(value) == "secret"` yet — use `issecretvalue(value)` instead.
+
+
 ---
 
 ## Prefer C_ Namespaced APIs

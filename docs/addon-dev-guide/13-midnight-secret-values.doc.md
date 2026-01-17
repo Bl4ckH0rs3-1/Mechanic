@@ -2,7 +2,7 @@
 
 > Part of the [Addon Development Guide](../AGENTS.md#addon-development-guide)
 
-Last updated: 2026-01-02 (updated activation rules for M+/Raids/PvP, userdata detection)
+Last updated: 2026-01-16 (12.0.1 Beta refinements: C_Secrets namespace, testing CVars, table de-escalation)
 
 ---
 
@@ -119,12 +119,14 @@ From PTR testing, these also become secret in combat:
 
 | Source | Fields Affected |
 |--------|-----------------|
-| Aura data (`C_UnitAuras.*`) | `spellId`, `name`, `icon`, `expirationTime`, `duration`, `applications`, `auraInstanceID` |
+| Aura data (`C_UnitAuras.*`) | `spellId`, `name`, `icon`, `expirationTime`, `duration`, `applications` |
+| Aura vectors | ~~Previously secret~~ → **Now readable** in 12.0.1 (from `GetUnitAuras`/`UNIT_AURA`) |
 | Frame regions | `GetDrawLayer()` returns |
 | Cooldown info | `activeCategory`, `duration`, `startTime` |
 | Spell info | `castCount` from `C_Spell.GetSpellCastCount()` |
 
-**Critical**: Even `auraInstanceID` can become secret, breaking cache lookups that use it as a key.
+> [!NOTE]
+> **12.0.1 Update**: `auraInstanceID` is now **confirmed non-secret**. Safe to use as cache keys.
 
 ---
 
@@ -912,3 +914,146 @@ function MyAddon:GetPlayerAura(spellID)
     return auraCache[spellID]
 end
 ```
+
+---
+
+## 12.0.1 Beta Refinements (January 2026)
+
+> [!IMPORTANT]
+> These refinements represent Blizzard's ongoing adjustments to the Secret Values system. Some behaviors may change before Midnight launches.
+
+### Table Secrecy De-escalation
+
+In earlier 12.0 builds, if a single value in a table was secret, the **entire table** was often locked. This has been relaxed:
+
+- APIs returning structured tables (`C_` namespace functions) now only mark **specific sensitive values** as secret
+- The table itself and non-sensitive keys remain accessible
+- Addons can iterate tables and check non-sensitive keys without errors
+
+```lua
+-- This now works even if some values are secret:
+local info = C_Spell.GetSpellCooldown(spellID)
+if info then
+    -- The table exists and can be inspected
+    -- info.duration may be secret, but table access doesn't error
+    print("Got info table: ", info ~= nil)
+end
+```
+
+### C_Secrets Namespace (Query Before Reading)
+
+New APIs allow you to check if data **will be** secret before attempting to read it:
+
+| API | Description |
+|-----|-------------|
+| `C_Secrets.GetSpellAuraSecrecy(spellID)` | Returns secrecy status for spell aura data |
+| `C_Secrets.GetSpellCooldownSecrecy(spellID)` | Returns secrecy status for spell cooldown |
+| `C_Secrets.GetSpellCastSecrecy(spellID)` | Returns secrecy status for spell cast data |
+| `C_Secrets.GetPowerTypeSecrecy(powerType)` | Returns secrecy status for power type |
+| `C_Secrets.ShouldUnitHealthMaxBeSecret(unit)` | Returns if unit health max will be secret |
+
+**Usage Pattern:**
+```lua
+local function SafeGetCooldown(spellID)
+    -- Check BEFORE reading to avoid errors
+    if C_Secrets and C_Secrets.GetSpellCooldownSecrecy then
+        local secrecy = C_Secrets.GetSpellCooldownSecrecy(spellID)
+        if secrecy then
+            -- Data will be secret - use passthrough patterns
+            return nil, true  -- (info, isSecret)
+        end
+    end
+    
+    -- Safe to read and inspect
+    local info = C_Spell.GetSpellCooldown(spellID)
+    return info, false
+end
+```
+
+### Frame Taint Detection: HasSecretValues()
+
+New method to check if a frame has been "tainted" by secret data:
+
+```lua
+-- Check if frame geometry is safe to query
+if frame:HasSecretValues() then
+    -- GetWidth()/GetHeight()/GetPoint() may return secrets
+    -- Use static layout instead
+else
+    local width = frame:GetWidth()  -- Safe
+end
+```
+
+### Testing CVars for Developers
+
+Force secret behavior on Beta/PTR without needing actual M+ combat:
+
+```
+/run SetCVar("secretAurasForced", 1)            -- Aura data returns as secrets
+/run SetCVar("secretCooldownsForced", 1)        -- Cooldown data as secrets
+/run SetCVar("secretSpellcastsForced", 1)       -- Spellcast data as secrets
+/run SetCVar("secretUnitPowerForced", 1)        -- Power/energy/mana as secrets
+/run SetCVar("secretCombatRestrictionsForced", 1)     -- Simulate restricted environment
+/run SetCVar("secretChallengeModeRestrictionsForced", 1) -- Simulate M+ environment
+
+-- Reset to normal
+/run SetCVar("secretAurasForced", 0)
+```
+
+### `type()` Return Value Warning
+
+> [!CAUTION]
+> **PENDING CHANGE**: `type(secretValue)` currently returns the underlying type (e.g., `"number"`).
+> Blizzard has warned this **will change** to return `"secret"`.
+>
+> **Do NOT use** `type(value) == "secret"` yet — it won't work on current builds.
+> **Do use** `issecretvalue(value)` as the primary detection method.
+
+```lua
+-- WRONG (future behavior, not yet active)
+if type(value) == "secret" then ... end
+
+-- CORRECT (works now)
+if issecretvalue and issecretvalue(value) then ... end
+```
+
+### Expanded Spell Whitelist
+
+These spells remain **non-secret** even in combat to prevent critical UI breakage:
+
+| Category | Spell IDs | Use Case |
+|----------|-----------|----------|
+| **GCD** | 61304 | Accurate cast bar, latency tracking |
+| **Skyriding Vigor** | 376747 | Custom flight HUDs |
+| **Surge Forward** | 372608 | Skyriding ability |
+| **Whirling Surge** | 361584 | Skyriding ability |
+| **Skyward Ascent** | 372610 | Skyriding ability |
+| **Combat Res** | (various) | Raid frame battle-res counting |
+| **Devourer DH Resources** | (spec-specific) | Resource tracking for new spec |
+
+### SecondsFormatter Object
+
+New global object for displaying secret duration values as formatted strings:
+
+```lua
+-- Create formatter with options
+local formatter = CreateSecondsFormatter(
+    0,                                    -- minSeconds
+    SecondsFormatter.Abbreviation.None,   -- abbreviation style
+    true                                  -- roundUp
+)
+
+-- Format a potentially-secret duration
+local duration = C_UnitAuras.GetUnitAuraDuration("player", auraID)
+fontString:SetText(formatter:Format(duration))  -- Returns "1:24" or similar
+```
+
+This allows displaying timer text without the addon ever "knowing" the actual number.
+
+---
+
+## See Also
+
+- [API Changelog](../api-changelog.md) - Track API changes by date
+- [Midnight Readiness](./12-midnight-readiness.doc.md) - Preparation overview
+- [API Resilience](./09-api-resilience.doc.md) - Defensive programming

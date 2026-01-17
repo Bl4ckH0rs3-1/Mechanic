@@ -2,7 +2,7 @@
 
 > Part of the [Addon Development Guide](../AGENTS.md#addon-development-guide)
 
-Last updated: 2025-12-20 (added unit frame anchor patterns)
+Last updated: 2026-01-16 (added 12.0.1 nameplate relaxation, achievement changes, housing APIs)
 
 ---
 
@@ -98,9 +98,11 @@ Many API returns become "secret values" during combat in instances:
 | Customizable Nameplates | Enhanced | Style-only hooks |
 | **Duration Objects** | New (12.0) | `C_DurationUtil.CreateDuration` |
 | **Heal Calculators** | New (12.0) | `UnitHealPredictionCalculator` |
-| **Secrecy Queries** | New (12.0) | `GetSpellAuraSecrecy`, `GetPowerTypeSecrecy` |
+| **Secrecy Queries** | New (12.0.1) | `C_Secrets.GetSpellAuraSecrecy`, etc. |
 | **Interpretive Time** | New (12.0) | `SecondsFormatter` |
 | **Settings Utility** | New (12.0) | `C_SettingsUtil` namespace |
+| **Housing APIs** | New (12.0.1) | `C_Housing` namespace |
+| **Testing CVars** | New (12.0.1) | `secretAurasForced`, etc. |
 
 ### 5. Protected APIs (Field-Tested)
 
@@ -218,6 +220,63 @@ Changes in the 12.0 engine have made `EditBox` interaction more sensitive to scr
 | **Drag Interception** | `RegisterForDrag` on parent frame | Mouse-drag initiates window movement instead of text selection. | Use `OnMouseDown` + `self:StartMoving()` for window dragging instead of the "heavy" `RegisterForDrag` API. |
 | **Interaction Dead-zones** | Manual height updates in `OnTextChanged` | Mouse coordinates for selection become offset or "frozen" in long fields. | Avoid manual `SetHeight` calls during active interaction. Let the `UIPanelScrollFrameTemplate` handle the scrollable area. |
 | **Silent Interaction Crash** | Legacy `GetTextHeight()` call | UI thread "dies" during click, looking like a freeze. | `GetTextHeight()` is removed. Use robust calculation: `(eb:GetNumLines() or 1) * fontHeight`. |
+
+---
+
+### 10. Enemy Nameplate Relaxation (12.0.1)
+
+Blizzard has **relaxed** restrictions on enemy nameplate colorization:
+
+| Aspect | Details |
+|--------|---------|
+| **Colorization** | Addons can programmatically change enemy nameplate colors based on unit ID or priority |
+| **Restriction** | Color logic must NOT rely on secret values (like exact HP percentage) unless using `C_CurveUtil` mapping |
+
+```lua
+-- OK: Use C_CurveUtil for color based on secret health
+local healthColor = C_CurveUtil.EvaluateColorFromBoolean(
+    secretHealthLow,        -- secret boolean from calculator
+    { r=1, g=0, b=0 },      -- colorA (low health)
+    { r=0, g=1, b=0 },      -- colorB (high health)
+    nameplate.HealthBar
+)
+
+-- NOT OK: Direct comparison on secret value
+if UnitHealth(unit) < 1000 then  -- ERROR: comparing secret
+    nameplate:SetColor(1, 0, 0)
+end
+```
+
+---
+
+### 11. Achievement System Breaking Change (12.0.1)
+
+> [!WARNING]
+> Querying invalid, hidden, or gated achievement criteria now triggers a **hard Lua error** instead of returning `nil`.
+
+| OLD Behavior (11.x) | NEW Behavior (12.0.1) |
+|---------------------|----------------------|
+| `GetAchievementCriteriaInfo(invalidID)` returns `nil` | **Hard Lua error** — crashes the script |
+
+**Required Fix**: Use `pcall` or check criteria existence first:
+
+```lua
+-- WRONG: Will crash in 12.0.1 if criterion doesn't exist
+local desc = GetAchievementCriteriaInfo(achievementID, criteriaIndex)
+
+-- CORRECT: Safeguarded loop
+local function SafeGetCriteria(achievementID, criteriaIndex)
+    local ok, desc, type, completed = pcall(
+        GetAchievementCriteriaInfo, 
+        achievementID, 
+        criteriaIndex
+    )
+    if ok then
+        return desc, type, completed
+    end
+    return nil
+end
+```
 
 ---
 
