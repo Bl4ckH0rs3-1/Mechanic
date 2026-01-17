@@ -7,13 +7,13 @@ Example:
     >>> from afd.server import define_command
     >>> from afd import success
     >>> from pydantic import BaseModel
-    >>> 
+    >>>
     >>> class GreetInput(BaseModel):
     ...     name: str
-    ...     
+    ...
     >>> class GreetOutput(BaseModel):
     ...     message: str
-    >>> 
+    >>>
     >>> @define_command(
     ...     name="greet",
     ...     description="Greet someone",
@@ -52,7 +52,7 @@ TOutput = TypeVar("TOutput")
 @dataclass
 class CommandMetadata:
     """Metadata for a decorated command.
-    
+
     Attributes:
         name: Command name (e.g., "item.create").
         description: Human-readable description.
@@ -62,7 +62,7 @@ class CommandMetadata:
         mutation: Whether this command modifies state.
         examples: Example inputs for documentation.
     """
-    
+
     name: str
     description: str
     input_schema: Optional[Type[BaseModel]] = None
@@ -82,10 +82,10 @@ def define_command(
     examples: Optional[List[Dict[str, Any]]] = None,
 ) -> Callable:
     """Decorator to define a command with metadata.
-    
+
     The decorated function becomes a command handler that can be registered
     with an MCP server. The decorator attaches metadata for schema generation.
-    
+
     Args:
         name: Command name (use dot notation, e.g., "item.create").
         description: Human-readable description of what the command does.
@@ -94,10 +94,10 @@ def define_command(
         tags: Tags for categorization and filtering.
         mutation: Whether this command modifies state (default False).
         examples: Example inputs for documentation.
-    
+
     Returns:
         Decorator function that wraps the handler.
-    
+
     Example:
         >>> @define_command(
         ...     name="user.create",
@@ -110,7 +110,7 @@ def define_command(
         ...     # Implementation
         ...     pass
     """
-    
+
     def decorator(func: Callable) -> Callable:
         # Attach metadata to the function
         func.__afd_command__ = CommandMetadata(
@@ -122,9 +122,11 @@ def define_command(
             mutation=mutation,
             examples=examples or [],
         )
-        
+
         @wraps(func)
-        async def wrapper(raw_input: Any, context: Optional[Any] = None) -> CommandResult:
+        async def wrapper(
+            raw_input: Any, context: Optional[Any] = None
+        ) -> CommandResult:
             """Wrapper that validates input and calls the handler."""
             # Validate input using Pydantic schema if provided
             if input_schema and raw_input is not None:
@@ -136,23 +138,28 @@ def define_command(
                     validated_input = input_schema.model_validate(raw_input)
             else:
                 validated_input = raw_input
-            
+
             # Call the original handler
-            result = await func(validated_input, context) if _accepts_context(func) else await func(validated_input)
-            
+            result = (
+                await func(validated_input, context)
+                if _accepts_context(func)
+                else await func(validated_input)
+            )
+
             return result
-        
+
         # Copy metadata to wrapper
         wrapper.__afd_command__ = func.__afd_command__
-        
+
         return wrapper
-    
+
     return decorator
 
 
 def _accepts_context(func: Callable) -> bool:
     """Check if function accepts a context parameter."""
     import inspect
+
     try:
         sig = inspect.signature(func)
         params = list(sig.parameters.keys())
@@ -173,35 +180,39 @@ def get_command_metadata(func: Callable) -> Optional[CommandMetadata]:
 
 def command_to_definition(func: Callable) -> Optional[CommandDefinition]:
     """Convert a decorated function to a CommandDefinition.
-    
+
     Args:
         func: Function decorated with @define_command.
-    
+
     Returns:
         CommandDefinition if the function has metadata, None otherwise.
     """
     metadata = get_command_metadata(func)
     if not metadata:
         return None
-    
+
     # Generate parameters from input schema
     parameters = []
     if metadata.input_schema:
         schema = metadata.input_schema.model_json_schema()
         properties = schema.get("properties", {})
         required = set(schema.get("required", []))
-        
+
         for prop_name, prop_schema in properties.items():
             json_type = _json_schema_type(prop_schema.get("type", "string"))
-            parameters.append(CommandParameter(
-                name=prop_name,
-                type=json_type,
-                description=prop_schema.get("description", f"Parameter {prop_name}"),
-                required=prop_name in required,
-                default=prop_schema.get("default"),
-                enum=prop_schema.get("enum"),
-            ))
-    
+            parameters.append(
+                CommandParameter(
+                    name=prop_name,
+                    type=json_type,
+                    description=prop_schema.get(
+                        "description", f"Parameter {prop_name}"
+                    ),
+                    required=prop_name in required,
+                    default=prop_schema.get("default"),
+                    enum=prop_schema.get("enum"),
+                )
+            )
+
     return CommandDefinition(
         name=metadata.name,
         description=metadata.description,

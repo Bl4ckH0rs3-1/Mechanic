@@ -7,16 +7,16 @@ Example:
     >>> from afd.server import create_server, define_command
     >>> from afd import success
     >>> from pydantic import BaseModel
-    >>> 
+    >>>
     >>> class CreateInput(BaseModel):
     ...     name: str
-    ...     
+    ...
     >>> class CreateOutput(BaseModel):
     ...     id: str
     ...     name: str
-    >>> 
+    >>>
     >>> server = create_server("my-app")
-    >>> 
+    >>>
     >>> @server.command(
     ...     name="item.create",
     ...     description="Create a new item",

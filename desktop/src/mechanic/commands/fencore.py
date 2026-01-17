@@ -21,8 +21,10 @@ from ..config import get_config
 # SCHEMAS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class CatalogInput(BaseModel):
     """No input needed for catalog."""
+
     pass
 
 
@@ -44,7 +46,9 @@ class CatalogOutput(BaseModel):
 
 
 class SearchInput(BaseModel):
-    query: str = Field(..., description="Search query (partial match on name or description)")
+    query: str = Field(
+        ..., description="Search query (partial match on name or description)"
+    )
     limit: int = Field(20, description="Maximum results to return")
 
 
@@ -79,6 +83,7 @@ class InfoOutput(BaseModel):
 # ═══════════════════════════════════════════════════════════════════════════════
 # HELPERS
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def get_fencore_catalog() -> Optional[Dict]:
     """
@@ -115,6 +120,7 @@ def get_fencore_catalog() -> Optional[Dict]:
 # COMMANDS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def register_commands(server):
     """Register FenCore commands with the server."""
 
@@ -124,14 +130,16 @@ def register_commands(server):
         input_schema=CatalogInput,
         output_schema=CatalogOutput,
     )
-    async def fencore_catalog(input: CatalogInput, context: Any = None) -> CommandResult[CatalogOutput]:
+    async def fencore_catalog(
+        input: CatalogInput, context: Any = None
+    ) -> CommandResult[CatalogOutput]:
         catalog = get_fencore_catalog()
 
         if not catalog:
             return error(
                 code="CATALOG_NOT_FOUND",
                 message="FenCore catalog not found in MechanicDB",
-                suggestion="Ensure FenCore is loaded in WoW and run /reload"
+                suggestion="Ensure FenCore is loaded in WoW and run /reload",
             )
 
         # Count total functions
@@ -154,7 +162,7 @@ def register_commands(server):
             ),
             reasoning=f"Found {len(catalog.get('domains', {}))} domains with {total} functions",
             sources=[src],
-            confidence=1.0
+            confidence=1.0,
         )
 
     @server.command(
@@ -163,14 +171,16 @@ def register_commands(server):
         input_schema=SearchInput,
         output_schema=SearchOutput,
     )
-    async def fencore_search(input: SearchInput, context: Any = None) -> CommandResult[SearchOutput]:
+    async def fencore_search(
+        input: SearchInput, context: Any = None
+    ) -> CommandResult[SearchOutput]:
         catalog = get_fencore_catalog()
 
         if not catalog:
             return error(
                 code="CATALOG_NOT_FOUND",
                 message="FenCore catalog not found",
-                suggestion="Ensure FenCore is loaded and run /reload"
+                suggestion="Ensure FenCore is loaded and run /reload",
             )
 
         query_lower = input.query.lower()
@@ -186,22 +196,29 @@ def register_commands(server):
                 description = func_info.get("description", "")
 
                 # Match on name or description
-                if query_lower in full_name.lower() or query_lower in description.lower():
-                    results.append(SearchResult(
-                        domain=domain_name,
-                        name=func_name,
-                        full_name=full_name,
-                        description=description,
-                    ))
+                if (
+                    query_lower in full_name.lower()
+                    or query_lower in description.lower()
+                ):
+                    results.append(
+                        SearchResult(
+                            domain=domain_name,
+                            name=func_name,
+                            full_name=full_name,
+                            description=description,
+                        )
+                    )
 
         # Sort by relevance (name match first)
-        results.sort(key=lambda r: (
-            0 if query_lower in r.name.lower() else 1,
-            r.full_name.lower()
-        ))
+        results.sort(
+            key=lambda r: (
+                0 if query_lower in r.name.lower() else 1,
+                r.full_name.lower(),
+            )
+        )
 
         # Apply limit
-        limited = results[:input.limit]
+        limited = results[: input.limit]
 
         return success(
             data=SearchOutput(
@@ -209,7 +226,7 @@ def register_commands(server):
                 results=limited,
                 total=len(results),
             ),
-            reasoning=f"Found {len(results)} functions matching '{input.query}'"
+            reasoning=f"Found {len(results)} functions matching '{input.query}'",
         )
 
     @server.command(
@@ -218,14 +235,16 @@ def register_commands(server):
         input_schema=InfoInput,
         output_schema=InfoOutput,
     )
-    async def fencore_info(input: InfoInput, context: Any = None) -> CommandResult[InfoOutput]:
+    async def fencore_info(
+        input: InfoInput, context: Any = None
+    ) -> CommandResult[InfoOutput]:
         catalog = get_fencore_catalog()
 
         if not catalog:
             return error(
                 code="CATALOG_NOT_FOUND",
                 message="FenCore catalog not found",
-                suggestion="Ensure FenCore is loaded and run /reload"
+                suggestion="Ensure FenCore is loaded and run /reload",
             )
 
         domains = catalog.get("domains", {})
@@ -236,7 +255,7 @@ def register_commands(server):
             return error(
                 code="DOMAIN_NOT_FOUND",
                 message=f"Domain '{input.domain}' not found",
-                suggestion=f"Available domains: {available}"
+                suggestion=f"Available domains: {available}",
             )
 
         func_info = domain.get(input.function)
@@ -246,7 +265,7 @@ def register_commands(server):
             return error(
                 code="FUNCTION_NOT_FOUND",
                 message=f"Function '{input.function}' not found in {input.domain}",
-                suggestion=f"Available functions: {available}"
+                suggestion=f"Available functions: {available}",
             )
 
         return success(
@@ -259,5 +278,5 @@ def register_commands(server):
                 returns=func_info.get("returns", {}),
                 example=func_info.get("example"),
             ),
-            reasoning=f"Retrieved info for FenCore.{input.domain}.{input.function}"
+            reasoning=f"Retrieved info for FenCore.{input.domain}.{input.function}",
         )

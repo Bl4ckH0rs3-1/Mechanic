@@ -24,29 +24,24 @@ TOOL_CATEGORIES = {
     "reload": "Reload - Trigger in-game reloads",
     "server": "Server - Control the Mechanic server",
     "dashboard": "Dashboard - Metrics and monitoring",
-
     # Development Tools
     "addon": "Addon - Validate, lint, format, and test addons",
     "libs": "Libraries - Manage addon dependencies",
     "locale": "Localization - Validate and extract locale strings",
     "atlas": "Atlas - Search Blizzard UI atlas icons",
-
     # API & Sandbox
     "api": "API - Search and explore WoW APIs",
     "lua": "Lua - Queue code for in-game execution",
     "sandbox": "Sandbox - Test Lua code with WoW API stubs",
-
     # Release Pipeline
     "version": "Version - Bump addon versions",
     "changelog": "Changelog - Update changelogs",
     "git": "Git - Commit and tag releases",
     "release": "Release - Full release workflow",
-
     # Environment
     "env": "Environment - Configuration and status",
     "tools": "Tools - Development tool status",
     "docs": "Docs - Generate and analyze documentation",
-
     # Research & Assets
     "research": "Research - Web search for addon development info",
     "assets": "Assets - Manage addon assets (PNG to TGA)",
@@ -67,7 +62,6 @@ TOOL_ANNOTATIONS = {
     "version.bump": {"destructive": True, "idempotent": True},
     "changelog.add": {"destructive": True, "idempotent": False},
     "libs.sync": {"destructive": True, "idempotent": True},
-
     # Read-only tools - safe to call anytime, no side effects
     "sv.parse": {"readOnly": True, "idempotent": True},
     "sv.discover": {"readOnly": True, "idempotent": True},
@@ -95,10 +89,8 @@ TOOL_ANNOTATIONS = {
     "perf.report": {"readOnly": True, "idempotent": True},
     "perf.list": {"readOnly": True, "idempotent": True},
     "assets.list": {"readOnly": True, "idempotent": True},
-
     # Open world - fetches from internet, may have prompt injection risk
     "research.query": {"openWorld": True, "idempotent": True},
-
     # Idempotent mutators - safe to retry
     "addon.format": {"idempotent": True},
     "addon.sync": {"idempotent": True},
@@ -191,7 +183,6 @@ TOOL_EXAMPLES = {
     "sv.discover": "{}",
     "dashboard.metrics": "{}",
     "server.shutdown": "{}",
-
     # Addon Development
     "addon.validate": '{"addon": "Weekly"}',
     "addon.lint": '{"addon": "Weekly"}',
@@ -205,12 +196,10 @@ TOOL_EXAMPLES = {
     "docs.stale": '{"addon": "Weekly", "commits_threshold": 10}',
     "addon.create": '{"name": "MyNewAddon", "path": "C:/WoW/_dev_"}',
     "addon.sync": '{"addon": "Weekly"}',
-
     # Libraries
     "libs.check": '{"addon": "Weekly"}',
     "libs.sync": '{"addon": "Weekly"}',
     "libs.init": '{"addon": "Weekly"}',
-
     # API Reference
     "api.search": '{"pattern": "GetSpellInfo"}',
     "api.info": '{"api_name": "C_Spell.GetSpellInfo"}',
@@ -220,42 +209,34 @@ TOOL_EXAMPLES = {
     "api.populate": "{}",
     "api.generate": "{}",
     "api.refresh": "{}",
-
     # Atlas Icons
     "atlas.scan": "{}",
     "atlas.search": '{"pattern": "raid*"}',
-
     # Localization
     "locale.validate": '{"addon": "Weekly"}',
     "locale.extract": '{"addon": "Weekly"}',
-
     # Lua Execution
     "lua.queue": '{"snippets": ["print(GetTime())", "print(UnitName(\\"player\\"))"]}',
     "lua.results": "{}",
-
     # Sandbox Testing
     "sandbox.generate": "{}",
     "sandbox.status": "{}",
     "sandbox.exec": '{"code": "print(GetSpellInfo(1))"}',
     "sandbox.test": '{"addon": "Weekly"}',
-
     # Release Pipeline
     "version.bump": '{"addon": "Weekly", "version": "1.2.0"}',
     "changelog.add": '{"addon": "Weekly", "version": "1.2.0", "message": "Added new feature", "category": "Added"}',
     "git.commit": '{"addon": "Weekly", "message": "Fix bug in timer"}',
     "git.tag": '{"addon": "Weekly", "version": "1.2.0"}',
     "release.all": '{"addon": "Weekly", "version": "1.2.0", "message": "Major update"}',
-
     # Environment
     "env.status": "{}",
     "tools.status": "{}",
     "docs.generate": '{"format": "markdown"}',
-
     # Research & Assets
     "research.query": '{"query": "how to use C_Spell.GetSpellInfo in WoW addon"}',
     "assets.sync": '{"addon": "Weekly"}',
     "assets.list": '{"addon": "Weekly"}',
-
     # Performance
     "perf.baseline": '{"addon": "Weekly"}',
     "perf.compare": '{"addon": "Weekly"}',
@@ -279,6 +260,7 @@ def get_example_for_tool(tool_name: str) -> Optional[str]:
 # PYDANTIC SCHEMA EXTRACTION
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def extract_schema_from_pydantic(model: Type[BaseModel]) -> Dict[str, Any]:
     """Extract parameter info from a Pydantic model for MCP tool description."""
     schema = model.model_json_schema()
@@ -298,13 +280,15 @@ def extract_schema_from_pydantic(model: Type[BaseModel]) -> Dict[str, Any]:
             types = [t.get("type") for t in prop["anyOf"] if t.get("type") != "null"]
             param_type = types[0] if types else "any"
 
-        params.append({
-            "name": name,
-            "type": param_type,
-            "description": description,
-            "required": is_required,
-            "default": default,
-        })
+        params.append(
+            {
+                "name": name,
+                "type": param_type,
+                "description": description,
+                "required": is_required,
+                "default": default,
+            }
+        )
 
     return {
         "params": params,
@@ -324,6 +308,7 @@ def get_input_schema_from_handler(func) -> Optional[Type[BaseModel]]:
 # ═══════════════════════════════════════════════════════════════════════════════
 # RICH DESCRIPTION BUILDER
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def get_annotations_for_tool(tool_name: str) -> Dict[str, Any]:
     """Get annotations for a tool."""
@@ -403,13 +388,15 @@ def build_rich_description(
     elif fallback_params:
         # Use CommandParameter objects from CommandDefinition
         for p in fallback_params:
-            params.append({
-                "name": getattr(p, "name", str(p)),
-                "type": getattr(p, "type", "any"),
-                "description": getattr(p, "description", ""),
-                "required": getattr(p, "required", False),
-                "default": getattr(p, "default", None),
-            })
+            params.append(
+                {
+                    "name": getattr(p, "name", str(p)),
+                    "type": getattr(p, "type", "any"),
+                    "description": getattr(p, "description", ""),
+                    "required": getattr(p, "required", False),
+                    "default": getattr(p, "default", None),
+                }
+            )
 
     if params:
         parts.append("")
@@ -438,6 +425,7 @@ def build_rich_description(
 # CLEAN OUTPUT FORMATTER
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def _summarize_list(items: List[Any], max_show: int = 3) -> str:
     """Summarize a list of items for display."""
     if not items:
@@ -457,7 +445,9 @@ def _summarize_list(items: List[Any], max_show: int = 3) -> str:
         return f"[{count} objects]"
 
     elif all(isinstance(item, str) for item in items):
-        preview = [item[:40] + "..." if len(item) > 40 else item for item in items[:max_show]]
+        preview = [
+            item[:40] + "..." if len(item) > 40 else item for item in items[:max_show]
+        ]
         if count > max_show:
             return f"[{', '.join(preview)}, ...+{count - max_show} more]"
         return f"[{', '.join(preview)}]"
@@ -495,8 +485,17 @@ def format_result_for_agent(result: Dict[str, Any]) -> str:
 
             # Priority fields that are most useful
             priority_keys = [
-                "valid", "count", "total", "found", "passed", "failed",
-                "errors", "warnings", "version", "status", "path",
+                "valid",
+                "count",
+                "total",
+                "found",
+                "passed",
+                "failed",
+                "errors",
+                "warnings",
+                "version",
+                "status",
+                "path",
             ]
 
             for key in priority_keys:
@@ -508,14 +507,24 @@ def format_result_for_agent(result: Dict[str, Any]) -> str:
                         if key in ("errors", "warnings") and value:
                             # Show first error/warning for context
                             first_msg = str(value[0])[:60]
-                            findings.append(f"{key}: {len(value)} - first: \"{first_msg}\"")
+                            findings.append(
+                                f'{key}: {len(value)} - first: "{first_msg}"'
+                            )
                         else:
                             findings.append(f"{key}: {len(value)}")
                     elif value is not None:
                         findings.append(f"{key}: {value}")
 
             # Look for list results (common pattern)
-            for key in ["apis", "results", "addons", "libraries", "paths", "matches", "files"]:
+            for key in [
+                "apis",
+                "results",
+                "addons",
+                "libraries",
+                "paths",
+                "matches",
+                "files",
+            ]:
                 if key in data and isinstance(data[key], list):
                     summary = _summarize_list(data[key])
                     findings.append(f"{key}: {summary}")
@@ -526,7 +535,9 @@ def format_result_for_agent(result: Dict[str, Any]) -> str:
 
         # Sources for transparency
         if result.get("sources"):
-            source_titles = [s.get("title", s.get("id", "unknown")) for s in result["sources"]]
+            source_titles = [
+                s.get("title", s.get("id", "unknown")) for s in result["sources"]
+            ]
             lines.append(f"Sources: {', '.join(source_titles)}")
 
         # Confidence if present and meaningful
@@ -538,7 +549,9 @@ def format_result_for_agent(result: Dict[str, Any]) -> str:
         # Error case
         error = result.get("error", {})
         lines.append("FAILED")
-        lines.append(f"Error: [{error.get('code', 'UNKNOWN')}] {error.get('message', 'Unknown error')}")
+        lines.append(
+            f"Error: [{error.get('code', 'UNKNOWN')}] {error.get('message', 'Unknown error')}"
+        )
         if error.get("suggestion"):
             lines.append(f"Hint: {error['suggestion']}")
         if error.get("retryable"):
@@ -554,6 +567,7 @@ def format_result_for_agent(result: Dict[str, Any]) -> str:
 # ═══════════════════════════════════════════════════════════════════════════════
 # MCP SERVER FACTORY
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def create_mcp_server(afd_server, verbose: bool = False):
     """Create an enhanced MCP server from an AFD server.
@@ -592,7 +606,7 @@ Use this first to understand what tools are available before calling other tools
 
 Parameters: None
 
-Example: {}"""
+Example: {}""",
     )
     async def get_manifest() -> str:
         """Return a structured manifest of all available tools."""
@@ -601,7 +615,7 @@ Example: {}"""
             "description": "WoW addon development toolkit",
             "version": "0.2.1",
             "total_tools": len(commands),
-            "categories": {}
+            "categories": {},
         }
 
         for cat, tools in sorted(by_category.items()):
@@ -621,7 +635,9 @@ Example: {}"""
 
         for cat in sorted(by_category.keys()):
             cat_info = manifest["categories"][cat]
-            lines.append(f"  {cat} ({cat_info['count']} tools): {cat_info['description']}")
+            lines.append(
+                f"  {cat} ({cat_info['count']} tools): {cat_info['description']}"
+            )
 
         lines.append("")
         lines.append("Quick Start:")
@@ -638,8 +654,12 @@ Example: {}"""
 
     if verbose:
         import sys
+
         print(f"\nMechanic MCP Server", file=sys.stderr)
-        print(f"Tools: {len(commands) + 1} total across {len(by_category)} categories", file=sys.stderr)
+        print(
+            f"Tools: {len(commands) + 1} total across {len(by_category)} categories",
+            file=sys.stderr,
+        )
         for cat in sorted(by_category.keys()):
             print(f"  {cat}: {len(by_category[cat])} tools", file=sys.stderr)
         print("", file=sys.stderr)
@@ -658,7 +678,7 @@ def _register_enhanced_tool(mcp_server, afd_server, cmd):
     """
     import sys
     import traceback
-    
+
     # Store original name for AFD execution
     afd_name = cmd.name
     # Use dashes instead of dots for Cursor compatibility
@@ -685,7 +705,7 @@ def _register_enhanced_tool(mcp_server, afd_server, cmd):
     @mcp_server.tool(name=mcp_tool_name, description=rich_description)
     async def tool_handler(**kwargs) -> str:
         """MCP tool handler with enhanced output formatting and error handling."""
-        
+
         try:
             # Handle Claude Code's parameter wrapping
             params = kwargs
@@ -701,30 +721,22 @@ def _register_enhanced_tool(mcp_server, afd_server, cmd):
                     except json.JSONDecodeError:
                         params = {}
 
-
-
             # Execute the command using original AFD name (dot notation)
             result = await afd_server.execute(afd_name, params)
-            
 
-            
             result_dict = result.model_dump()
-
-
 
             # Return formatted output
             formatted = format_result_for_agent(result_dict)
-            
 
-            
             return formatted
-            
+
         except Exception as e:
             # Log the full error to stderr for debugging
             error_msg = f"[MCP ERROR] {afd_name} failed: {type(e).__name__}: {e}"
             print(error_msg, file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
-            
+
             # Return a clean error response to the agent
             error_result = {
                 "success": False,
@@ -742,4 +754,3 @@ def _register_enhanced_tool(mcp_server, afd_server, cmd):
             return format_result_for_agent(error_result)
 
     return tool_handler
-

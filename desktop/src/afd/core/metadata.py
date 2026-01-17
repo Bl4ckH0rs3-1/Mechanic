@@ -8,7 +8,7 @@ These types enable rich agent UX by providing:
 
 Example:
     >>> from afd.core.metadata import Source, create_source
-    >>> 
+    >>>
     >>> source = create_source(
     ...     "document",
     ...     id="style-guide-v3",
@@ -27,9 +27,9 @@ T = TypeVar("T")
 
 class Source(BaseModel):
     """Information source used by a command to produce its result.
-    
+
     Enables: Attribution, verification, trust building.
-    
+
     Attributes:
         type: Source type identifier (document, url, database, api, etc.).
         id: Unique identifier for the source.
@@ -38,7 +38,7 @@ class Source(BaseModel):
         location: Specific location within source (page, section, line).
         accessed_at: ISO timestamp when source was accessed.
         relevance: Confidence or relevance score (0-1).
-    
+
     Example:
         >>> source = Source(
         ...     type="document",
@@ -69,9 +69,9 @@ class PlanStepStatus(str, Enum):
 
 class PlanStep(BaseModel):
     """A step in a multi-step plan or operation.
-    
+
     Enables: Plan visualization, progress tracking, transparency.
-    
+
     Attributes:
         id: Unique identifier for this step.
         action: The action being performed (verb: fetch, validate, etc.).
@@ -82,7 +82,7 @@ class PlanStep(BaseModel):
         error: Error information if the step failed.
         progress: Progress percentage (0-100) if in progress.
         estimated_time_remaining_ms: Estimated time remaining in ms.
-    
+
     Example:
         >>> step = PlanStep(
         ...     id="validate-input",
@@ -106,15 +106,15 @@ class PlanStep(BaseModel):
 
 class Alternative(BaseModel, Generic[T]):
     """An alternative result that was considered but not chosen.
-    
+
     Enables: User choice, exploration, transparency about decisions.
-    
+
     Attributes:
         data: The alternative result data.
         reason: Why this wasn't selected, or why user might prefer it.
         confidence: Confidence score for this alternative (0-1).
         label: Display label (e.g., "Formal", "Concise", "Detailed").
-    
+
     Example:
         >>> alt: Alternative[str] = Alternative(
         ...     data="More formal version of the text...",
@@ -140,15 +140,15 @@ class WarningSeverity(str, Enum):
 
 class Warning(BaseModel):
     """A non-fatal warning or notice to surface to the user.
-    
+
     Enables: Proactive transparency, awareness of potential issues.
-    
+
     Attributes:
         code: Machine-readable warning code (SCREAMING_SNAKE_CASE).
         message: Human-readable warning message.
         severity: Severity level for UI treatment.
         details: Additional context or details.
-    
+
     Example:
         >>> warning = Warning(
         ...     code="OUTDATED_SOURCE",
@@ -179,7 +179,7 @@ def create_source(
     relevance: Optional[float] = None,
 ) -> Source:
     """Create a new Source.
-    
+
     Args:
         type: Source type identifier.
         id: Unique identifier for the source.
@@ -188,10 +188,10 @@ def create_source(
         location: Specific location within source.
         accessed_at: ISO timestamp of access.
         relevance: Relevance score (0-1).
-        
+
     Returns:
         A Source instance.
-    
+
     Example:
         >>> source = create_source(
         ...     "document",
@@ -216,15 +216,15 @@ def create_step(
     description: Optional[str] = None,
 ) -> PlanStep:
     """Create a new PlanStep with pending status.
-    
+
     Args:
         id: Unique identifier for the step.
         action: The action being performed (verb).
         description: Human-readable description.
-        
+
     Returns:
         A PlanStep with status=pending.
-    
+
     Example:
         >>> step = create_step("fetch-data", "fetch", "Retrieve user data")
         >>> step.status
@@ -247,17 +247,17 @@ def update_step_status(
     progress: Optional[int] = None,
 ) -> PlanStep:
     """Update a PlanStep's status and optionally its result/error.
-    
+
     Args:
         step: The step to update.
         status: New status value.
         result: Result data if completing successfully.
         error: Error info if failing.
         progress: Progress percentage if in progress.
-        
+
     Returns:
         A new PlanStep with updated values.
-    
+
     Example:
         >>> step = create_step("fetch", "fetch")
         >>> step = update_step_status(step, PlanStepStatus.COMPLETE, result={"data": "..."})
@@ -282,16 +282,16 @@ def create_warning(
     details: Optional[dict[str, Any]] = None,
 ) -> Warning:
     """Create a new Warning.
-    
+
     Args:
         code: Machine-readable warning code.
         message: Human-readable warning message.
         severity: Severity level for UI treatment.
         details: Additional context.
-        
+
     Returns:
         A Warning instance.
-    
+
     Example:
         >>> warning = create_warning(
         ...     "DEPRECATED_API",

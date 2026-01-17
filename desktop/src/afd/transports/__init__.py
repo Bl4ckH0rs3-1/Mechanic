@@ -6,10 +6,10 @@ abstractions for swapping implementations.
 
 Example:
     >>> from afd.transports import FastMCPTransport, MockTransport
-    >>> 
+    >>>
     >>> # For production
     >>> transport = FastMCPTransport()
-    >>> 
+    >>>
     >>> # For testing
     >>> transport = MockTransport()
 """

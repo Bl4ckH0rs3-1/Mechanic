@@ -28,32 +28,50 @@ from ..lua_analyzer import Confidence
 # THRESHOLDS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class Thresholds:
     """Configurable thresholds for complexity detection."""
-    MAX_NESTING_DEPTH = 5       # Maximum if/for/while nesting
-    MAX_FUNCTION_LINES = 100    # Maximum lines per function
-    MAX_FILE_LINES = 500        # Maximum lines per file (excluding libs)
-    MAGIC_NUMBER_MIN = 10       # Ignore small numbers (0-9 are often OK)
-    DUPLICATE_MIN_LINES = 10    # Minimum lines for duplicate detection
+
+    MAX_NESTING_DEPTH = 5  # Maximum if/for/while nesting
+    MAX_FUNCTION_LINES = 100  # Maximum lines per function
+    MAX_FILE_LINES = 500  # Maximum lines per file (excluding libs)
+    MAGIC_NUMBER_MIN = 10  # Ignore small numbers (0-9 are often OK)
+    DUPLICATE_MIN_LINES = 10  # Minimum lines for duplicate detection
     DUPLICATE_SIMILARITY = 0.9  # 90% similarity for duplicate detection
 
 
 # Magic numbers that are commonly acceptable
 ACCEPTABLE_MAGIC_NUMBERS = {
     # Common mathematical/logical values
-    0, 1, 2, -1, 100, 1000, 0.5,
+    0,
+    1,
+    2,
+    -1,
+    100,
+    1000,
+    0.5,
     # WoW-specific common values
-    64, 128, 256, 512, 1024,  # Power of 2
-    360, 180, 90, 45,  # Degrees
+    64,
+    128,
+    256,
+    512,
+    1024,  # Power of 2
+    360,
+    180,
+    90,
+    45,  # Degrees
     255,  # Color component max
     # Time values
-    60, 3600, 86400,  # Seconds
+    60,
+    3600,
+    86400,  # Seconds
 }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SCHEMAS
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class ComplexityCategory(str, Enum):
     DEEP_NESTING = "deep_nesting"
@@ -90,16 +108,13 @@ class ComplexityInput(BaseModel):
         None, description="Specific categories to check (default: all)"
     )
     max_nesting: int = Field(
-        Thresholds.MAX_NESTING_DEPTH,
-        description="Maximum allowed nesting depth"
+        Thresholds.MAX_NESTING_DEPTH, description="Maximum allowed nesting depth"
     )
     max_function_lines: int = Field(
-        Thresholds.MAX_FUNCTION_LINES,
-        description="Maximum lines per function"
+        Thresholds.MAX_FUNCTION_LINES, description="Maximum lines per function"
     )
     max_file_lines: int = Field(
-        Thresholds.MAX_FILE_LINES,
-        description="Maximum lines per file"
+        Thresholds.MAX_FILE_LINES, description="Maximum lines per file"
     )
 
 
@@ -115,6 +130,7 @@ class ComplexityResult(BaseModel):
 # DETECTION FUNCTIONS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def analyze_nesting_depth(content: str) -> List[Tuple[int, int, int]]:
     """
     Analyze nesting depth in Lua code.
@@ -128,30 +144,30 @@ def analyze_nesting_depth(content: str) -> List[Tuple[int, int, int]]:
 
     # Keywords that increase nesting
     increase_patterns = [
-        r'\bif\b.*\bthen\b',
-        r'\bfor\b.*\bdo\b',
-        r'\bwhile\b.*\bdo\b',
-        r'\brepeat\b',
-        r'\bfunction\b.*\)',
+        r"\bif\b.*\bthen\b",
+        r"\bfor\b.*\bdo\b",
+        r"\bwhile\b.*\bdo\b",
+        r"\brepeat\b",
+        r"\bfunction\b.*\)",
     ]
 
     # Keywords that decrease nesting
     decrease_patterns = [
-        r'^\s*end\b',
-        r'^\s*until\b',
+        r"^\s*end\b",
+        r"^\s*until\b",
     ]
 
     # elseif doesn't change depth, else doesn't change depth
     neutral_patterns = [
-        r'\belseif\b',
-        r'\belse\b',
+        r"\belseif\b",
+        r"\belse\b",
     ]
 
     for line_num, line in enumerate(lines, 1):
         stripped = line.strip()
 
         # Skip comments
-        if stripped.startswith('--'):
+        if stripped.startswith("--"):
             depth_info.append((line_num, current_depth, max_depth))
             continue
 
@@ -179,16 +195,14 @@ def analyze_nesting_depth(content: str) -> List[Tuple[int, int, int]]:
 
 
 def find_deep_nesting(
-    addon_path: Path,
-    lua_files: List[Path],
-    max_depth: int
+    addon_path: Path, lua_files: List[Path], max_depth: int
 ) -> List[ComplexityIssue]:
     """Find code with excessive nesting depth."""
     issues = []
 
     for lua_file in lua_files:
         try:
-            content = lua_file.read_text(encoding='utf-8', errors='replace')
+            content = lua_file.read_text(encoding="utf-8", errors="replace")
             rel_path = lua_file.relative_to(addon_path)
 
             depth_info = analyze_nesting_depth(content)
@@ -202,24 +216,26 @@ def find_deep_nesting(
                     lines = content.splitlines()
                     block_start = line_num
                     for i in range(line_num - 1, max(0, line_num - 50), -1):
-                        if 'function' in lines[i - 1]:
+                        if "function" in lines[i - 1]:
                             block_start = i
                             break
 
                     if block_start not in reported_blocks:
                         reported_blocks.add(block_start)
 
-                        issues.append(ComplexityIssue(
-                            category=ComplexityCategory.DEEP_NESTING.value,
-                            confidence=Confidence.DEFINITE.value,
-                            file=str(rel_path),
-                            line=line_num,
-                            name=f"Block at line {block_start}",
-                            value=depth,
-                            threshold=max_depth,
-                            message=f"Nesting depth of {depth} exceeds maximum of {max_depth}",
-                            suggestion="Extract nested logic into separate functions"
-                        ))
+                        issues.append(
+                            ComplexityIssue(
+                                category=ComplexityCategory.DEEP_NESTING.value,
+                                confidence=Confidence.DEFINITE.value,
+                                file=str(rel_path),
+                                line=line_num,
+                                name=f"Block at line {block_start}",
+                                value=depth,
+                                threshold=max_depth,
+                                message=f"Nesting depth of {depth} exceeds maximum of {max_depth}",
+                                suggestion="Extract nested logic into separate functions",
+                            )
+                        )
 
         except Exception:
             continue
@@ -228,16 +244,14 @@ def find_deep_nesting(
 
 
 def find_long_functions(
-    addon_path: Path,
-    lua_files: List[Path],
-    max_lines: int
+    addon_path: Path, lua_files: List[Path], max_lines: int
 ) -> List[ComplexityIssue]:
     """Find functions that are too long."""
     issues = []
 
     for lua_file in lua_files:
         try:
-            content = lua_file.read_text(encoding='utf-8', errors='replace')
+            content = lua_file.read_text(encoding="utf-8", errors="replace")
             lines = content.splitlines()
             rel_path = lua_file.relative_to(addon_path)
 
@@ -248,41 +262,47 @@ def find_long_functions(
                 stripped = line.strip()
 
                 # Skip comments
-                if stripped.startswith('--'):
+                if stripped.startswith("--"):
                     continue
 
                 # Detect function start
-                func_match = re.search(r'function\s+([\w.:]+)\s*\(', line)
+                func_match = re.search(r"function\s+([\w.:]+)\s*\(", line)
                 if func_match:
                     func_name = func_match.group(1)
                     func_stack.append((func_name, line_num))
-                elif re.search(r'function\s*\(', line):
+                elif re.search(r"function\s*\(", line):
                     # Anonymous function
-                    func_stack.append(('anonymous', line_num))
-                elif re.search(r'(\w+)\s*=\s*function\s*\(', line):
+                    func_stack.append(("anonymous", line_num))
+                elif re.search(r"(\w+)\s*=\s*function\s*\(", line):
                     # Variable assignment
-                    var_match = re.search(r'(\w+)\s*=\s*function', line)
+                    var_match = re.search(r"(\w+)\s*=\s*function", line)
                     if var_match:
                         func_stack.append((var_match.group(1), line_num))
 
                 # Detect function end
-                if stripped == 'end' or stripped.startswith('end,') or stripped.startswith('end)'):
+                if (
+                    stripped == "end"
+                    or stripped.startswith("end,")
+                    or stripped.startswith("end)")
+                ):
                     if func_stack:
                         func_name, start_line = func_stack.pop()
                         func_length = line_num - start_line
 
                         if func_length > max_lines:
-                            issues.append(ComplexityIssue(
-                                category=ComplexityCategory.LONG_FUNCTION.value,
-                                confidence=Confidence.DEFINITE.value,
-                                file=str(rel_path),
-                                line=start_line,
-                                name=func_name,
-                                value=func_length,
-                                threshold=max_lines,
-                                message=f"Function '{func_name}' is {func_length} lines (max {max_lines})",
-                                suggestion="Break into smaller functions with clear responsibilities"
-                            ))
+                            issues.append(
+                                ComplexityIssue(
+                                    category=ComplexityCategory.LONG_FUNCTION.value,
+                                    confidence=Confidence.DEFINITE.value,
+                                    file=str(rel_path),
+                                    line=start_line,
+                                    name=func_name,
+                                    value=func_length,
+                                    threshold=max_lines,
+                                    message=f"Function '{func_name}' is {func_length} lines (max {max_lines})",
+                                    suggestion="Break into smaller functions with clear responsibilities",
+                                )
+                            )
 
         except Exception:
             continue
@@ -291,31 +311,31 @@ def find_long_functions(
 
 
 def find_long_files(
-    addon_path: Path,
-    lua_files: List[Path],
-    max_lines: int
+    addon_path: Path, lua_files: List[Path], max_lines: int
 ) -> List[ComplexityIssue]:
     """Find files that are too long."""
     issues = []
 
     for lua_file in lua_files:
         try:
-            content = lua_file.read_text(encoding='utf-8', errors='replace')
+            content = lua_file.read_text(encoding="utf-8", errors="replace")
             line_count = len(content.splitlines())
             rel_path = lua_file.relative_to(addon_path)
 
             if line_count > max_lines:
-                issues.append(ComplexityIssue(
-                    category=ComplexityCategory.LONG_FILE.value,
-                    confidence=Confidence.DEFINITE.value,
-                    file=str(rel_path),
-                    line=1,
-                    name=str(rel_path),
-                    value=line_count,
-                    threshold=max_lines,
-                    message=f"File has {line_count} lines (max {max_lines})",
-                    suggestion="Split into multiple files by logical component"
-                ))
+                issues.append(
+                    ComplexityIssue(
+                        category=ComplexityCategory.LONG_FILE.value,
+                        confidence=Confidence.DEFINITE.value,
+                        file=str(rel_path),
+                        line=1,
+                        name=str(rel_path),
+                        value=line_count,
+                        threshold=max_lines,
+                        message=f"File has {line_count} lines (max {max_lines})",
+                        suggestion="Split into multiple files by logical component",
+                    )
+                )
 
         except Exception:
             continue
@@ -324,8 +344,7 @@ def find_long_files(
 
 
 def find_magic_numbers(
-    addon_path: Path,
-    lua_files: List[Path]
+    addon_path: Path, lua_files: List[Path]
 ) -> List[ComplexityIssue]:
     """Find unexplained magic numbers in code."""
     issues = []
@@ -335,7 +354,7 @@ def find_magic_numbers(
 
     for lua_file in lua_files:
         try:
-            content = lua_file.read_text(encoding='utf-8', errors='replace')
+            content = lua_file.read_text(encoding="utf-8", errors="replace")
             lines = content.splitlines()
             rel_path = lua_file.relative_to(addon_path)
 
@@ -343,15 +362,15 @@ def find_magic_numbers(
                 stripped = line.strip()
 
                 # Skip comments
-                if stripped.startswith('--'):
+                if stripped.startswith("--"):
                     continue
 
                 # Skip constant definitions (these are explaining the number)
-                if re.match(r'^(local\s+)?[A-Z_]+\s*=', stripped):
+                if re.match(r"^(local\s+)?[A-Z_]+\s*=", stripped):
                     continue
 
                 # Skip table index patterns like [1], [2]
-                if re.search(r'\[\d+\]', line):
+                if re.search(r"\[\d+\]", line):
                     continue
 
                 # Find numbers
@@ -369,24 +388,26 @@ def find_magic_numbers(
                             continue
 
                         # Skip if it looks like a color hex (0xFFFFFF pattern nearby)
-                        if '0x' in line:
+                        if "0x" in line:
                             continue
 
                         # Skip version numbers
-                        if re.search(r'\d+\.\d+\.\d+', line):
+                        if re.search(r"\d+\.\d+\.\d+", line):
                             continue
 
-                        issues.append(ComplexityIssue(
-                            category=ComplexityCategory.MAGIC_NUMBER.value,
-                            confidence=Confidence.SUSPICIOUS.value,
-                            file=str(rel_path),
-                            line=line_num,
-                            name=f"Number {num_str}",
-                            value=int(abs(num)),
-                            threshold=Thresholds.MAGIC_NUMBER_MIN,
-                            message=f"Magic number {num_str} should be a named constant",
-                            suggestion=f"Define as: local DESCRIPTIVE_NAME = {num_str}"
-                        ))
+                        issues.append(
+                            ComplexityIssue(
+                                category=ComplexityCategory.MAGIC_NUMBER.value,
+                                confidence=Confidence.SUSPICIOUS.value,
+                                file=str(rel_path),
+                                line=line_num,
+                                name=f"Number {num_str}",
+                                value=int(abs(num)),
+                                threshold=Thresholds.MAGIC_NUMBER_MIN,
+                                message=f"Magic number {num_str} should be a named constant",
+                                suggestion=f"Define as: local DESCRIPTIVE_NAME = {num_str}",
+                            )
+                        )
 
                     except ValueError:
                         continue
@@ -399,8 +420,7 @@ def find_magic_numbers(
 
 
 def find_duplicate_code(
-    addon_path: Path,
-    lua_files: List[Path]
+    addon_path: Path, lua_files: List[Path]
 ) -> List[ComplexityIssue]:
     """Find duplicate code blocks across files."""
     issues = []
@@ -410,28 +430,30 @@ def find_duplicate_code(
 
     for lua_file in lua_files:
         try:
-            content = lua_file.read_text(encoding='utf-8', errors='replace')
+            content = lua_file.read_text(encoding="utf-8", errors="replace")
             lines = content.splitlines()
 
             # Slide a window of MIN_LINES across the file
             for start in range(len(lines) - Thresholds.DUPLICATE_MIN_LINES):
-                block = lines[start:start + Thresholds.DUPLICATE_MIN_LINES]
+                block = lines[start : start + Thresholds.DUPLICATE_MIN_LINES]
 
                 # Normalize: strip whitespace, remove comments
                 normalized = []
                 for line in block:
                     stripped = line.strip()
-                    if stripped and not stripped.startswith('--'):
+                    if stripped and not stripped.startswith("--"):
                         normalized.append(stripped)
 
                 if len(normalized) < Thresholds.DUPLICATE_MIN_LINES // 2:
                     continue  # Too many comments/blanks
 
                 # Create hash
-                block_text = '\n'.join(normalized)
+                block_text = "\n".join(normalized)
                 block_hash = hashlib.md5(block_text.encode()).hexdigest()
 
-                block_hashes[block_hash].append((lua_file, start + 1, normalized[0][:40]))
+                block_hashes[block_hash].append(
+                    (lua_file, start + 1, normalized[0][:40])
+                )
 
         except Exception:
             continue
@@ -459,17 +481,19 @@ def find_duplicate_code(
 
                     other_files = [str(f.relative_to(addon_path)) for f in files[1:]]
 
-                    issues.append(ComplexityIssue(
-                        category=ComplexityCategory.DUPLICATE_CODE.value,
-                        confidence=Confidence.LIKELY.value,
-                        file=str(first_file.relative_to(addon_path)),
-                        line=first_line,
-                        name=f"Code block: {preview}...",
-                        value=len(locations),
-                        threshold=1,
-                        message=f"Code block duplicated in {len(locations)} locations: {', '.join(other_files[:2])}",
-                        suggestion="Extract into a shared function"
-                    ))
+                    issues.append(
+                        ComplexityIssue(
+                            category=ComplexityCategory.DUPLICATE_CODE.value,
+                            confidence=Confidence.LIKELY.value,
+                            file=str(first_file.relative_to(addon_path)),
+                            line=first_line,
+                            name=f"Code block: {preview}...",
+                            value=len(locations),
+                            threshold=1,
+                            message=f"Code block duplicated in {len(locations)} locations: {', '.join(other_files[:2])}",
+                            suggestion="Extract into a shared function",
+                        )
+                    )
 
     return issues[:10]  # Limit duplicate reports
 
@@ -478,7 +502,10 @@ def find_duplicate_code(
 # MAIN ANALYSIS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def analyze_addon(addon_path: Path, addon_name: str, input: ComplexityInput) -> ComplexityResult:
+
+def analyze_addon(
+    addon_path: Path, addon_name: str, input: ComplexityInput
+) -> ComplexityResult:
     """Run comprehensive complexity analysis on an addon."""
     start_time = time.time()
 
@@ -487,7 +514,7 @@ def analyze_addon(addon_path: Path, addon_name: str, input: ComplexityInput) -> 
     for lua_file in addon_path.rglob("*.lua"):
         rel_path = lua_file.relative_to(addon_path)
         parts = rel_path.parts
-        if 'Libs' not in parts and 'libs' not in parts:
+        if "Libs" not in parts and "libs" not in parts:
             lua_files.append(lua_file)
 
     # Collect issues from all detectors
@@ -503,7 +530,9 @@ def analyze_addon(addon_path: Path, addon_name: str, input: ComplexityInput) -> 
             summary.worst_nesting = max(i.value for i in nesting_issues)
 
     if ComplexityCategory.LONG_FUNCTION.value in categories:
-        function_issues = find_long_functions(addon_path, lua_files, input.max_function_lines)
+        function_issues = find_long_functions(
+            addon_path, lua_files, input.max_function_lines
+        )
         all_issues.extend(function_issues)
         if function_issues:
             summary.longest_function = max(i.value for i in function_issues)
@@ -523,7 +552,9 @@ def analyze_addon(addon_path: Path, addon_name: str, input: ComplexityInput) -> 
     # Build summary
     summary.total = len(all_issues)
     for issue in all_issues:
-        summary.by_category[issue.category] = summary.by_category.get(issue.category, 0) + 1
+        summary.by_category[issue.category] = (
+            summary.by_category.get(issue.category, 0) + 1
+        )
 
     analysis_time = (time.time() - start_time) * 1000
 
@@ -532,13 +563,14 @@ def analyze_addon(addon_path: Path, addon_name: str, input: ComplexityInput) -> 
         files_analyzed=len(lua_files),
         issues=all_issues[:100],  # Limit to 100 issues
         summary=summary,
-        analysis_time_ms=round(analysis_time, 2)
+        analysis_time_ms=round(analysis_time, 2),
     )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # COMMAND REGISTRATION
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def register_commands(server):
     """Register complexity analysis commands with the AFD server."""
@@ -549,14 +581,16 @@ def register_commands(server):
         input_schema=ComplexityInput,
         output_schema=ComplexityResult,
     )
-    async def analyze_complexity(input: ComplexityInput, context: Any = None) -> CommandResult[ComplexityResult]:
+    async def analyze_complexity(
+        input: ComplexityInput, context: Any = None
+    ) -> CommandResult[ComplexityResult]:
         addon_path = find_addon_path(input.addon, input.path)
 
         if not addon_path:
             return error(
                 code="ADDON_NOT_FOUND",
                 message=f"Addon '{input.addon}' not found in development directories",
-                suggestion="Check the addon name or provide an explicit path"
+                suggestion="Check the addon name or provide an explicit path",
             )
 
         result = analyze_addon(addon_path, input.addon, input)
@@ -565,7 +599,7 @@ def register_commands(server):
             type="analysis",
             id=f"complexity-{input.addon}",
             title=f"Complexity Analysis: {input.addon}",
-            location=str(addon_path)
+            location=str(addon_path),
         )
 
         # Build reasoning summary
@@ -573,7 +607,9 @@ def register_commands(server):
             reasoning = f"No complexity issues found in {input.addon} ({result.files_analyzed} files analyzed)"
         else:
             parts = []
-            for cat, count in sorted(result.summary.by_category.items(), key=lambda x: -x[1]):
+            for cat, count in sorted(
+                result.summary.by_category.items(), key=lambda x: -x[1]
+            ):
                 parts.append(f"{count} {cat.replace('_', ' ')}")
             reasoning = f"Found {result.summary.total} complexity issues in {input.addon}: {', '.join(parts[:3])}"
 
@@ -581,11 +617,8 @@ def register_commands(server):
             if result.summary.worst_nesting > 0:
                 reasoning += f". Worst nesting: {result.summary.worst_nesting} levels"
             if result.summary.longest_function > 0:
-                reasoning += f". Longest function: {result.summary.longest_function} lines"
+                reasoning += (
+                    f". Longest function: {result.summary.longest_function} lines"
+                )
 
-        return success(
-            data=result,
-            reasoning=reasoning,
-            sources=[src],
-            confidence=0.9
-        )
+        return success(data=result, reasoning=reasoning, sources=[src], confidence=0.9)

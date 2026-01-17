@@ -21,14 +21,16 @@ import subprocess
 
 class DocConfidence(str, Enum):
     """Confidence level for documentation issues."""
-    DEFINITE = "definite"     # 100% certain (dead link, missing file)
-    LIKELY = "likely"         # 90%+ certain (significant staleness)
-    SUSPICIOUS = "suspicious" # 70%+ certain (may need review)
+
+    DEFINITE = "definite"  # 100% certain (dead link, missing file)
+    LIKELY = "likely"  # 90%+ certain (significant staleness)
+    SUSPICIOUS = "suspicious"  # 70%+ certain (may need review)
 
 
 @dataclass
 class DocIssue:
     """Represents a documentation issue."""
+
     category: str
     confidence: str
     file: str
@@ -41,6 +43,7 @@ class DocIssue:
 @dataclass
 class GitInfo:
     """Git information for a file."""
+
     last_modified: Optional[datetime] = None
     commits_behind: int = 0  # How many commits since last update
     last_commit_hash: Optional[str] = None
@@ -50,6 +53,7 @@ class GitInfo:
 @dataclass
 class DocMetrics:
     """Metrics about a documentation file."""
+
     path: Path
     git_info: Optional[GitInfo] = None
     word_count: int = 0
@@ -75,7 +79,7 @@ class GitAnalyzer:
                 cwd=self.repo_path,
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
             )
             return result.returncode == 0
         except Exception:
@@ -93,7 +97,7 @@ class GitAnalyzer:
                 cwd=self.repo_path,
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=10,
             )
 
             if result.returncode != 0 or not result.stdout.strip():
@@ -118,7 +122,7 @@ class GitAnalyzer:
                 last_modified=last_modified,
                 commits_behind=commits_behind,
                 last_commit_hash=commit_hash[:8],
-                last_commit_message=message[:80]
+                last_commit_message=message[:80],
             )
 
         except Exception:
@@ -132,7 +136,7 @@ class GitAnalyzer:
                 cwd=self.repo_path,
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=10,
             )
             if result.returncode == 0:
                 return int(result.stdout.strip())
@@ -140,7 +144,9 @@ class GitAnalyzer:
             pass
         return 0
 
-    def get_recent_code_commits(self, limit: int = 20) -> List[Tuple[str, str, datetime]]:
+    def get_recent_code_commits(
+        self, limit: int = 20
+    ) -> List[Tuple[str, str, datetime]]:
         """Get recent commits that touched Lua files."""
         if not self._is_git_repo:
             return []
@@ -151,7 +157,7 @@ class GitAnalyzer:
                 cwd=self.repo_path,
                 capture_output=True,
                 text=True,
-                timeout=15
+                timeout=15,
             )
 
             if result.returncode != 0:
@@ -165,7 +171,9 @@ class GitAnalyzer:
                 if len(parts) >= 3:
                     commit_hash, date_str, message = parts
                     try:
-                        date = datetime.strptime(date_str.strip()[:19], "%Y-%m-%d %H:%M:%S")
+                        date = datetime.strptime(
+                            date_str.strip()[:19], "%Y-%m-%d %H:%M:%S"
+                        )
                         commits.append((commit_hash[:8], message[:60], date))
                     except ValueError:
                         continue
@@ -184,11 +192,18 @@ class GitAnalyzer:
         try:
             for commit_hash in commit_hashes[:10]:  # Limit to avoid slow queries
                 result = subprocess.run(
-                    ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", commit_hash],
+                    [
+                        "git",
+                        "diff-tree",
+                        "--no-commit-id",
+                        "--name-only",
+                        "-r",
+                        commit_hash,
+                    ],
                     cwd=self.repo_path,
                     capture_output=True,
                     text=True,
-                    timeout=10
+                    timeout=10,
                 )
                 if result.returncode == 0:
                     changed_files.update(result.stdout.strip().split("\n"))
@@ -197,7 +212,9 @@ class GitAnalyzer:
 
         return changed_files
 
-    def find_docs_not_updated_with_code(self, doc_files: List[Path], code_commits: int = 10) -> List[Tuple[Path, int]]:
+    def find_docs_not_updated_with_code(
+        self, doc_files: List[Path], code_commits: int = 10
+    ) -> List[Tuple[Path, int]]:
         """Find docs that weren't updated when related code changed.
 
         Returns list of (doc_path, commits_behind) for suspicious docs.
@@ -224,15 +241,17 @@ class MarkdownAnalyzer:
 
     # Patterns for markdown parsing
     PATTERNS = {
-        'internal_link': re.compile(r'\[([^\]]+)\]\(([^)]+)\)'),
-        'code_block_start': re.compile(r'^```(\w+)?'),
-        'code_block_end': re.compile(r'^```\s*$'),
-        'inline_code': re.compile(r'`([^`]+)`'),
-        'version_mention': re.compile(r'v?(\d+\.\d+(?:\.\d+)?)', re.IGNORECASE),
-        'function_reference': re.compile(r'`(\w+(?:[:.]\w+)+)\s*\(`'),
-        'file_reference': re.compile(r'`([^`]+\.(?:lua|xml|toc))`'),
-        'heading': re.compile(r'^#+\s+(.+)'),
-        'addon_name_pattern': re.compile(r'(?:addon|title)[:\s]+["\']?(\w+)["\']?', re.IGNORECASE),
+        "internal_link": re.compile(r"\[([^\]]+)\]\(([^)]+)\)"),
+        "code_block_start": re.compile(r"^```(\w+)?"),
+        "code_block_end": re.compile(r"^```\s*$"),
+        "inline_code": re.compile(r"`([^`]+)`"),
+        "version_mention": re.compile(r"v?(\d+\.\d+(?:\.\d+)?)", re.IGNORECASE),
+        "function_reference": re.compile(r"`(\w+(?:[:.]\w+)+)\s*\(`"),
+        "file_reference": re.compile(r"`([^`]+\.(?:lua|xml|toc))`"),
+        "heading": re.compile(r"^#+\s+(.+)"),
+        "addon_name_pattern": re.compile(
+            r'(?:addon|title)[:\s]+["\']?(\w+)["\']?', re.IGNORECASE
+        ),
     }
 
     def __init__(self, addon_path: Path, addon_name: str):
@@ -244,7 +263,7 @@ class MarkdownAnalyzer:
         metrics = DocMetrics(path=doc_path)
 
         try:
-            content = doc_path.read_text(encoding='utf-8', errors='replace')
+            content = doc_path.read_text(encoding="utf-8", errors="replace")
         except Exception:
             return metrics
 
@@ -254,11 +273,11 @@ class MarkdownAnalyzer:
 
         for line in lines:
             # Track code blocks
-            if self.PATTERNS['code_block_start'].match(line):
+            if self.PATTERNS["code_block_start"].match(line):
                 in_code_block = True
                 metrics.code_block_count += 1
                 continue
-            if self.PATTERNS['code_block_end'].match(line):
+            if self.PATTERNS["code_block_end"].match(line):
                 in_code_block = False
                 continue
 
@@ -267,21 +286,21 @@ class MarkdownAnalyzer:
                 word_count += len(line.split())
 
             # Extract internal links
-            for match in self.PATTERNS['internal_link'].finditer(line):
+            for match in self.PATTERNS["internal_link"].finditer(line):
                 link_target = match.group(2)
                 # Skip external links
-                if not link_target.startswith(('http://', 'https://', 'mailto:')):
+                if not link_target.startswith(("http://", "https://", "mailto:")):
                     metrics.internal_links.add(link_target)
                 metrics.link_count += 1
 
             # Extract version mentions
-            for match in self.PATTERNS['version_mention'].finditer(line):
+            for match in self.PATTERNS["version_mention"].finditer(line):
                 metrics.version_mentions.add(match.group(1))
 
             # Extract function/file references
-            for match in self.PATTERNS['function_reference'].finditer(line):
+            for match in self.PATTERNS["function_reference"].finditer(line):
                 metrics.references.add(match.group(1))
-            for match in self.PATTERNS['file_reference'].finditer(line):
+            for match in self.PATTERNS["file_reference"].finditer(line):
                 metrics.references.add(match.group(1))
 
         metrics.word_count = word_count
@@ -294,11 +313,11 @@ class MarkdownAnalyzer:
 
         for link in metrics.internal_links:
             # Handle anchor-only links
-            if link.startswith('#'):
+            if link.startswith("#"):
                 continue  # TODO: Could validate anchor exists in same file
 
             # Split link from anchor
-            link_path = link.split('#')[0]
+            link_path = link.split("#")[0]
             if not link_path:
                 continue
 
@@ -308,14 +327,16 @@ class MarkdownAnalyzer:
             # Check if target exists
             if not target_path.exists():
                 rel_path = metrics.path.relative_to(self.addon_path)
-                issues.append(DocIssue(
-                    category="dead_link",
-                    confidence=DocConfidence.DEFINITE.value,
-                    file=str(rel_path),
-                    name=link,
-                    message=f"Link to '{link}' points to non-existent file",
-                    suggestion=f"Update or remove the link"
-                ))
+                issues.append(
+                    DocIssue(
+                        category="dead_link",
+                        confidence=DocConfidence.DEFINITE.value,
+                        file=str(rel_path),
+                        name=link,
+                        message=f"Link to '{link}' points to non-existent file",
+                        suggestion=f"Update or remove the link",
+                    )
+                )
 
         return issues
 
@@ -323,7 +344,7 @@ class MarkdownAnalyzer:
         self,
         metrics: DocMetrics,
         existing_functions: Set[str],
-        existing_files: Set[str]
+        existing_files: Set[str],
     ) -> List[DocIssue]:
         """Find references to functions/files that don't exist."""
         issues = []
@@ -331,37 +352,42 @@ class MarkdownAnalyzer:
 
         for ref in metrics.references:
             # Check if it's a file reference
-            if '.' in ref and not ':' in ref:
+            if "." in ref and not ":" in ref:
                 # File reference (e.g., Core.lua)
                 if ref not in existing_files:
-                    issues.append(DocIssue(
-                        category="dead_reference",
-                        confidence=DocConfidence.LIKELY.value,
-                        file=str(rel_path),
-                        name=ref,
-                        message=f"References file '{ref}' which may not exist",
-                        suggestion="Verify file exists or update reference"
-                    ))
+                    issues.append(
+                        DocIssue(
+                            category="dead_reference",
+                            confidence=DocConfidence.LIKELY.value,
+                            file=str(rel_path),
+                            name=ref,
+                            message=f"References file '{ref}' which may not exist",
+                            suggestion="Verify file exists or update reference",
+                        )
+                    )
             else:
                 # Function reference (e.g., Addon:Function or Addon.Function)
-                func_name = ref.split(':')[-1].split('.')[-1]
+                func_name = ref.split(":")[-1].split(".")[-1]
                 # Check if function exists (simplified check)
-                if func_name not in existing_functions and ref not in existing_functions:
-                    issues.append(DocIssue(
-                        category="dead_reference",
-                        confidence=DocConfidence.SUSPICIOUS.value,
-                        file=str(rel_path),
-                        name=ref,
-                        message=f"References '{ref}' which may no longer exist",
-                        suggestion="Verify function/method exists or update docs"
-                    ))
+                if (
+                    func_name not in existing_functions
+                    and ref not in existing_functions
+                ):
+                    issues.append(
+                        DocIssue(
+                            category="dead_reference",
+                            confidence=DocConfidence.SUSPICIOUS.value,
+                            file=str(rel_path),
+                            name=ref,
+                            message=f"References '{ref}' which may no longer exist",
+                            suggestion="Verify function/method exists or update docs",
+                        )
+                    )
 
         return issues
 
     def find_version_drift(
-        self,
-        metrics: DocMetrics,
-        current_version: Optional[str]
+        self, metrics: DocMetrics, current_version: Optional[str]
     ) -> List[DocIssue]:
         """Find version mentions that are outdated."""
         issues = []
@@ -371,7 +397,7 @@ class MarkdownAnalyzer:
 
         # Parse current version
         try:
-            current_parts = [int(x) for x in current_version.split('.')]
+            current_parts = [int(x) for x in current_version.split(".")]
         except ValueError:
             return issues
 
@@ -379,7 +405,7 @@ class MarkdownAnalyzer:
 
         for mentioned_version in metrics.version_mentions:
             try:
-                mentioned_parts = [int(x) for x in mentioned_version.split('.')]
+                mentioned_parts = [int(x) for x in mentioned_version.split(".")]
             except ValueError:
                 continue
 
@@ -388,24 +414,31 @@ class MarkdownAnalyzer:
                 # If mentioned version is significantly older
                 if mentioned_parts[0] < current_parts[0]:
                     # Major version behind
-                    issues.append(DocIssue(
-                        category="version_drift",
-                        confidence=DocConfidence.LIKELY.value,
-                        file=str(rel_path),
-                        name=f"v{mentioned_version}",
-                        message=f"Mentions version {mentioned_version} but current is {current_version}",
-                        suggestion="Update version references to current"
-                    ))
-                elif mentioned_parts[0] == current_parts[0] and mentioned_parts[1] < current_parts[1] - 2:
+                    issues.append(
+                        DocIssue(
+                            category="version_drift",
+                            confidence=DocConfidence.LIKELY.value,
+                            file=str(rel_path),
+                            name=f"v{mentioned_version}",
+                            message=f"Mentions version {mentioned_version} but current is {current_version}",
+                            suggestion="Update version references to current",
+                        )
+                    )
+                elif (
+                    mentioned_parts[0] == current_parts[0]
+                    and mentioned_parts[1] < current_parts[1] - 2
+                ):
                     # More than 2 minor versions behind
-                    issues.append(DocIssue(
-                        category="version_drift",
-                        confidence=DocConfidence.SUSPICIOUS.value,
-                        file=str(rel_path),
-                        name=f"v{mentioned_version}",
-                        message=f"Mentions old version {mentioned_version} (current: {current_version})",
-                        suggestion="Consider updating version references"
-                    ))
+                    issues.append(
+                        DocIssue(
+                            category="version_drift",
+                            confidence=DocConfidence.SUSPICIOUS.value,
+                            file=str(rel_path),
+                            name=f"v{mentioned_version}",
+                            message=f"Mentions old version {mentioned_version} (current: {current_version})",
+                            suggestion="Consider updating version references",
+                        )
+                    )
 
         return issues
 
@@ -422,7 +455,7 @@ class CodeBlockAnalyzer:
         issues = []
 
         try:
-            content = doc_path.read_text(encoding='utf-8', errors='replace')
+            content = doc_path.read_text(encoding="utf-8", errors="replace")
         except Exception:
             return issues
 
@@ -436,7 +469,7 @@ class CodeBlockAnalyzer:
 
         for line_num, line in enumerate(lines, 1):
             # Check for code block start
-            match = re.match(r'^```(\w+)?', line)
+            match = re.match(r"^```(\w+)?", line)
             if match and not in_code_block:
                 in_code_block = True
                 code_block_start = line_num
@@ -445,11 +478,11 @@ class CodeBlockAnalyzer:
                 continue
 
             # Check for code block end
-            if re.match(r'^```\s*$', line) and in_code_block:
+            if re.match(r"^```\s*$", line) and in_code_block:
                 in_code_block = False
 
                 # Only analyze Lua code blocks
-                if code_block_lang.lower() in ('lua', ''):
+                if code_block_lang.lower() in ("lua", ""):
                     block_issues = self._analyze_lua_block(
                         code_lines, code_block_start, str(rel_path)
                     )
@@ -462,10 +495,7 @@ class CodeBlockAnalyzer:
         return issues
 
     def _analyze_lua_block(
-        self,
-        code_lines: List[str],
-        start_line: int,
-        file_path: str
+        self, code_lines: List[str], start_line: int, file_path: str
     ) -> List[DocIssue]:
         """Analyze a Lua code block for outdated references."""
         issues = []
@@ -473,36 +503,57 @@ class CodeBlockAnalyzer:
 
         # Look for function calls that might be outdated
         # Pattern: word followed by ( or :word(
-        call_pattern = re.compile(r'(\w+(?:[:.]\w+)*)\s*\(')
+        call_pattern = re.compile(r"(\w+(?:[:.]\w+)*)\s*\(")
 
         for match in call_pattern.finditer(code):
             func_name = match.group(1)
 
             # Skip common Lua builtins
-            if func_name in ('print', 'pairs', 'ipairs', 'type', 'tostring', 'tonumber',
-                            'table', 'string', 'math', 'if', 'for', 'while', 'function'):
+            if func_name in (
+                "print",
+                "pairs",
+                "ipairs",
+                "type",
+                "tostring",
+                "tonumber",
+                "table",
+                "string",
+                "math",
+                "if",
+                "for",
+                "while",
+                "function",
+            ):
                 continue
 
             # Check if it looks like a WoW API call (C_Namespace or camelCase global)
-            if func_name.startswith('C_') or (func_name[0].isupper() and '.' not in func_name):
+            if func_name.startswith("C_") or (
+                func_name[0].isupper() and "." not in func_name
+            ):
                 # This might be a WoW API - could check against known deprecated APIs
                 pass
 
             # Check against known addon functions
-            base_func = func_name.split(':')[-1].split('.')[-1]
-            if base_func not in self.existing_functions and func_name not in self.existing_functions:
+            base_func = func_name.split(":")[-1].split(".")[-1]
+            if (
+                base_func not in self.existing_functions
+                and func_name not in self.existing_functions
+            ):
                 # Only flag if it looks like an addon-specific function
                 if self.existing_functions and any(
-                    func_name.startswith(prefix) for prefix in ['Addon', 'Module', 'self']
+                    func_name.startswith(prefix)
+                    for prefix in ["Addon", "Module", "self"]
                 ):
-                    issues.append(DocIssue(
-                        category="outdated_example",
-                        confidence=DocConfidence.SUSPICIOUS.value,
-                        file=file_path,
-                        line=start_line,
-                        name=func_name,
-                        message=f"Code example references '{func_name}' which may not exist",
-                        suggestion="Verify example code is still valid"
-                    ))
+                    issues.append(
+                        DocIssue(
+                            category="outdated_example",
+                            confidence=DocConfidence.SUSPICIOUS.value,
+                            file=file_path,
+                            line=start_line,
+                            name=func_name,
+                            message=f"Code example references '{func_name}' which may not exist",
+                            suggestion="Verify example code is still valid",
+                        )
+                    )
 
         return issues

@@ -7,12 +7,12 @@ command handlers.
 
 Example:
     >>> from afd.testing import assert_success, assert_error
-    >>> 
+    >>>
     >>> # Test a successful command
     >>> result = await my_command({"name": "Alice"})
     >>> data = assert_success(result)
     >>> assert data["id"] == 1
-    >>> 
+    >>>
     >>> # Test a failing command
     >>> result = await my_command({})
     >>> error = assert_error(result, "VALIDATION_ERROR")

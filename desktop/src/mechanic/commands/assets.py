@@ -21,6 +21,7 @@ from ..config import find_addon_path
 # SCHEMAS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class AssetsSyncInput(BaseModel):
     addon: str = Field(..., description="Name of the addon to sync assets for")
     verbose: bool = Field(default=False, description="Show detailed output")
@@ -50,10 +51,12 @@ class AssetsListOutput(BaseModel):
 # HELPER FUNCTIONS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def _check_pillow_available() -> bool:
     """Check if Pillow is installed."""
     try:
         from PIL import Image
+
         return True
     except ImportError:
         return False
@@ -84,12 +87,7 @@ def _sync_assets(addon_path: Path, verbose: bool = False) -> Dict[str, Any]:
     source_dir = addon_path / "assets_source"
     target_dir = addon_path / "assets"
 
-    result = {
-        "converted": 0,
-        "copied": 0,
-        "removed": 0,
-        "warnings": []
-    }
+    result = {"converted": 0, "copied": 0, "removed": 0, "warnings": []}
 
     if not source_dir.exists():
         return result
@@ -121,27 +119,36 @@ def _sync_assets(addon_path: Path, verbose: bool = False) -> Dict[str, Any]:
                     # Validate dimensions
                     issues = _validate_dimensions(width, height)
                     if issues:
-                        result["warnings"].append(f"{source_file.name}: {', '.join(issues)}")
+                        result["warnings"].append(
+                            f"{source_file.name}: {', '.join(issues)}"
+                        )
 
                     # Convert to RGBA for 32-bit TGA
-                    if img.mode != 'RGBA':
-                        img = img.convert('RGBA')
+                    if img.mode != "RGBA":
+                        img = img.convert("RGBA")
 
                     img.save(target_file, "TGA")
                     result["converted"] += 1
             except Exception as e:
-                result["warnings"].append(f"Error converting {source_file.name}: {str(e)}")
+                result["warnings"].append(
+                    f"Error converting {source_file.name}: {str(e)}"
+                )
         else:
             # Direct copy for other file types
             target_file = target_dir / rel_path
             target_file.parent.mkdir(parents=True, exist_ok=True)
 
-            if not target_file.exists() or source_file.stat().st_mtime > target_file.stat().st_mtime:
+            if (
+                not target_file.exists()
+                or source_file.stat().st_mtime > target_file.stat().st_mtime
+            ):
                 try:
                     shutil.copy2(source_file, target_file)
                     result["copied"] += 1
                 except Exception as e:
-                    result["warnings"].append(f"Error copying {source_file.name}: {str(e)}")
+                    result["warnings"].append(
+                        f"Error copying {source_file.name}: {str(e)}"
+                    )
 
     # Cleanup orphaned files
     if target_dir.exists():
@@ -186,7 +193,10 @@ def _sync_assets(addon_path: Path, verbose: bool = False) -> Dict[str, Any]:
 # COMMAND IMPLEMENTATIONS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-async def _assets_sync(input: AssetsSyncInput, context: Any = None) -> CommandResult[AssetsSyncOutput]:
+
+async def _assets_sync(
+    input: AssetsSyncInput, context: Any = None
+) -> CommandResult[AssetsSyncOutput]:
     """
     Sync assets from assets_source to assets folder.
     Converts PNG files to TGA format for WoW compatibility.
@@ -196,7 +206,7 @@ async def _assets_sync(input: AssetsSyncInput, context: Any = None) -> CommandRe
         return error(
             code="PACKAGE_MISSING",
             message="Pillow package not installed",
-            suggestion="Install with: pip install Pillow  OR  pip install mechanic-desktop[assets]"
+            suggestion="Install with: pip install Pillow  OR  pip install mechanic-desktop[assets]",
         )
 
     # Find addon
@@ -205,7 +215,7 @@ async def _assets_sync(input: AssetsSyncInput, context: Any = None) -> CommandRe
         return error(
             code="ADDON_NOT_FOUND",
             message=f"Addon '{input.addon}' not found",
-            suggestion="Check the addon name and ensure it exists in the dev path."
+            suggestion="Check the addon name and ensure it exists in the dev path.",
         )
 
     source_dir = addon_path / "assets_source"
@@ -213,7 +223,7 @@ async def _assets_sync(input: AssetsSyncInput, context: Any = None) -> CommandRe
         return error(
             code="NO_ASSETS_SOURCE",
             message=f"No assets_source directory found in {input.addon}",
-            suggestion="Create an 'assets_source' folder with PNG files to convert."
+            suggestion="Create an 'assets_source' folder with PNG files to convert.",
         )
 
     try:
@@ -225,20 +235,22 @@ async def _assets_sync(input: AssetsSyncInput, context: Any = None) -> CommandRe
                 converted=result["converted"],
                 copied=result["copied"],
                 removed=result["removed"],
-                warnings=result["warnings"]
+                warnings=result["warnings"],
             ),
-            reasoning=f"Synced assets: {result['converted']} converted, {result['copied']} copied, {result['removed']} removed"
+            reasoning=f"Synced assets: {result['converted']} converted, {result['copied']} copied, {result['removed']} removed",
         )
 
     except Exception as e:
         return error(
             code="SYNC_FAILED",
             message=f"Asset sync failed: {str(e)}",
-            suggestion="Check file permissions and ensure assets_source contains valid files."
+            suggestion="Check file permissions and ensure assets_source contains valid files.",
         )
 
 
-async def _assets_list(input: AssetsListInput, context: Any = None) -> CommandResult[AssetsListOutput]:
+async def _assets_list(
+    input: AssetsListInput, context: Any = None
+) -> CommandResult[AssetsListOutput]:
     """
     List asset files in an addon's assets_source and assets folders.
     """
@@ -248,7 +260,7 @@ async def _assets_list(input: AssetsListInput, context: Any = None) -> CommandRe
         return error(
             code="ADDON_NOT_FOUND",
             message=f"Addon '{input.addon}' not found",
-            suggestion="Check the addon name and ensure it exists in the dev path."
+            suggestion="Check the addon name and ensure it exists in the dev path.",
         )
 
     source_dir = addon_path / "assets_source"
@@ -276,15 +288,16 @@ async def _assets_list(input: AssetsListInput, context: Any = None) -> CommandRe
             source_count=len(source_files),
             target_count=len(target_files),
             source_files=source_files[:50],  # Limit output
-            target_files=target_files[:50]
+            target_files=target_files[:50],
         ),
-        reasoning=f"Found {len(source_files)} source files and {len(target_files)} target files"
+        reasoning=f"Found {len(source_files)} source files and {len(target_files)} target files",
     )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # REGISTRATION
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def register_commands(server):
     """Register asset management commands with the AFD server."""

@@ -5,12 +5,12 @@ Agent-First Development (AFD) principles.
 
 Example:
     >>> from afd.core.result import success, error
-    >>> 
+    >>>
     >>> # Successful result
     >>> result = success({"id": "123"}, reasoning="Created successfully")
     >>> assert result.success is True
-    >>> 
-    >>> # Error result  
+    >>>
+    >>> # Error result
     >>> result = error("NOT_FOUND", "Resource not found")
     >>> assert result.success is False
 """
@@ -26,7 +26,7 @@ T = TypeVar("T")
 
 class ResultMetadata(BaseModel):
     """Execution metadata for debugging and monitoring.
-    
+
     Attributes:
         execution_time_ms: Time taken to execute the command in milliseconds.
         command_version: Version of the command that produced this result.
@@ -44,16 +44,16 @@ class ResultMetadata(BaseModel):
 
 class CommandError(BaseModel):
     """Structured error with recovery guidance.
-    
+
     All errors should be actionable - users should know what to do next.
-    
+
     Attributes:
         code: Machine-readable error code (SCREAMING_SNAKE_CASE).
         message: Human-readable error description.
         suggestion: What the user can do about this error.
         retryable: Whether retrying might succeed.
         details: Additional technical details for debugging.
-    
+
     Example:
         >>> error = CommandError(
         ...     code="RATE_LIMITED",
@@ -72,10 +72,10 @@ class CommandError(BaseModel):
 
 class CommandResult(BaseModel, Generic[T]):
     """Standard response type for all AFD commands.
-    
+
     All commands return this structure, enabling consistent handling across
     CLI, MCP, and REST API surfaces.
-    
+
     Attributes:
         success: Whether the command completed successfully.
         data: The command output (generic type T) when success=True.
@@ -87,7 +87,7 @@ class CommandResult(BaseModel, Generic[T]):
         alternatives: Other options the agent considered.
         warnings: Non-fatal warnings to surface to user.
         metadata: Execution metadata for debugging.
-    
+
     Example:
         >>> result: CommandResult[dict] = CommandResult(
         ...     success=True,
@@ -108,7 +108,7 @@ class CommandResult(BaseModel, Generic[T]):
     plan: Optional[List[PlanStep]] = None
     alternatives: Optional[List[Alternative[T]]] = None
     warnings: Optional[List[Warning]] = None
-    
+
     # Execution metadata
     metadata: Optional[ResultMetadata] = None
 
@@ -125,7 +125,7 @@ def success(
     metadata: Optional[ResultMetadata] = None,
 ) -> CommandResult[T]:
     """Create a successful command result.
-    
+
     Args:
         data: The command output.
         confidence: Quality confidence score (0-1).
@@ -135,10 +135,10 @@ def success(
         alternatives: Other options considered.
         warnings: Non-fatal warnings.
         metadata: Execution metadata.
-        
+
     Returns:
         CommandResult with success=True.
-    
+
     Example:
         >>> result = success(
         ...     data={"id": "123"},
@@ -166,15 +166,15 @@ def failure(
     metadata: Optional[ResultMetadata] = None,
 ) -> CommandResult[Any]:
     """Create a failed command result from a CommandError.
-    
+
     Args:
         err: The error details.
         warnings: Non-fatal warnings to include.
         metadata: Execution metadata.
-        
+
     Returns:
         CommandResult with success=False.
-    
+
     Example:
         >>> from afd.core.errors import not_found_error
         >>> result = failure(not_found_error("Document", "doc-123"))
@@ -196,20 +196,20 @@ def error(
     details: Optional[dict[str, Any]] = None,
 ) -> CommandResult[Any]:
     """Create an error command result.
-    
+
     This is a convenience function that creates both the CommandError
     and wraps it in a failed CommandResult.
-    
+
     Args:
         code: Error code (e.g., "NOT_FOUND", "VALIDATION_ERROR").
         message: Human-readable error description.
         suggestion: Recovery guidance for the user.
         retryable: Whether retrying might succeed.
         details: Additional technical details.
-        
+
     Returns:
         CommandResult with success=False.
-    
+
     Example:
         >>> result = error(
         ...     "NOT_FOUND",
@@ -231,13 +231,13 @@ def error(
 
 def is_success(result: CommandResult[T]) -> bool:
     """Check if a result is successful.
-    
+
     Args:
         result: The CommandResult to check.
-        
+
     Returns:
         True if success=True and data is present.
-    
+
     Example:
         >>> result = success({"id": "123"})
         >>> is_success(result)
@@ -248,13 +248,13 @@ def is_success(result: CommandResult[T]) -> bool:
 
 def is_failure(result: CommandResult[T]) -> bool:
     """Check if a result is a failure.
-    
+
     Args:
         result: The CommandResult to check.
-        
+
     Returns:
         True if success=False and error is present.
-    
+
     Example:
         >>> result = error("NOT_FOUND", "Not found")
         >>> is_failure(result)

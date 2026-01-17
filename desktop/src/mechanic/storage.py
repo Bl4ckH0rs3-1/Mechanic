@@ -4,6 +4,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
+
 class Storage:
     def __init__(self, db_path: Path):
         self.db_path = db_path
@@ -58,36 +59,47 @@ class Storage:
                 ON command_results(command)
             """)
 
-    def save_reload(self, timestamp: float, addons_data: dict, session_id: str = "default"):
+    def save_reload(
+        self, timestamp: float, addons_data: dict, session_id: str = "default"
+    ):
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute(
                 "INSERT INTO reload_history (timestamp, session_id, addons_data) VALUES (?, ?, ?)",
-                (timestamp, session_id, json.dumps(addons_data))
+                (timestamp, session_id, json.dumps(addons_data)),
             )
             reload_id = cursor.lastrowid
-            
+
             # Extract tests and perf from data if available
             for addon, data in addons_data.items():
                 if "tests" in data:
                     for test in data["tests"]:
                         cursor.execute(
                             "INSERT INTO test_results (reload_id, addon, test_name, passed, duration_ms, error_message) VALUES (?, ?, ?, ?, ?, ?)",
-                            (reload_id, addon, test.get("name"), test.get("passed"), test.get("duration"), test.get("error"))
+                            (
+                                reload_id,
+                                addon,
+                                test.get("name"),
+                                test.get("passed"),
+                                test.get("duration"),
+                                test.get("error"),
+                            ),
                         )
-                
+
                 if "perf" in data:
                     perf = data["perf"]
                     cursor.execute(
                         "INSERT INTO perf_metrics (reload_id, addon, memory_kb, load_time_ms) VALUES (?, ?, ?, ?)",
-                        (reload_id, addon, perf.get("memory"), perf.get("load_time"))
+                        (reload_id, addon, perf.get("memory"), perf.get("load_time")),
                     )
             return reload_id
 
     def get_latest_metrics(self):
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            row = conn.execute("SELECT * FROM reload_history ORDER BY id DESC LIMIT 1").fetchone()
+            row = conn.execute(
+                "SELECT * FROM reload_history ORDER BY id DESC LIMIT 1"
+            ).fetchone()
             if row:
                 res = dict(row)
                 if res.get("addons_data"):
@@ -102,7 +114,9 @@ class Storage:
     # COMMAND HISTORY
     # ═══════════════════════════════════════════════════════════════════════════
 
-    def save_command_result(self, command: str, result: Dict[str, Any], addon: Optional[str] = None) -> int:
+    def save_command_result(
+        self, command: str, result: Dict[str, Any], addon: Optional[str] = None
+    ) -> int:
         """Save a command execution result to the database."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -113,27 +127,28 @@ class Storage:
                     addon,
                     datetime.now().isoformat(),
                     result.get("success", False),
-                    json.dumps(result)
-                )
+                    json.dumps(result),
+                ),
             )
             return cursor.lastrowid
 
-    def get_command_history(self, command: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
+    def get_command_history(
+        self, command: Optional[str] = None, limit: int = 50
+    ) -> List[Dict[str, Any]]:
         """Get command execution history, optionally filtered by command name."""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            
+
             if command:
                 rows = conn.execute(
                     "SELECT * FROM command_results WHERE command = ? ORDER BY id DESC LIMIT ?",
-                    (command, limit)
+                    (command, limit),
                 ).fetchall()
             else:
                 rows = conn.execute(
-                    "SELECT * FROM command_results ORDER BY id DESC LIMIT ?",
-                    (limit,)
+                    "SELECT * FROM command_results ORDER BY id DESC LIMIT ?", (limit,)
                 ).fetchall()
-            
+
             results = []
             for row in rows:
                 entry = dict(row)
@@ -144,7 +159,7 @@ class Storage:
                     except Exception:
                         entry["result"] = None
                 results.append(entry)
-            
+
             # Reverse so oldest is first (for history navigation)
             return list(reversed(results))
 
@@ -152,8 +167,9 @@ class Storage:
         """Clear command history, optionally for a specific command only."""
         with sqlite3.connect(self.db_path) as conn:
             if command:
-                cursor = conn.execute("DELETE FROM command_results WHERE command = ?", (command,))
+                cursor = conn.execute(
+                    "DELETE FROM command_results WHERE command = ?", (command,)
+                )
             else:
                 cursor = conn.execute("DELETE FROM command_results")
             return cursor.rowcount
-

@@ -6,10 +6,10 @@ is defined as a command with a clear schema.
 Example:
     >>> from afd.core.commands import CommandDefinition, create_command_registry
     >>> from afd import success
-    >>> 
+    >>>
     >>> async def my_handler(input, context=None):
     ...     return success({"id": "123"})
-    >>> 
+    >>>
     >>> registry = create_command_registry()
     >>> registry.register(CommandDefinition(
     ...     name="my.command",
@@ -43,7 +43,7 @@ TOutput = TypeVar("TOutput")
 @dataclass
 class CommandParameter:
     """Definition for a single command parameter.
-    
+
     Attributes:
         name: Parameter name.
         type: JSON Schema type.
@@ -64,7 +64,7 @@ class CommandParameter:
 @dataclass
 class CommandContext:
     """Context provided to command handlers.
-    
+
     Attributes:
         trace_id: Unique ID for this command invocation.
         timeout: Timeout in milliseconds.
@@ -86,7 +86,7 @@ CommandHandler = Callable[
 @dataclass
 class CommandDefinition:
     """Full command definition with schema, handler, and metadata.
-    
+
     Attributes:
         name: Unique command name using dot notation (category.action).
         description: Human-readable description of what the command does.
@@ -99,11 +99,11 @@ class CommandDefinition:
         tags: Tags for additional categorization.
         mutation: Whether this command performs side effects.
         execution_time: Estimated execution time category.
-    
+
     Example:
         >>> async def create_doc(input, context=None):
         ...     return success({"id": "doc-123", "title": input.get("title")})
-        >>> 
+        >>>
         >>> cmd = CommandDefinition(
         ...     name="document.create",
         ...     description="Creates a new document",
@@ -140,10 +140,10 @@ class CommandRegistry(Protocol):
 
     def register(self, command: CommandDefinition) -> None:
         """Register a command.
-        
+
         Args:
             command: The command definition to register.
-            
+
         Raises:
             ValueError: If a command with the same name already exists.
         """
@@ -151,10 +151,10 @@ class CommandRegistry(Protocol):
 
     def get(self, name: str) -> Optional[CommandDefinition]:
         """Get a command by name.
-        
+
         Args:
             name: The command name.
-            
+
         Returns:
             The command definition or None if not found.
         """
@@ -162,10 +162,10 @@ class CommandRegistry(Protocol):
 
     def has(self, name: str) -> bool:
         """Check if a command exists.
-        
+
         Args:
             name: The command name.
-            
+
         Returns:
             True if the command exists.
         """
@@ -173,7 +173,7 @@ class CommandRegistry(Protocol):
 
     def list(self) -> List[CommandDefinition]:
         """Get all registered commands.
-        
+
         Returns:
             List of all command definitions.
         """
@@ -181,10 +181,10 @@ class CommandRegistry(Protocol):
 
     def list_by_category(self, category: str) -> List[CommandDefinition]:
         """Get commands by category.
-        
+
         Args:
             category: The category to filter by.
-            
+
         Returns:
             List of commands in the category.
         """
@@ -197,12 +197,12 @@ class CommandRegistry(Protocol):
         context: Optional[CommandContext] = None,
     ) -> CommandResult[Any]:
         """Execute a command by name.
-        
+
         Args:
             name: The command name.
             input: The command input.
             context: Optional execution context.
-            
+
         Returns:
             The command result.
         """
@@ -267,10 +267,10 @@ class _CommandRegistryImpl:
 
 def create_command_registry() -> CommandRegistry:
     """Create a new command registry.
-    
+
     Returns:
         A CommandRegistry instance for registering and executing commands.
-    
+
     Example:
         >>> registry = create_command_registry()
         >>> registry.register(my_command)
@@ -281,15 +281,15 @@ def create_command_registry() -> CommandRegistry:
 
 def command_to_mcp_tool(command: CommandDefinition) -> dict[str, Any]:
     """Convert a CommandDefinition to MCP tool format.
-    
+
     This is used by the server module to expose commands as MCP tools.
-    
+
     Args:
         command: The command definition.
-        
+
     Returns:
         A dict in MCP tool format with name, description, and inputSchema.
-    
+
     Example:
         >>> tool = command_to_mcp_tool(my_command)
         >>> tool["name"]

@@ -36,7 +36,6 @@ PROTECTED_APIS = {
     "RegisterStateDriver",
     "RegisterUnitWatch",
     "UnregisterUnitWatch",
-
     # Action bar manipulation
     "PickupAction",
     "PlaceAction",
@@ -47,14 +46,12 @@ PROTECTED_APIS = {
     "PickupCompanion",
     "PickupEquipmentSet",
     "ClearCursor",
-
     # Unit targeting
     "TargetUnit",
     "AssistUnit",
     "FocusUnit",
     "ClearFocus",
     "FollowUnit",
-
     # Pet control
     "PetAttack",
     "PetFollow",
@@ -62,10 +59,8 @@ PROTECTED_APIS = {
     "PetDefensiveMode",
     "PetPassiveMode",
     "PetAssistMode",
-
     # Vehicle control
     "VehicleExit",
-
     # Group actions
     "AcceptGroup",
     "DeclineGroup",
@@ -74,7 +69,6 @@ PROTECTED_APIS = {
     "ConvertToParty",
     "SetRaidSubgroup",
     "SwapRaidSubgroup",
-
     # Casting
     "CastSpellByID",
     "CastSpellByName",
@@ -83,7 +77,6 @@ PROTECTED_APIS = {
     "UseItemByName",
     "RunMacro",
     "RunMacroText",
-
     # Movement
     "MoveForwardStart",
     "MoveForwardStop",
@@ -101,7 +94,6 @@ PROTECTED_APIS = {
     "TurnRightStart",
     "TurnRightStop",
     "ToggleAutoRun",
-
     # Camera
     "CameraOrSelectOrMoveStart",
     "CameraOrSelectOrMoveStop",
@@ -140,6 +132,7 @@ LEAK_FUNCTIONS = {
 # SCHEMAS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class SecurityCategory(str, Enum):
     COMBAT_VIOLATION = "combat_violation"
     SECRET_LEAK = "secret_leak"
@@ -150,7 +143,9 @@ class SecurityCategory(str, Enum):
 
 class SecurityIssue(BaseModel):
     category: str = Field(..., description="Category of security issue")
-    confidence: str = Field(..., description="Confidence level: definite, likely, suspicious")
+    confidence: str = Field(
+        ..., description="Confidence level: definite, likely, suspicious"
+    )
     file: str = Field(..., description="File path relative to addon")
     line: int = Field(..., description="Line number")
     code: str = Field(..., description="Problematic code snippet")
@@ -187,16 +182,16 @@ class SecurityResult(BaseModel):
 # DETECTION FUNCTIONS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def find_combat_violations(
-    addon_path: Path,
-    lua_files: List[Path]
+    addon_path: Path, lua_files: List[Path]
 ) -> List[SecurityIssue]:
     """Find protected API calls without InCombatLockdown() guards."""
     issues = []
 
     for lua_file in lua_files:
         try:
-            content = lua_file.read_text(encoding='utf-8', errors='replace')
+            content = lua_file.read_text(encoding="utf-8", errors="replace")
             lines = content.splitlines()
             rel_path = lua_file.relative_to(addon_path)
 
@@ -207,12 +202,12 @@ def find_combat_violations(
                 stripped = line.strip()
 
                 # Skip comments
-                if stripped.startswith('--'):
+                if stripped.startswith("--"):
                     continue
 
                 for api in PROTECTED_APIS:
                     # Check for API call
-                    pattern = rf'\b{api}\s*\('
+                    pattern = rf"\b{api}\s*\("
                     if re.search(pattern, line):
                         # Determine confidence based on context
                         if not has_lockdown_check:
@@ -221,21 +216,23 @@ def find_combat_violations(
                         else:
                             # Check if there's a guard nearby (within 10 lines)
                             start = max(0, line_num - 10)
-                            context = '\n'.join(lines[start:line_num])
-                            if 'InCombatLockdown' in context:
+                            context = "\n".join(lines[start:line_num])
+                            if "InCombatLockdown" in context:
                                 continue  # Skip, likely guarded
                             confidence = Confidence.LIKELY
                             message = f"Protected API '{api}' may not be properly guarded by InCombatLockdown()"
 
-                        issues.append(SecurityIssue(
-                            category=SecurityCategory.COMBAT_VIOLATION.value,
-                            confidence=confidence.value,
-                            file=str(rel_path),
-                            line=line_num,
-                            code=stripped[:80],
-                            message=message,
-                            suggestion=f"Add 'if InCombatLockdown() then return end' before calling {api}"
-                        ))
+                        issues.append(
+                            SecurityIssue(
+                                category=SecurityCategory.COMBAT_VIOLATION.value,
+                                confidence=confidence.value,
+                                file=str(rel_path),
+                                line=line_num,
+                                code=stripped[:80],
+                                message=message,
+                                suggestion=f"Add 'if InCombatLockdown() then return end' before calling {api}",
+                            )
+                        )
                         break  # One issue per line
 
         except Exception:
@@ -244,23 +241,20 @@ def find_combat_violations(
     return issues
 
 
-def find_secret_leaks(
-    addon_path: Path,
-    lua_files: List[Path]
-) -> List[SecurityIssue]:
+def find_secret_leaks(addon_path: Path, lua_files: List[Path]) -> List[SecurityIssue]:
     """Find potential secret value leaks (logging secret API returns)."""
     issues = []
 
     # Pattern: print/log function with secret API inside
     leak_patterns = [
-        r'print\s*\([^)]*\b({})\b',
-        r'AddMessage\s*\([^)]*\b({})\b',
-        r'format\s*\([^)]*\b({})\b[^)]*\)',
+        r"print\s*\([^)]*\b({})\b",
+        r"AddMessage\s*\([^)]*\b({})\b",
+        r"format\s*\([^)]*\b({})\b[^)]*\)",
     ]
 
     for lua_file in lua_files:
         try:
-            content = lua_file.read_text(encoding='utf-8', errors='replace')
+            content = lua_file.read_text(encoding="utf-8", errors="replace")
             lines = content.splitlines()
             rel_path = lua_file.relative_to(addon_path)
 
@@ -268,7 +262,7 @@ def find_secret_leaks(
                 stripped = line.strip()
 
                 # Skip comments
-                if stripped.startswith('--'):
+                if stripped.startswith("--"):
                     continue
 
                 # Check for secret API results being stored then logged
@@ -277,37 +271,44 @@ def find_secret_leaks(
                     for pattern_template in leak_patterns:
                         pattern = pattern_template.format(secret_api)
                         if re.search(pattern, line, re.IGNORECASE):
-                            issues.append(SecurityIssue(
-                                category=SecurityCategory.SECRET_LEAK.value,
-                                confidence=Confidence.DEFINITE.value,
-                                file=str(rel_path),
-                                line=line_num,
-                                code=stripped[:80],
-                                message=f"Secret value from '{secret_api}' may be leaked. {description}",
-                                suggestion="In 12.0+, secret values cannot be logged or transmitted. Use passthrough patterns instead."
-                            ))
+                            issues.append(
+                                SecurityIssue(
+                                    category=SecurityCategory.SECRET_LEAK.value,
+                                    confidence=Confidence.DEFINITE.value,
+                                    file=str(rel_path),
+                                    line=line_num,
+                                    code=stripped[:80],
+                                    message=f"Secret value from '{secret_api}' may be leaked. {description}",
+                                    suggestion="In 12.0+, secret values cannot be logged or transmitted. Use passthrough patterns instead.",
+                                )
+                            )
                             break
 
                     # Variable assignment followed by print
                     if f"= {secret_api}(" in line or f"= {secret_api} (" in line:
                         # Look ahead for potential leaks
-                        var_match = re.search(rf'(\w+)\s*=\s*{secret_api}\s*\(', line)
+                        var_match = re.search(rf"(\w+)\s*=\s*{secret_api}\s*\(", line)
                         if var_match:
                             var_name = var_match.group(1)
                             # Check next 5 lines for leaks
                             for i in range(line_num, min(line_num + 5, len(lines))):
                                 future_line = lines[i]
-                                if any(leak in future_line for leak in ['print', 'AddMessage', 'SendChat']):
+                                if any(
+                                    leak in future_line
+                                    for leak in ["print", "AddMessage", "SendChat"]
+                                ):
                                     if var_name in future_line:
-                                        issues.append(SecurityIssue(
-                                            category=SecurityCategory.SECRET_LEAK.value,
-                                            confidence=Confidence.LIKELY.value,
-                                            file=str(rel_path),
-                                            line=i + 1,
-                                            code=future_line.strip()[:80],
-                                            message=f"Variable '{var_name}' contains secret value from '{secret_api}' and may be leaked",
-                                            suggestion="Don't log or transmit secret values. Use passthrough patterns for UI display."
-                                        ))
+                                        issues.append(
+                                            SecurityIssue(
+                                                category=SecurityCategory.SECRET_LEAK.value,
+                                                confidence=Confidence.LIKELY.value,
+                                                file=str(rel_path),
+                                                line=i + 1,
+                                                code=future_line.strip()[:80],
+                                                message=f"Variable '{var_name}' contains secret value from '{secret_api}' and may be leaked",
+                                                suggestion="Don't log or transmit secret values. Use passthrough patterns for UI display.",
+                                            )
+                                        )
                                         break
 
         except Exception:
@@ -317,16 +318,14 @@ def find_secret_leaks(
 
 
 def find_taint_risks(
-    addon_path: Path,
-    lua_files: List[Path],
-    addon_name: str
+    addon_path: Path, lua_files: List[Path], addon_name: str
 ) -> List[SecurityIssue]:
     """Find unsafe global modifications that could cause taint."""
     issues = []
 
     for lua_file in lua_files:
         try:
-            content = lua_file.read_text(encoding='utf-8', errors='replace')
+            content = lua_file.read_text(encoding="utf-8", errors="replace")
             lines = content.splitlines()
             rel_path = lua_file.relative_to(addon_path)
 
@@ -334,7 +333,7 @@ def find_taint_risks(
                 stripped = line.strip()
 
                 # Skip comments
-                if stripped.startswith('--'):
+                if stripped.startswith("--"):
                     continue
 
                 # Check for _G assignments without namespace
@@ -344,28 +343,34 @@ def find_taint_risks(
                 if g_assign:
                     global_name = g_assign.group(1)
                     # Check if it uses addon namespace
-                    if not global_name.startswith(addon_name) and not global_name.startswith(addon_name.replace('!', '')):
-                        issues.append(SecurityIssue(
+                    if not global_name.startswith(
+                        addon_name
+                    ) and not global_name.startswith(addon_name.replace("!", "")):
+                        issues.append(
+                            SecurityIssue(
+                                category=SecurityCategory.TAINT_RISK.value,
+                                confidence=Confidence.LIKELY.value,
+                                file=str(rel_path),
+                                line=line_num,
+                                code=stripped[:80],
+                                message=f"Global '{global_name}' set via _G without addon namespace prefix",
+                                suggestion=f'Prefix with addon name: _G["{addon_name}_{global_name}"] or use local',
+                            )
+                        )
+
+                # Check for rawset on _G
+                if "rawset" in line and "_G" in line:
+                    issues.append(
+                        SecurityIssue(
                             category=SecurityCategory.TAINT_RISK.value,
-                            confidence=Confidence.LIKELY.value,
+                            confidence=Confidence.SUSPICIOUS.value,
                             file=str(rel_path),
                             line=line_num,
                             code=stripped[:80],
-                            message=f"Global '{global_name}' set via _G without addon namespace prefix",
-                            suggestion=f"Prefix with addon name: _G[\"{addon_name}_{global_name}\"] or use local"
-                        ))
-
-                # Check for rawset on _G
-                if 'rawset' in line and '_G' in line:
-                    issues.append(SecurityIssue(
-                        category=SecurityCategory.TAINT_RISK.value,
-                        confidence=Confidence.SUSPICIOUS.value,
-                        file=str(rel_path),
-                        line=line_num,
-                        code=stripped[:80],
-                        message="rawset used on _G - potential taint vector",
-                        suggestion="Avoid rawset on _G unless absolutely necessary"
-                    ))
+                            message="rawset used on _G - potential taint vector",
+                            suggestion="Avoid rawset on _G unless absolutely necessary",
+                        )
+                    )
 
         except Exception:
             continue
@@ -373,23 +378,20 @@ def find_taint_risks(
     return issues
 
 
-def find_unsafe_eval(
-    addon_path: Path,
-    lua_files: List[Path]
-) -> List[SecurityIssue]:
+def find_unsafe_eval(addon_path: Path, lua_files: List[Path]) -> List[SecurityIssue]:
     """Find unsafe loadstring/RunScript usage."""
     issues = []
 
     unsafe_patterns = [
-        (r'loadstring\s*\(', 'loadstring'),
-        (r'RunScript\s*\(', 'RunScript'),
-        (r'RunMacroText\s*\(', 'RunMacroText'),
-        (r'pcall\s*\(\s*loadstring', 'pcall(loadstring)'),
+        (r"loadstring\s*\(", "loadstring"),
+        (r"RunScript\s*\(", "RunScript"),
+        (r"RunMacroText\s*\(", "RunMacroText"),
+        (r"pcall\s*\(\s*loadstring", "pcall(loadstring)"),
     ]
 
     for lua_file in lua_files:
         try:
-            content = lua_file.read_text(encoding='utf-8', errors='replace')
+            content = lua_file.read_text(encoding="utf-8", errors="replace")
             lines = content.splitlines()
             rel_path = lua_file.relative_to(addon_path)
 
@@ -397,7 +399,7 @@ def find_unsafe_eval(
                 stripped = line.strip()
 
                 # Skip comments
-                if stripped.startswith('--'):
+                if stripped.startswith("--"):
                     continue
 
                 for pattern, name in unsafe_patterns:
@@ -410,15 +412,17 @@ def find_unsafe_eval(
                             confidence = Confidence.LIKELY
                             message = f"'{name}' used with variable input - potential code injection"
 
-                        issues.append(SecurityIssue(
-                            category=SecurityCategory.UNSAFE_EVAL.value,
-                            confidence=confidence.value,
-                            file=str(rel_path),
-                            line=line_num,
-                            code=stripped[:80],
-                            message=message,
-                            suggestion=f"Avoid {name} with user/external input. Pre-compile if possible."
-                        ))
+                        issues.append(
+                            SecurityIssue(
+                                category=SecurityCategory.UNSAFE_EVAL.value,
+                                confidence=confidence.value,
+                                file=str(rel_path),
+                                line=line_num,
+                                code=stripped[:80],
+                                message=message,
+                                suggestion=f"Avoid {name} with user/external input. Pre-compile if possible.",
+                            )
+                        )
                         break
 
         except Exception:
@@ -428,15 +432,14 @@ def find_unsafe_eval(
 
 
 def find_addon_comm_issues(
-    addon_path: Path,
-    lua_files: List[Path]
+    addon_path: Path, lua_files: List[Path]
 ) -> List[SecurityIssue]:
     """Find unvalidated addon message parsing."""
     issues = []
 
     for lua_file in lua_files:
         try:
-            content = lua_file.read_text(encoding='utf-8', errors='replace')
+            content = lua_file.read_text(encoding="utf-8", errors="replace")
             lines = content.splitlines()
             rel_path = lua_file.relative_to(addon_path)
 
@@ -447,41 +450,53 @@ def find_addon_comm_issues(
                 stripped = line.strip()
 
                 # Skip comments
-                if stripped.startswith('--'):
+                if stripped.startswith("--"):
                     continue
 
                 # Detect addon message handlers
-                if 'CHAT_MSG_ADDON' in line or 'RegisterComm' in line or 'OnCommReceived' in line:
+                if (
+                    "CHAT_MSG_ADDON" in line
+                    or "RegisterComm" in line
+                    or "OnCommReceived" in line
+                ):
                     in_comm_handler = True
                     handler_start = line_num
 
                 if in_comm_handler:
                     # Check for direct execution of message content
-                    if 'loadstring' in line or 'RunScript' in line:
-                        issues.append(SecurityIssue(
-                            category=SecurityCategory.ADDON_COMM.value,
-                            confidence=Confidence.DEFINITE.value,
-                            file=str(rel_path),
-                            line=line_num,
-                            code=stripped[:80],
-                            message="Addon message content executed directly - critical security risk",
-                            suggestion="Never execute received addon messages. Parse and validate data only."
-                        ))
+                    if "loadstring" in line or "RunScript" in line:
+                        issues.append(
+                            SecurityIssue(
+                                category=SecurityCategory.ADDON_COMM.value,
+                                confidence=Confidence.DEFINITE.value,
+                                file=str(rel_path),
+                                line=line_num,
+                                code=stripped[:80],
+                                message="Addon message content executed directly - critical security risk",
+                                suggestion="Never execute received addon messages. Parse and validate data only.",
+                            )
+                        )
 
                     # Check for unvalidated deserialization
-                    if 'deserialize' in line.lower() and 'validate' not in content[handler_start*50:(line_num+5)*50].lower():
-                        issues.append(SecurityIssue(
-                            category=SecurityCategory.ADDON_COMM.value,
-                            confidence=Confidence.SUSPICIOUS.value,
-                            file=str(rel_path),
-                            line=line_num,
-                            code=stripped[:80],
-                            message="Addon message deserialized without apparent validation",
-                            suggestion="Validate message structure and values before processing"
-                        ))
+                    if (
+                        "deserialize" in line.lower()
+                        and "validate"
+                        not in content[handler_start * 50 : (line_num + 5) * 50].lower()
+                    ):
+                        issues.append(
+                            SecurityIssue(
+                                category=SecurityCategory.ADDON_COMM.value,
+                                confidence=Confidence.SUSPICIOUS.value,
+                                file=str(rel_path),
+                                line=line_num,
+                                code=stripped[:80],
+                                message="Addon message deserialized without apparent validation",
+                                suggestion="Validate message structure and values before processing",
+                            )
+                        )
 
                     # Reset after function ends
-                    if stripped == 'end':
+                    if stripped == "end":
                         in_comm_handler = False
 
         except Exception:
@@ -494,7 +509,10 @@ def find_addon_comm_issues(
 # MAIN ANALYSIS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def analyze_addon(addon_path: Path, addon_name: str, input: SecurityInput) -> SecurityResult:
+
+def analyze_addon(
+    addon_path: Path, addon_name: str, input: SecurityInput
+) -> SecurityResult:
     """Run comprehensive security analysis on an addon."""
     start_time = time.time()
 
@@ -503,7 +521,7 @@ def analyze_addon(addon_path: Path, addon_name: str, input: SecurityInput) -> Se
     for lua_file in addon_path.rglob("*.lua"):
         rel_path = lua_file.relative_to(addon_path)
         parts = rel_path.parts
-        if 'Libs' not in parts and 'libs' not in parts:
+        if "Libs" not in parts and "libs" not in parts:
             lua_files.append(lua_file)
 
     # Collect issues from all detectors
@@ -527,13 +545,19 @@ def analyze_addon(addon_path: Path, addon_name: str, input: SecurityInput) -> Se
 
     # Filter by confidence if requested
     if not input.include_suspicious:
-        all_issues = [i for i in all_issues if i.confidence != Confidence.SUSPICIOUS.value]
+        all_issues = [
+            i for i in all_issues if i.confidence != Confidence.SUSPICIOUS.value
+        ]
 
     # Build summary
     summary = SecuritySummary(total=len(all_issues))
     for issue in all_issues:
-        summary.by_category[issue.category] = summary.by_category.get(issue.category, 0) + 1
-        summary.by_confidence[issue.confidence] = summary.by_confidence.get(issue.confidence, 0) + 1
+        summary.by_category[issue.category] = (
+            summary.by_category.get(issue.category, 0) + 1
+        )
+        summary.by_confidence[issue.confidence] = (
+            summary.by_confidence.get(issue.confidence, 0) + 1
+        )
 
     analysis_time = (time.time() - start_time) * 1000
 
@@ -542,13 +566,14 @@ def analyze_addon(addon_path: Path, addon_name: str, input: SecurityInput) -> Se
         files_analyzed=len(lua_files),
         issues=all_issues[:100],  # Limit to 100 issues
         summary=summary,
-        analysis_time_ms=round(analysis_time, 2)
+        analysis_time_ms=round(analysis_time, 2),
     )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # COMMAND REGISTRATION
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def register_commands(server):
     """Register security analysis commands with the AFD server."""
@@ -559,14 +584,16 @@ def register_commands(server):
         input_schema=SecurityInput,
         output_schema=SecurityResult,
     )
-    async def analyze_security(input: SecurityInput, context: Any = None) -> CommandResult[SecurityResult]:
+    async def analyze_security(
+        input: SecurityInput, context: Any = None
+    ) -> CommandResult[SecurityResult]:
         addon_path = find_addon_path(input.addon, input.path)
 
         if not addon_path:
             return error(
                 code="ADDON_NOT_FOUND",
                 message=f"Addon '{input.addon}' not found in development directories",
-                suggestion="Check the addon name or provide an explicit path"
+                suggestion="Check the addon name or provide an explicit path",
             )
 
         result = analyze_addon(addon_path, input.addon, input)
@@ -575,7 +602,7 @@ def register_commands(server):
             type="analysis",
             id=f"security-{input.addon}",
             title=f"Security Analysis: {input.addon}",
-            location=str(addon_path)
+            location=str(addon_path),
         )
 
         # Build reasoning summary
@@ -583,15 +610,12 @@ def register_commands(server):
             reasoning = f"No security issues found in {input.addon} ({result.files_analyzed} files analyzed)"
         else:
             parts = []
-            for cat, count in sorted(result.summary.by_category.items(), key=lambda x: -x[1]):
+            for cat, count in sorted(
+                result.summary.by_category.items(), key=lambda x: -x[1]
+            ):
                 parts.append(f"{count} {cat.replace('_', ' ')}")
             reasoning = f"Found {result.summary.total} security issues in {input.addon}: {', '.join(parts[:3])}"
             if len(parts) > 3:
                 reasoning += f" (+{len(parts) - 3} more categories)"
 
-        return success(
-            data=result,
-            reasoning=reasoning,
-            sources=[src],
-            confidence=0.9
-        )
+        return success(data=result, reasoning=reasoning, sources=[src], confidence=0.9)

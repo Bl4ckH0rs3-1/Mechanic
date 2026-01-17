@@ -21,6 +21,7 @@ from ..config import get_config
 # SCHEMAS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class PerfBaselineInput(BaseModel):
     addon: str = Field(..., description="Name of the addon")
     version: str = Field(..., description="Version being measured")
@@ -41,8 +42,12 @@ class PerfCompareInput(BaseModel):
     addon: str = Field(..., description="Name of the addon")
     memory_kb: float = Field(..., description="Current memory usage in KB")
     cpu_ms: float = Field(..., description="Current CPU time in milliseconds")
-    memory_threshold: float = Field(default=1.5, description="Memory increase factor that triggers warning")
-    cpu_threshold: float = Field(default=2.0, description="CPU increase factor that triggers warning")
+    memory_threshold: float = Field(
+        default=1.5, description="Memory increase factor that triggers warning"
+    )
+    cpu_threshold: float = Field(
+        default=2.0, description="CPU increase factor that triggers warning"
+    )
 
 
 class PerfCompareOutput(BaseModel):
@@ -82,6 +87,7 @@ class PerfListOutput(BaseModel):
 # HELPER FUNCTIONS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def _get_baselines_dir() -> Path:
     """Get the directory for storing performance baselines."""
     config = get_config()
@@ -116,7 +122,10 @@ def _save_baseline(addon_name: str, data: Dict[str, Any]):
 # COMMAND IMPLEMENTATIONS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-async def _perf_baseline(input: PerfBaselineInput, context: Any = None) -> CommandResult[PerfBaselineOutput]:
+
+async def _perf_baseline(
+    input: PerfBaselineInput, context: Any = None
+) -> CommandResult[PerfBaselineOutput]:
     """
     Record a performance baseline measurement for an addon.
     """
@@ -144,13 +153,15 @@ async def _perf_baseline(input: PerfBaselineInput, context: Any = None) -> Comma
             memory_kb=input.memory_kb,
             cpu_ms=input.cpu_ms,
             timestamp=measurement["timestamp"],
-            history_count=len(baseline["history"])
+            history_count=len(baseline["history"]),
         ),
-        reasoning=f"Recorded baseline for {input.addon} v{input.version}"
+        reasoning=f"Recorded baseline for {input.addon} v{input.version}",
     )
 
 
-async def _perf_compare(input: PerfCompareInput, context: Any = None) -> CommandResult[PerfCompareOutput]:
+async def _perf_compare(
+    input: PerfCompareInput, context: Any = None
+) -> CommandResult[PerfCompareOutput]:
     """
     Compare current performance metrics against the baseline and detect regressions.
     """
@@ -164,9 +175,9 @@ async def _perf_compare(input: PerfCompareInput, context: Any = None) -> Command
                 memory_regression=False,
                 cpu_regression=False,
                 current={"memory_kb": input.memory_kb, "cpu_ms": input.cpu_ms},
-                message="No baseline to compare against"
+                message="No baseline to compare against",
             ),
-            reasoning="No previous measurements found for comparison"
+            reasoning="No previous measurements found for comparison",
         )
 
     latest = baseline["history"][-1]
@@ -210,13 +221,15 @@ async def _perf_compare(input: PerfCompareInput, context: Any = None) -> Command
             cpu_ratio=cpu_ratio,
             previous=latest,
             current={"memory_kb": input.memory_kb, "cpu_ms": input.cpu_ms},
-            message=message
+            message=message,
         ),
-        reasoning=message
+        reasoning=message,
     )
 
 
-async def _perf_report(input: PerfReportInput, context: Any = None) -> CommandResult[PerfReportOutput]:
+async def _perf_report(
+    input: PerfReportInput, context: Any = None
+) -> CommandResult[PerfReportOutput]:
     """
     Generate a performance report for an addon.
     """
@@ -228,12 +241,12 @@ async def _perf_report(input: PerfReportInput, context: Any = None) -> CommandRe
                 addon=input.addon,
                 history=[],
                 trend=None,
-                report=f"No performance history for {input.addon}"
+                report=f"No performance history for {input.addon}",
             ),
-            reasoning="No measurements recorded"
+            reasoning="No measurements recorded",
         )
 
-    history = baseline["history"][-input.limit:]
+    history = baseline["history"][-input.limit :]
 
     # Calculate trends
     trend = None
@@ -242,7 +255,9 @@ async def _perf_report(input: PerfReportInput, context: Any = None) -> CommandRe
         last = baseline["history"][-1]
 
         if first["memory_kb"] > 0:
-            mem_change = ((last["memory_kb"] - first["memory_kb"]) / first["memory_kb"]) * 100
+            mem_change = (
+                (last["memory_kb"] - first["memory_kb"]) / first["memory_kb"]
+            ) * 100
         else:
             mem_change = 0
 
@@ -255,7 +270,7 @@ async def _perf_report(input: PerfReportInput, context: Any = None) -> CommandRe
             "memory_change_pct": round(mem_change, 1),
             "cpu_change_pct": round(cpu_change, 1),
             "first_version": first["version"],
-            "latest_version": last["version"]
+            "latest_version": last["version"],
         }
 
     # Build text report
@@ -277,16 +292,15 @@ async def _perf_report(input: PerfReportInput, context: Any = None) -> CommandRe
 
     return success(
         data=PerfReportOutput(
-            addon=input.addon,
-            history=history,
-            trend=trend,
-            report=report
+            addon=input.addon, history=history, trend=trend, report=report
         ),
-        reasoning=f"Generated report with {len(history)} measurements"
+        reasoning=f"Generated report with {len(history)} measurements",
     )
 
 
-async def _perf_list(input: PerfListInput, context: Any = None) -> CommandResult[PerfListOutput]:
+async def _perf_list(
+    input: PerfListInput, context: Any = None
+) -> CommandResult[PerfListOutput]:
     """
     List all addons with performance baselines.
     """
@@ -301,13 +315,14 @@ async def _perf_list(input: PerfListInput, context: Any = None) -> CommandResult
 
     return success(
         data=PerfListOutput(addons=addons, count=len(addons)),
-        reasoning=f"Found {len(addons)} addons with performance baselines"
+        reasoning=f"Found {len(addons)} addons with performance baselines",
     )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # REGISTRATION
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def register_commands(server):
     """Register performance profiling commands with the AFD server."""

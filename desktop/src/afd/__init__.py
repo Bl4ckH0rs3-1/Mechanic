@@ -13,12 +13,12 @@ Server Example:
     >>> from afd.server import create_server
     >>> from afd import success
     >>> from pydantic import BaseModel
-    >>> 
+    >>>
     >>> server = create_server("my-app")
-    >>> 
+    >>>
     >>> class GreetInput(BaseModel):
     ...     name: str
-    >>> 
+    >>>
     >>> @server.command(name="greet", description="Greet someone")
     ... async def greet(input: GreetInput):
     ...     return success({"message": f"Hello, {input.name}!"})

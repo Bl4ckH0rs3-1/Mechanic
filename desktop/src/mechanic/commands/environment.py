@@ -19,16 +19,19 @@ from ..config import get_config, find_addon_path
 # COMMAND REGISTRATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def register_commands(server):
     """Register all environment commands with the AFD server."""
 
     # ═══════════════════════════════════════════════════════════════════════════
     # addon.create - Create new addon from template
     # ═══════════════════════════════════════════════════════════════════════════
-    
+
     class AddonCreateInput(BaseModel):
         name: str = Field(..., description="Name for the new addon")
-        template: Optional[str] = Field(None, description="Template to use (defaults to _TemplateAddon)")
+        template: Optional[str] = Field(
+            None, description="Template to use (defaults to _TemplateAddon)"
+        )
         author: Optional[str] = Field(None, description="Author name for metadata")
 
     class AddonCreateResult(BaseModel):
@@ -43,35 +46,37 @@ def register_commands(server):
         input_schema=AddonCreateInput,
         output_schema=AddonCreateResult,
     )
-    async def create_addon(input: AddonCreateInput, context: Any = None) -> CommandResult[AddonCreateResult]:
+    async def create_addon(
+        input: AddonCreateInput, context: Any = None
+    ) -> CommandResult[AddonCreateResult]:
         config = get_config()
         dev_path = config.dev_path
-        
+
         if not dev_path or not dev_path.exists():
             return error(
                 code="DEV_PATH_NOT_FOUND",
                 message="Development path not found or not configured",
-                suggestion="Set MECHANIC_DEV_PATH environment variable or create ~/.mechanic/config.json"
+                suggestion="Set MECHANIC_DEV_PATH environment variable or create ~/.mechanic/config.json",
             )
-        
+
         # Check if addon already exists
         addon_path = dev_path / input.name
         if addon_path.exists():
             return error(
                 code="ADDON_EXISTS",
                 message=f"Addon '{input.name}' already exists at {addon_path}",
-                suggestion="Choose a different name or delete the existing folder"
+                suggestion="Choose a different name or delete the existing folder",
             )
-        
+
         # Find template
         template_path = Path(input.template) if input.template else config.template_path
         if not template_path or not template_path.exists():
             return error(
                 code="TEMPLATE_NOT_FOUND",
                 message=f"Template not found: {template_path}",
-                suggestion="Ensure _TemplateAddon exists in your dev path or specify a valid template path"
+                suggestion="Ensure _TemplateAddon exists in your dev path or specify a valid template path",
             )
-        
+
         # Copy template
         try:
             shutil.copytree(template_path, addon_path)
@@ -79,47 +84,58 @@ def register_commands(server):
             return error(
                 code="COPY_FAILED",
                 message=f"Failed to copy template: {e}",
-                suggestion="Check permissions and disk space"
+                suggestion="Check permissions and disk space",
             )
-        
+
         # Rename nested folder and files, update content
         files_created = 0
-        template_name = "TemplateAddon" # Hardcoded based on known structure
-        
+        template_name = "TemplateAddon"  # Hardcoded based on known structure
+
         # 1. Rename the nested addon folder if it exists
         nested_addon_path = addon_path / template_name
         if nested_addon_path.exists() and nested_addon_path.is_dir():
             new_nested_path = addon_path / input.name
             nested_addon_path.rename(new_nested_path)
-        
+
         # 2. Process all files
-        # We walk top-down so we can rename directories as we go? 
+        # We walk top-down so we can rename directories as we go?
         # Actually rglob is fine, but we must be careful about renaming parents while iterating.
         # Safest to do content updates first, then renames.
-        
+
         all_files = list(addon_path.rglob("*"))
-        
+
         # Content updates
         for file_path in all_files:
             if file_path.is_file():
                 files_created += 1
-                if file_path.suffix in ['.lua', '.toc', '.md', '.xml', '.json', '.yaml']:
+                if file_path.suffix in [
+                    ".lua",
+                    ".toc",
+                    ".md",
+                    ".xml",
+                    ".json",
+                    ".yaml",
+                ]:
                     try:
-                        content = file_path.read_text(encoding='utf-8')
+                        content = file_path.read_text(encoding="utf-8")
                         if template_name in content or "Your Name" in content:
                             content = content.replace(template_name, input.name)
                             if input.author:
-                                content = content.replace("## Author: Your Name", f"## Author: {input.author}")
+                                content = content.replace(
+                                    "## Author: Your Name", f"## Author: {input.author}"
+                                )
                                 content = content.replace("Your Name", input.author)
-                            file_path.write_text(content, encoding='utf-8')
+                            file_path.write_text(content, encoding="utf-8")
                     except Exception:
                         pass
 
         # Filename/Directory Renames (Deepest first to avoid breaking paths)
         # Re-list to get current paths
         # We need to rename files named "TemplateAddon.*" to "NewName.*"
-        
-        for file_path in sorted(addon_path.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+
+        for file_path in sorted(
+            addon_path.rglob("*"), key=lambda p: len(p.parts), reverse=True
+        ):
             if template_name in file_path.name:
                 new_name = file_path.name.replace(template_name, input.name)
                 new_path = file_path.parent / new_name
@@ -127,37 +143,39 @@ def register_commands(server):
                     file_path.rename(new_path)
                 except Exception:
                     pass
-        
+
         src = create_source(
             type="folder",
             id=f"addon-{input.name}",
             title=input.name,
-            location=str(addon_path)
+            location=str(addon_path),
         )
-        
+
         return success(
             data=AddonCreateResult(
                 name=input.name,
                 path=str(addon_path),
                 files_created=files_created,
                 next_steps=[
-                    f"Run: mech call addon.sync -i '{{\"addon\": \"{input.name}\"}}'",
-                    f"Run: mech call addon.validate -i '{{\"addon\": \"{input.name}\"}}'",
-                    f"Edit {input.name}/Core.lua to add your addon logic"
-                ]
+                    f'Run: mech call addon.sync -i \'{{"addon": "{input.name}"}}\'',
+                    f'Run: mech call addon.validate -i \'{{"addon": "{input.name}"}}\'',
+                    f"Edit {input.name}/Core.lua to add your addon logic",
+                ],
             ),
             reasoning=f"Created addon repo '{input.name}' with nested '{input.name}' folder",
             sources=[src],
-            confidence=1.0
+            confidence=1.0,
         )
 
     # ═══════════════════════════════════════════════════════════════════════════
     # addon.sync - Create junction links to WoW clients
     # ═══════════════════════════════════════════════════════════════════════════
-    
+
     class AddonSyncInput(BaseModel):
         addon: str = Field(..., description="Name of the addon to sync")
-        flavors: Optional[List[str]] = Field(None, description="WoW flavors to sync to (defaults to all)")
+        flavors: Optional[List[str]] = Field(
+            None, description="WoW flavors to sync to (defaults to all)"
+        )
 
     class SyncLink(BaseModel):
         flavor: str
@@ -176,93 +194,118 @@ def register_commands(server):
         input_schema=AddonSyncInput,
         output_schema=AddonSyncResult,
     )
-    async def sync_addon(input: AddonSyncInput, context: Any = None) -> CommandResult[AddonSyncResult]:
+    async def sync_addon(
+        input: AddonSyncInput, context: Any = None
+    ) -> CommandResult[AddonSyncResult]:
         config = get_config()
         wow_base = config.wow_root
-        
+
         if not wow_base or not wow_base.exists():
             return error(
                 code="WOW_NOT_FOUND",
                 message="WoW installation not found",
-                suggestion="Set MECHANIC_WOW_ROOT environment variable or create ~/.mechanic/config.json"
+                suggestion="Set MECHANIC_WOW_ROOT environment variable or create ~/.mechanic/config.json",
             )
-        
+
         # Find source addon using centralized path resolution
         source_path = find_addon_path(input.addon)
         if not source_path:
             return error(
                 code="ADDON_NOT_FOUND",
                 message=f"Addon '{input.addon}' not found",
-                suggestion="Check the addon name or create it first with addon.create"
+                suggestion="Check the addon name or create it first with addon.create",
             )
-        
+
         flavors = input.flavors or config.flavors
         links = []
         success_count = 0
         error_count = 0
-        
+
         for flavor in flavors:
             addons_path = wow_base / flavor / "Interface" / "AddOns" / input.addon
-            
+
             if addons_path.exists():
-                links.append(SyncLink(
-                    flavor=flavor,
-                    target=str(addons_path),
-                    status="exists"
-                ))
+                links.append(
+                    SyncLink(flavor=flavor, target=str(addons_path), status="exists")
+                )
                 success_count += 1
                 continue
-            
+
             # Create parent directory if needed
             addons_path.parent.mkdir(parents=True, exist_ok=True)
-            
+
             # Create junction (Windows) or symlink
             try:
-                if subprocess.sys.platform == 'win32':
+                if subprocess.sys.platform == "win32":
                     # Use mklink /J for junction
                     result = subprocess.run(
-                        ["cmd", "/c", "mklink", "/J", str(addons_path), str(source_path)],
+                        [
+                            "cmd",
+                            "/c",
+                            "mklink",
+                            "/J",
+                            str(addons_path),
+                            str(source_path),
+                        ],
                         capture_output=True,
                         text=True,
-                        timeout=10
+                        timeout=10,
                     )
                     if result.returncode == 0:
-                        links.append(SyncLink(flavor=flavor, target=str(addons_path), status="created"))
+                        links.append(
+                            SyncLink(
+                                flavor=flavor, target=str(addons_path), status="created"
+                            )
+                        )
                         success_count += 1
                     else:
-                        links.append(SyncLink(flavor=flavor, target=str(addons_path), status=f"failed: {result.stderr}"))
+                        links.append(
+                            SyncLink(
+                                flavor=flavor,
+                                target=str(addons_path),
+                                status=f"failed: {result.stderr}",
+                            )
+                        )
                         error_count += 1
                 else:
                     addons_path.symlink_to(source_path)
-                    links.append(SyncLink(flavor=flavor, target=str(addons_path), status="created"))
+                    links.append(
+                        SyncLink(
+                            flavor=flavor, target=str(addons_path), status="created"
+                        )
+                    )
                     success_count += 1
             except Exception as e:
-                links.append(SyncLink(flavor=flavor, target=str(addons_path), status=f"error: {e}"))
+                links.append(
+                    SyncLink(
+                        flavor=flavor, target=str(addons_path), status=f"error: {e}"
+                    )
+                )
                 error_count += 1
-        
+
         src = create_source(
             type="junction",
             id=f"sync-{input.addon}",
             title=f"Junction Links for {input.addon}",
-            location=str(source_path)
+            location=str(source_path),
         )
-        
+
         return success(
             data=AddonSyncResult(
                 addon=input.addon,
                 links=links,
                 success_count=success_count,
-                error_count=error_count
+                error_count=error_count,
             ),
             reasoning=f"Synced {input.addon} to {success_count} clients ({error_count} errors)",
             sources=[src],
-            confidence=1.0
+            confidence=1.0,
         )
 
     # ═══════════════════════════════════════════════════════════════════════════
     # libs.check - Check library sync status
     # ═══════════════════════════════════════════════════════════════════════════
-    
+
     class LibsCheckInput(BaseModel):
         addon: str = Field(..., description="Name of the addon to check")
 
@@ -283,10 +326,11 @@ def register_commands(server):
     def _load_libs_config(libs_path: Path) -> Optional[Dict]:
         """Load libs.json from a Libs folder."""
         import json
+
         config_file = libs_path / "libs.json"
         if config_file.exists():
             try:
-                return json.loads(config_file.read_text(encoding='utf-8'))
+                return json.loads(config_file.read_text(encoding="utf-8"))
             except Exception:
                 return None
         return None
@@ -294,11 +338,12 @@ def register_commands(server):
     def _extract_lib_version(lib_path: Path) -> Optional[str]:
         """Extract version from library files."""
         import re
+
         for file in lib_path.glob("*.lua"):
             try:
-                content = file.read_text(encoding='utf-8', errors='replace')[:1000]
+                content = file.read_text(encoding="utf-8", errors="replace")[:1000]
                 # Look for MINOR pattern (common in Ace3/libs)
-                match = re.search(r'MINOR\s*=\s*(\d+)', content)
+                match = re.search(r"MINOR\s*=\s*(\d+)", content)
                 if match:
                     return f"r{match.group(1)}"
             except Exception:
@@ -311,106 +356,119 @@ def register_commands(server):
         input_schema=LibsCheckInput,
         output_schema=LibsCheckResult,
     )
-    async def check_libs(input: LibsCheckInput, context: Any = None) -> CommandResult[LibsCheckResult]:
+    async def check_libs(
+        input: LibsCheckInput, context: Any = None
+    ) -> CommandResult[LibsCheckResult]:
         addon_path = find_addon_path(input.addon)
         if not addon_path:
             return error(
                 code="ADDON_NOT_FOUND",
                 message=f"Addon '{input.addon}' not found",
-                suggestion="Check the addon name"
+                suggestion="Check the addon name",
             )
-        
+
         libs_path = addon_path / "Libs"
         if not libs_path.exists():
             return success(
                 data=LibsCheckResult(addon=input.addon, issues=["No Libs folder"]),
                 reasoning="No Libs folder found in addon",
-                confidence=1.0
+                confidence=1.0,
             )
-        
+
         # Load libs.json config
         libs_config = _load_libs_config(libs_path)
         has_config = libs_config is not None
         config_mode = libs_config.get("mode", "include") if libs_config else None
         configured_libs = libs_config.get("libraries", {}) if libs_config else {}
-        
+
         # Scan installed libraries
         installed_libs = {}
         for item in libs_path.iterdir():
             if item.is_dir() and item.name != "__pycache__":
                 installed_libs[item.name] = _extract_lib_version(item)
-        
+
         libraries = []
         issues = []
-        
+
         if has_config and config_mode == "include":
             # Check for missing configured libs
             for lib_name, configured_version in configured_libs.items():
                 if lib_name in installed_libs:
-                    libraries.append(LibStatus(
-                        name=lib_name,
-                        configured_version=configured_version,
-                        installed_version=installed_libs[lib_name],
-                        status="ok",
-                        path=str(libs_path / lib_name)
-                    ))
+                    libraries.append(
+                        LibStatus(
+                            name=lib_name,
+                            configured_version=configured_version,
+                            installed_version=installed_libs[lib_name],
+                            status="ok",
+                            path=str(libs_path / lib_name),
+                        )
+                    )
                 else:
-                    libraries.append(LibStatus(
-                        name=lib_name,
-                        configured_version=configured_version,
-                        status="missing"
-                    ))
+                    libraries.append(
+                        LibStatus(
+                            name=lib_name,
+                            configured_version=configured_version,
+                            status="missing",
+                        )
+                    )
                     issues.append(f"Missing: {lib_name}")
-            
+
             # Check for extra libs not in config
             for lib_name, installed_version in installed_libs.items():
                 if lib_name not in configured_libs and lib_name != "libs.json":
-                    libraries.append(LibStatus(
-                        name=lib_name,
-                        installed_version=installed_version,
-                        status="extra",
-                        path=str(libs_path / lib_name)
-                    ))
+                    libraries.append(
+                        LibStatus(
+                            name=lib_name,
+                            installed_version=installed_version,
+                            status="extra",
+                            path=str(libs_path / lib_name),
+                        )
+                    )
                     issues.append(f"Extra (not in config): {lib_name}")
         else:
             # No config - just report what's installed
             for lib_name, installed_version in installed_libs.items():
-                libraries.append(LibStatus(
-                    name=lib_name,
-                    installed_version=installed_version,
-                    status="ok",
-                    path=str(libs_path / lib_name)
-                ))
+                libraries.append(
+                    LibStatus(
+                        name=lib_name,
+                        installed_version=installed_version,
+                        status="ok",
+                        path=str(libs_path / lib_name),
+                    )
+                )
             if not has_config:
                 issues.append("No libs.json - run 'libs.init' to create one")
-        
+
         src = create_source(
             type="folder",
             id=f"libs-{input.addon}",
             title="Libs",
-            location=str(libs_path)
+            location=str(libs_path),
         )
-        
+
         return success(
             data=LibsCheckResult(
                 addon=input.addon,
                 has_config=has_config,
                 config_mode=config_mode,
                 libraries=sorted(libraries, key=lambda x: x.name),
-                issues=issues
+                issues=issues,
             ),
             reasoning=f"Found {len(libraries)} libraries, {len(issues)} issues",
             sources=[src],
-            confidence=1.0
+            confidence=1.0,
         )
 
     # ═══════════════════════════════════════════════════════════════════════════
     # libs.init - Initialize libs.json from existing Libs folder
     # ═══════════════════════════════════════════════════════════════════════════
-    
+
     class LibsInitInput(BaseModel):
         addon: str = Field(..., description="Name of the addon")
-        mode: str = Field("include", description="Config mode: 'include' (whitelist) or 'exclude' (blocklist)")
+        mode: str = Field(
+            "include",
+            description="Config mode: 'include' (whitelist) or 'exclude' (blocklist)",
+        )
         overwrite: bool = Field(False, description="Overwrite existing libs.json")
 
     class LibsInitResult(BaseModel):
@@ -425,79 +483,85 @@ def register_commands(server):
         input_schema=LibsInitInput,
         output_schema=LibsInitResult,
     )
-    async def init_libs(input: LibsInitInput, context: Any = None) -> CommandResult[LibsInitResult]:
+    async def init_libs(
+        input: LibsInitInput, context: Any = None
+    ) -> CommandResult[LibsInitResult]:
         import json
-        
+
         addon_path = find_addon_path(input.addon)
         if not addon_path:
             return error(
                 code="ADDON_NOT_FOUND",
                 message=f"Addon '{input.addon}' not found",
-                suggestion="Check the addon name"
+                suggestion="Check the addon name",
             )
-        
+
         libs_path = addon_path / "Libs"
         if not libs_path.exists():
             return error(
                 code="NO_LIBS",
                 message=f"No Libs folder found in {input.addon}",
-                suggestion="Create a Libs folder first"
+                suggestion="Create a Libs folder first",
             )
-        
+
         config_file = libs_path / "libs.json"
         if config_file.exists() and not input.overwrite:
             return error(
                 code="CONFIG_EXISTS",
                 message="libs.json already exists",
-                suggestion="Use overwrite=true to replace it"
+                suggestion="Use overwrite=true to replace it",
             )
-        
+
         # Scan existing libraries
         libraries = {}
         for item in libs_path.iterdir():
             if item.is_dir() and item.name not in ["__pycache__"]:
                 # Default to "latest", could be enhanced to detect pinning needs
                 libraries[item.name] = "latest"
-        
+
         # Build config
         config = {
             "$schema": "https://mechanic.dev/schemas/libs.json",
             "description": f"Library configuration for {input.addon}",
             "mode": input.mode,
-            "libraries": dict(sorted(libraries.items()))
+            "libraries": dict(sorted(libraries.items())),
         }
-        
+
         # Write config
-        config_file.write_text(json.dumps(config, indent=2), encoding='utf-8')
-        
+        config_file.write_text(json.dumps(config, indent=2), encoding="utf-8")
+
         src = create_source(
             type="file",
             id=f"libs-config-{input.addon}",
             title="libs.json",
-            location=str(config_file)
+            location=str(config_file),
         )
-        
+
         return success(
             data=LibsInitResult(
                 addon=input.addon,
                 config_path=str(config_file),
                 libraries_count=len(libraries),
-                libraries=libraries
+                libraries=libraries,
             ),
             reasoning=f"Generated libs.json with {len(libraries)} libraries",
             sources=[src],
-            confidence=1.0
+            confidence=1.0,
         )
 
     # ═══════════════════════════════════════════════════════════════════════════
     # libs.sync - Sync libraries based on libs.json config
     # ═══════════════════════════════════════════════════════════════════════════
-    
+
     class LibsSyncInput(BaseModel):
         addon: str = Field(..., description="Name of the addon to sync")
-        source: Optional[str] = Field(None, description="Source library path (defaults to ADDON_DEV Libs)")
+        source: Optional[str] = Field(
+            None, description="Source library path (defaults to ADDON_DEV Libs)"
+        )
         dry_run: bool = Field(False, description="Preview changes without applying")
-        force: bool = Field(False, description="Force update existing libraries (replaces them)")
+        force: bool = Field(
+            False, description="Force update existing libraries (replaces them)"
+        )
         remove_extra: bool = Field(False, description="Remove libraries not in config")
 
     class SyncAction(BaseModel):
@@ -517,9 +581,14 @@ def register_commands(server):
         removed: int = 0
         errors: int = 0
 
-    def _find_library_source(lib_name: str, lib_config, default_source: Optional[Path], dev_path: Optional[Path]) -> Optional[Path]:
+    def _find_library_source(
+        lib_name: str,
+        lib_config,
+        default_source: Optional[Path],
+        dev_path: Optional[Path],
+    ) -> Optional[Path]:
         """Find the source path for a library.
-        
+
         Checks in order:
         1. Per-library 'source' in libs.json config
         2. Default source path (from command input or auto-detected)
@@ -533,18 +602,18 @@ def register_commands(server):
                 custom_source = dev_path / custom_source
             if custom_source.exists():
                 return custom_source
-        
+
         # 2. Check default source path
         if default_source and (default_source / lib_name).exists():
             return default_source / lib_name
-        
+
         # 3. Check for standalone repo in dev_path (e.g., FenUI as its own folder)
         if dev_path and (dev_path / lib_name).exists():
             standalone = dev_path / lib_name
             # Verify it looks like a library (has .lua files or .toc)
             if any(standalone.glob("*.lua")) or any(standalone.glob("*.toc")):
                 return standalone
-        
+
         return None
 
     def _get_lib_version_config(lib_config) -> str:
@@ -554,22 +623,35 @@ def register_commands(server):
         return lib_config  # Simple string format
 
     # Folders to exclude when copying libraries
-    IGNORE_PATTERNS = {'.git', '.coverage', '__pycache__', '.github', 'Tests', '.deprecation-report.md', 'PLANS'}
+    IGNORE_PATTERNS = {
+        ".git",
+        ".coverage",
+        "__pycache__",
+        ".github",
+        "Tests",
+        ".deprecation-report.md",
+        "PLANS",
+    }
 
     def _copy_library(src: Path, dst: Path) -> None:
         """Copy a library, excluding development-only folders."""
+
         def ignore_patterns(directory, files):
             return [f for f in files if f in IGNORE_PATTERNS]
+
         shutil.copytree(src, dst, ignore=ignore_patterns)
-    
+
     def _remove_tree_robust(path: Path) -> None:
         """Remove a directory tree, handling .git permission issues on Windows."""
         import stat
+
         def on_rm_error(func, path, exc_info):
             # Handle read-only files (common in .git)
             os.chmod(path, stat.S_IWRITE)
             func(path)
+
         import os
+
         shutil.rmtree(path, onerror=on_rm_error)
 
     @server.command(
@@ -578,34 +660,36 @@ def register_commands(server):
         input_schema=LibsSyncInput,
         output_schema=LibsSyncResult,
     )
-    async def sync_libs(input: LibsSyncInput, context: Any = None) -> CommandResult[LibsSyncResult]:
+    async def sync_libs(
+        input: LibsSyncInput, context: Any = None
+    ) -> CommandResult[LibsSyncResult]:
         config = get_config()
-        
+
         addon_path = find_addon_path(input.addon)
         if not addon_path:
             return error(
                 code="ADDON_NOT_FOUND",
                 message=f"Addon '{input.addon}' not found",
-                suggestion="Check the addon name"
+                suggestion="Check the addon name",
             )
-        
+
         libs_path = addon_path / "Libs"
         if not libs_path.exists():
             return error(
                 code="NO_LIBS",
                 message=f"No Libs folder in {input.addon}",
-                suggestion="Create Libs folder and libs.json first"
+                suggestion="Create Libs folder and libs.json first",
             )
-        
+
         # Load libs.json
         libs_config = _load_libs_config(libs_path)
         if not libs_config:
             return error(
                 code="NO_CONFIG",
                 message="No libs.json found",
-                suggestion="Run 'libs.init' to create one"
+                suggestion="Run 'libs.init' to create one",
             )
-        
+
         mode = libs_config.get("mode", "include")
         configured_libs = libs_config.get("libraries", {})
         notes = libs_config.get("notes", {})
@@ -624,7 +708,7 @@ def register_commands(server):
                     if p.exists():
                         default_source = p
                         break
-        
+
         actions = []
         copied = updated = skipped = removed = errors = 0
 
@@ -635,33 +719,40 @@ def register_commands(server):
         }
         # Write debug info to file for troubleshooting
         import json
+
         with open(config.data_dir / "libs_sync_debug.json", "w") as f:
             json.dump(debug_info, f, indent=2)
 
         # Get currently installed
         installed = {item.name for item in libs_path.iterdir() if item.is_dir()}
-        
+
         if mode == "include":
             # Process configured libraries
             for lib_name, lib_config in configured_libs.items():
                 target_path = libs_path / lib_name
                 version = _get_lib_version_config(lib_config)
-                
+
                 # Find source for this library
-                src_lib = _find_library_source(lib_name, lib_config, default_source, config.dev_path)
+                src_lib = _find_library_source(
+                    lib_name, lib_config, default_source, config.dev_path
+                )
 
                 # Handle "local" libs - sync from shared Libs folder
                 if version == "local":
                     if not src_lib:
-                        actions.append(SyncAction(
-                            library=lib_name,
-                            action="skip",
-                            reason=notes.get(lib_name, "Local library not found in shared Libs")
-                        ))
+                        actions.append(
+                            SyncAction(
+                                library=lib_name,
+                                action="skip",
+                                reason=notes.get(
+                                    lib_name, "Local library not found in shared Libs"
+                                ),
+                            )
+                        )
                         skipped += 1
                         continue
                     # Continue with normal sync logic below (src_lib is set)
-                
+
                 # Check if already installed
                 if target_path.exists():
                     if input.force and src_lib:
@@ -670,77 +761,87 @@ def register_commands(server):
                             try:
                                 _remove_tree_robust(target_path)
                                 _copy_library(src_lib, target_path)
-                                actions.append(SyncAction(
+                                actions.append(
+                                    SyncAction(
+                                        library=lib_name,
+                                        action="update",
+                                        source=str(src_lib),
+                                        target=str(target_path),
+                                        reason=f"Force updated from {src_lib.name}",
+                                    )
+                                )
+                                updated += 1
+                            except Exception as e:
+                                actions.append(
+                                    SyncAction(
+                                        library=lib_name, action="error", reason=str(e)
+                                    )
+                                )
+                                errors += 1
+                        else:
+                            actions.append(
+                                SyncAction(
                                     library=lib_name,
                                     action="update",
                                     source=str(src_lib),
                                     target=str(target_path),
-                                    reason=f"Force updated from {src_lib.name}"
-                                ))
-                                updated += 1
-                            except Exception as e:
-                                actions.append(SyncAction(
-                                    library=lib_name,
-                                    action="error",
-                                    reason=str(e)
-                                ))
-                                errors += 1
-                        else:
-                            actions.append(SyncAction(
-                                library=lib_name,
-                                action="update",
-                                source=str(src_lib),
-                                target=str(target_path),
-                                reason=f"Would update from {src_lib.name}"
-                            ))
+                                    reason=f"Would update from {src_lib.name}",
+                                )
+                            )
                             updated += 1
                     else:
-                        actions.append(SyncAction(
-                            library=lib_name,
-                            action="skip",
-                            target=str(target_path),
-                            reason="Already installed (use force=true to update)"
-                        ))
+                        actions.append(
+                            SyncAction(
+                                library=lib_name,
+                                action="skip",
+                                target=str(target_path),
+                                reason="Already installed (use force=true to update)",
+                            )
+                        )
                         skipped += 1
                     continue
-                
+
                 # Copy new library
                 if src_lib:
                     if not input.dry_run:
                         try:
                             _copy_library(src_lib, target_path)
-                            actions.append(SyncAction(
+                            actions.append(
+                                SyncAction(
+                                    library=lib_name,
+                                    action="copy",
+                                    source=str(src_lib),
+                                    target=str(target_path),
+                                    reason=f"Copied from {src_lib.name}",
+                                )
+                            )
+                            copied += 1
+                        except Exception as e:
+                            actions.append(
+                                SyncAction(
+                                    library=lib_name, action="error", reason=str(e)
+                                )
+                            )
+                            errors += 1
+                    else:
+                        actions.append(
+                            SyncAction(
                                 library=lib_name,
                                 action="copy",
                                 source=str(src_lib),
                                 target=str(target_path),
-                                reason=f"Copied from {src_lib.name}"
-                            ))
-                            copied += 1
-                        except Exception as e:
-                            actions.append(SyncAction(
-                                library=lib_name,
-                                action="error",
-                                reason=str(e)
-                            ))
-                            errors += 1
-                    else:
-                        actions.append(SyncAction(
-                            library=lib_name,
-                            action="copy",
-                            source=str(src_lib),
-                            target=str(target_path),
-                            reason=f"Would copy from {src_lib.name}"
-                        ))
+                                reason=f"Would copy from {src_lib.name}",
+                            )
+                        )
                         copied += 1
                 else:
-                    actions.append(SyncAction(
-                        library=lib_name,
-                        action="error",
-                        reason="Source not found"
-                    ))
+                    actions.append(
+                        SyncAction(
+                            library=lib_name, action="error", reason="Source not found"
+                        )
+                    )
                     errors += 1
-            
+
             # Handle extra libraries (not in config)
             if input.remove_extra:
                 for lib_name in installed:
@@ -749,36 +850,40 @@ def register_commands(server):
                         if not input.dry_run:
                             try:
                                 shutil.rmtree(target_path)
-                                actions.append(SyncAction(
+                                actions.append(
+                                    SyncAction(
+                                        library=lib_name,
+                                        action="remove",
+                                        target=str(target_path),
+                                        reason="Not in libs.json config",
+                                    )
+                                )
+                                removed += 1
+                            except Exception as e:
+                                actions.append(
+                                    SyncAction(
+                                        library=lib_name, action="error", reason=str(e)
+                                    )
+                                )
+                                errors += 1
+                        else:
+                            actions.append(
+                                SyncAction(
                                     library=lib_name,
                                     action="remove",
                                     target=str(target_path),
-                                    reason="Not in libs.json config"
-                                ))
-                                removed += 1
-                            except Exception as e:
-                                actions.append(SyncAction(
-                                    library=lib_name,
-                                    action="error",
-                                    reason=str(e)
-                                ))
-                                errors += 1
-                        else:
-                            actions.append(SyncAction(
-                                library=lib_name,
-                                action="remove",
-                                target=str(target_path),
-                                reason="Would remove (not in config)"
-                            ))
+                                    reason="Would remove (not in config)",
+                                )
+                            )
                             removed += 1
-        
+
         src = create_source(
             type="folder",
             id=f"libs-sync-{input.addon}",
             title="Library Sync",
-            location=str(libs_path)
+            location=str(libs_path),
         )
-        
+
         return success(
             data=LibsSyncResult(
                 addon=input.addon,
@@ -789,17 +894,17 @@ def register_commands(server):
                 skipped=skipped,
                 removed=removed,
                 errors=errors,
-                _debug=debug_info
+                _debug=debug_info,
             ),
             reasoning=f"{'Preview: ' if input.dry_run else ''}{copied} copied, {updated} updated, {skipped} skipped, {removed} removed, {errors} errors",
             sources=[src],
-            confidence=1.0
+            confidence=1.0,
         )
 
     # ═══════════════════════════════════════════════════════════════════════════
     # env.status - Environment status for dashboard
     # ═══════════════════════════════════════════════════════════════════════════
-    
+
     class FlavorInfo(BaseModel):
         name: str
         path: str
@@ -807,6 +912,7 @@ def register_commands(server):
 
     class EnvStatusInput(BaseModel):
         """Empty input for env.status"""
+
         pass
 
     class EnvStatusResult(BaseModel):
@@ -821,37 +927,44 @@ def register_commands(server):
         input_schema=EnvStatusInput,
         output_schema=EnvStatusResult,
     )
-    async def env_status(input: EnvStatusInput, context: Any = None) -> CommandResult[EnvStatusResult]:
+    async def env_status(
+        input: EnvStatusInput, context: Any = None
+    ) -> CommandResult[EnvStatusResult]:
         config = get_config()
-        
+
         # Gather flavor information
         flavors = []
         for flavor in config.flavors:
             flavor_path = config.wow_root / flavor if config.wow_root else None
-            flavors.append(FlavorInfo(
-                name=flavor,
-                path=str(flavor_path) if flavor_path else "",
-                exists=flavor_path.exists() if flavor_path else False
-            ))
-        
+            flavors.append(
+                FlavorInfo(
+                    name=flavor,
+                    path=str(flavor_path) if flavor_path else "",
+                    exists=flavor_path.exists() if flavor_path else False,
+                )
+            )
+
         return success(
             data=EnvStatusResult(
                 wow_root=str(config.wow_root) if config.wow_root else None,
                 dev_path=str(config.dev_path) if config.dev_path else None,
                 data_dir=str(config.data_dir),
-                flavors=flavors
+                flavors=flavors,
             ),
             reasoning=f"Environment configured with {len([f for f in flavors if f.exists])} active WoW clients",
-            confidence=1.0
+            confidence=1.0,
         )
 
     # ═══════════════════════════════════════════════════════════════════════════
     # system.pick_file - Open native file picker dialog
     # ═══════════════════════════════════════════════════════════════════════════
-    
+
     class PickFileInput(BaseModel):
         title: str = Field("Select File", description="Title of the dialog window")
-        filter: str = Field("All Files (*.*)|*.*", description="File filter (e.g., 'Text Files (*.txt)|*.txt')")
+        filter: str = Field(
+            "All Files (*.*)|*.*",
+            description="File filter (e.g., 'Text Files (*.txt)|*.txt')",
+        )
 
     class PickFileResult(BaseModel):
         path: str
@@ -864,7 +977,9 @@ def register_commands(server):
         input_schema=PickFileInput,
         output_schema=PickFileResult,
     )
-    async def pick_file(input: PickFileInput, context: Any = None) -> CommandResult[PickFileResult]:
+    async def pick_file(
+        input: PickFileInput, context: Any = None
+    ) -> CommandResult[PickFileResult]:
         # PowerShell script to open file dialog
         ps_script = f"""
         Add-Type -AssemblyName System.Windows.Forms
@@ -877,44 +992,44 @@ def register_commands(server):
             Write-Output $FileBrowser.FileName
         }}
         """
-        
+
         try:
             result = subprocess.run(
                 ["powershell", "-Command", ps_script],
                 capture_output=True,
                 text=True,
-                timeout=60  # Give user time to pick
+                timeout=60,  # Give user time to pick
             )
-            
+
             file_path = result.stdout.strip()
-            
+
             if not file_path or not Path(file_path).exists():
                 return error(
                     code="NO_SELECTION",
                     message="No file selected or file does not exist",
-                    suggestion="Try again and select a valid file"
+                    suggestion="Try again and select a valid file",
                 )
-                
+
             path_obj = Path(file_path)
-            
+
             src = create_source(
                 type="file",
                 id="file-picker",
                 title="User Selection",
-                location=str(path_obj)
+                location=str(path_obj),
             )
-            
+
             return success(
                 data=PickFileResult(
                     path=str(path_obj),
                     filename=path_obj.name,
-                    directory=str(path_obj.parent)
+                    directory=str(path_obj.parent),
                 ),
                 reasoning=f"User selected: {path_obj.name}",
                 sources=[src],
-                confidence=1.0
+                confidence=1.0,
             )
-            
+
         except subprocess.TimeoutExpired:
             return error(code="TIMEOUT", message="File picker timed out")
         except Exception as e:

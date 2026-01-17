@@ -36,9 +36,13 @@ TOWNLONG_YAK_BUILDS = f"{TOWNLONG_YAK_BASE}/builds"
 # SCHEMAS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class APIPopulateInput(BaseModel):
     source_path: str = Field(..., description="Path to wow-ui-source repository root")
-    output_path: Optional[str] = Field(default=None, description="Output path for api_database.json (defaults to data_dir)")
+    output_path: Optional[str] = Field(
+        default=None,
+        description="Output path for api_database.json (defaults to data_dir)",
+    )
 
 
 class APIPopulateOutput(BaseModel):
@@ -49,8 +53,13 @@ class APIPopulateOutput(BaseModel):
 
 
 class APIGenerateInput(BaseModel):
-    database_path: Optional[str] = Field(default=None, description="Path to api_database.json (defaults to data_dir)")
-    output_path: Optional[str] = Field(default=None, description="Output path for APIDefs (defaults to Mechanic/UI/APIDefs)")
+    database_path: Optional[str] = Field(
+        default=None, description="Path to api_database.json (defaults to data_dir)"
+    )
+    output_path: Optional[str] = Field(
+        default=None,
+        description="Output path for APIDefs (defaults to Mechanic/UI/APIDefs)",
+    )
 
 
 class APIGenerateOutput(BaseModel):
@@ -61,7 +70,9 @@ class APIGenerateOutput(BaseModel):
 
 
 class APIRefreshInput(BaseModel):
-    source_path: str = Field(..., description="Path to wow-ui-source repository root or Townlong Yak extract")
+    source_path: str = Field(
+        ..., description="Path to wow-ui-source repository root or Townlong Yak extract"
+    )
 
 
 class APIRefreshOutput(BaseModel):
@@ -72,8 +83,14 @@ class APIRefreshOutput(BaseModel):
 
 
 class APIDownloadInput(BaseModel):
-    build_id: Optional[str] = Field(default=None, description="Specific build ID to download (e.g., '64889'). If not provided, fetches latest.")
-    output_path: Optional[str] = Field(default=None, description="Where to extract the download. Defaults to _dev_/framexml/{version}")
+    build_id: Optional[str] = Field(
+        default=None,
+        description="Specific build ID to download (e.g., '64889'). If not provided, fetches latest.",
+    )
+    output_path: Optional[str] = Field(
+        default=None,
+        description="Where to extract the download. Defaults to _dev_/framexml/{version}",
+    )
     refresh: bool = Field(default=True, description="Run api.refresh after download")
 
 
@@ -82,7 +99,9 @@ class APIDownloadOutput(BaseModel):
     version: str = Field(..., description="WoW version (e.g., '12.0.1.64889')")
     output_path: str = Field(..., description="Path where files were extracted")
     file_count: int = Field(..., description="Number of files extracted")
-    api_count: Optional[int] = Field(default=None, description="Number of APIs if refresh was run")
+    api_count: Optional[int] = Field(
+        default=None, description="Number of APIs if refresh was run"
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -104,28 +123,64 @@ CATEGORIES = [
 
 NAMESPACE_CATEGORY_MAP = {
     # Unit & Player
-    "unit": "unit", "player": "unit", "party": "unit", "raid": "unit",
-    "aura": "unit", "buff": "unit", "casting": "unit", "health": "unit",
+    "unit": "unit",
+    "player": "unit",
+    "party": "unit",
+    "raid": "unit",
+    "aura": "unit",
+    "buff": "unit",
+    "casting": "unit",
+    "health": "unit",
     # Spells & Abilities
-    "spell": "spell", "talent": "spell", "spellbook": "spell", "actionbar": "spell",
-    "cooldown": "spell", "gcd": "spell",
+    "spell": "spell",
+    "talent": "spell",
+    "spellbook": "spell",
+    "actionbar": "spell",
+    "cooldown": "spell",
+    "gcd": "spell",
     # Items & Inventory
-    "item": "item", "container": "item", "bag": "item", "equipment": "item",
-    "loot": "item", "currency": "item", "bank": "item", "inventory": "item",
+    "item": "item",
+    "container": "item",
+    "bag": "item",
+    "equipment": "item",
+    "loot": "item",
+    "currency": "item",
+    "bank": "item",
+    "inventory": "item",
     # UI & Frames
-    "frame": "ui", "widget": "ui", "tooltip": "ui", "editmode": "ui",
-    "settings": "ui", "colorpicker": "ui",
+    "frame": "ui",
+    "widget": "ui",
+    "tooltip": "ui",
+    "editmode": "ui",
+    "settings": "ui",
+    "colorpicker": "ui",
     # Maps & Navigation
-    "map": "map", "minimap": "map", "worldmap": "map", "taxi": "map",
-    "areapoi": "map", "vignette": "map", "navigation": "map", "fogofwar": "map",
+    "map": "map",
+    "minimap": "map",
+    "worldmap": "map",
+    "taxi": "map",
+    "areapoi": "map",
+    "vignette": "map",
+    "navigation": "map",
+    "fogofwar": "map",
     # Social & Communication
-    "chat": "social", "guild": "social", "friend": "social", "club": "social",
-    "battlenet": "social", "voicechat": "social", "mail": "social",
+    "chat": "social",
+    "guild": "social",
+    "friend": "social",
+    "club": "social",
+    "battlenet": "social",
+    "voicechat": "social",
+    "mail": "social",
     # Achievements & Progress
-    "achievement": "achievement", "quest": "achievement", "reputation": "achievement",
-    "majorfaction": "achievement", "campaign": "achievement",
+    "achievement": "achievement",
+    "quest": "achievement",
+    "reputation": "achievement",
+    "majorfaction": "achievement",
+    "campaign": "achievement",
     # Professions & Crafting
-    "tradeskill": "profession", "crafting": "profession", "profession": "profession",
+    "tradeskill": "profession",
+    "crafting": "profession",
+    "profession": "profession",
     "recipe": "profession",
 }
 
@@ -133,6 +188,7 @@ NAMESPACE_CATEGORY_MAP = {
 # ═══════════════════════════════════════════════════════════════════════════════
 # PURE-PYTHON LUA TABLE PARSER
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def _parse_lua_table_python(file_path: Path) -> Optional[Dict]:
     """
@@ -158,20 +214,27 @@ def _parse_lua_table_python(file_path: Path) -> Optional[Dict]:
 
     # Parse Functions block
     functions = []
-    func_block_match = re.search(r'Functions\s*=\s*\{(.+?)\n\t\},', content, re.DOTALL)
+    func_block_match = re.search(r"Functions\s*=\s*\{(.+?)\n\t\},", content, re.DOTALL)
     if func_block_match:
         func_block = func_block_match.group(1)
         # Split into individual function definitions
-        func_pattern = re.compile(r'\{\s*Name\s*=\s*"([^"]+)"(.+?)^\t\t\}', re.MULTILINE | re.DOTALL)
+        func_pattern = re.compile(
+            r'\{\s*Name\s*=\s*"([^"]+)"(.+?)^\t\t\}', re.MULTILINE | re.DOTALL
+        )
         for match in func_pattern.finditer(func_block):
             func_name = match.group(1)
             func_body = match.group(2)
             func_data = {"Name": func_name}
 
             # Extract secret flags
-            for secret_key in ["SecretArguments", "SecretReturns", "SecretWhenSpellCooldownRestricted",
-                               "SecretWhenSpellAuraRestricted", "SecretWhenCurveSecret"]:
-                secret_match = re.search(rf'{secret_key}\s*=\s*([^,\n]+)', func_body)
+            for secret_key in [
+                "SecretArguments",
+                "SecretReturns",
+                "SecretWhenSpellCooldownRestricted",
+                "SecretWhenSpellAuraRestricted",
+                "SecretWhenCurveSecret",
+            ]:
+                secret_match = re.search(rf"{secret_key}\s*=\s*([^,\n]+)", func_body)
                 if secret_match:
                     val = secret_match.group(1).strip()
                     if val == "true":
@@ -184,11 +247,11 @@ def _parse_lua_table_python(file_path: Path) -> Optional[Dict]:
                         func_data[secret_key] = val
 
             # Extract HasRestrictions
-            if re.search(r'HasRestrictions\s*=\s*true', func_body):
+            if re.search(r"HasRestrictions\s*=\s*true", func_body):
                 func_data["HasRestrictions"] = True
 
             # Extract MayReturnNothing
-            if re.search(r'MayReturnNothing\s*=\s*true', func_body):
+            if re.search(r"MayReturnNothing\s*=\s*true", func_body):
                 func_data["MayReturnNothing"] = True
 
             # Extract Documentation
@@ -198,17 +261,24 @@ def _parse_lua_table_python(file_path: Path) -> Optional[Dict]:
 
             # Parse Arguments
             args = []
-            args_match = re.search(r'Arguments\s*=\s*\{(.+?)\n\t\t\t\}', func_body, re.DOTALL)
+            args_match = re.search(
+                r"Arguments\s*=\s*\{(.+?)\n\t\t\t\}", func_body, re.DOTALL
+            )
             if args_match:
                 args_block = args_match.group(1)
-                arg_pattern = re.compile(r'\{\s*Name\s*=\s*"([^"]+)"\s*,\s*Type\s*=\s*"([^"]+)"([^}]*)\}', re.DOTALL)
+                arg_pattern = re.compile(
+                    r'\{\s*Name\s*=\s*"([^"]+)"\s*,\s*Type\s*=\s*"([^"]+)"([^}]*)\}',
+                    re.DOTALL,
+                )
                 for arg_match in arg_pattern.finditer(args_block):
                     arg = {
                         "Name": arg_match.group(1),
                         "Type": arg_match.group(2),
-                        "Nilable": "Nilable = true" in arg_match.group(3)
+                        "Nilable": "Nilable = true" in arg_match.group(3),
                     }
-                    default_match = re.search(r'Default\s*=\s*([^,}]+)', arg_match.group(3))
+                    default_match = re.search(
+                        r"Default\s*=\s*([^,}]+)", arg_match.group(3)
+                    )
                     if default_match:
                         default_val = default_match.group(1).strip()
                         if default_val == "true":
@@ -225,15 +295,20 @@ def _parse_lua_table_python(file_path: Path) -> Optional[Dict]:
 
             # Parse Returns
             returns = []
-            returns_match = re.search(r'Returns\s*=\s*\{(.+?)\n\t\t\t\}', func_body, re.DOTALL)
+            returns_match = re.search(
+                r"Returns\s*=\s*\{(.+?)\n\t\t\t\}", func_body, re.DOTALL
+            )
             if returns_match:
                 returns_block = returns_match.group(1)
-                ret_pattern = re.compile(r'\{\s*Name\s*=\s*"([^"]+)"\s*,\s*Type\s*=\s*"([^"]+)"([^}]*)\}', re.DOTALL)
+                ret_pattern = re.compile(
+                    r'\{\s*Name\s*=\s*"([^"]+)"\s*,\s*Type\s*=\s*"([^"]+)"([^}]*)\}',
+                    re.DOTALL,
+                )
                 for ret_match in ret_pattern.finditer(returns_block):
                     ret = {
                         "Name": ret_match.group(1),
                         "Type": ret_match.group(2),
-                        "Nilable": "Nilable = true" in ret_match.group(3)
+                        "Nilable": "Nilable = true" in ret_match.group(3),
                     }
                     returns.append(ret)
             if returns:
@@ -251,6 +326,7 @@ def _parse_lua_table_python(file_path: Path) -> Optional[Dict]:
 # HELPER FUNCTIONS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def _get_lua_exe() -> Optional[Path]:
     """Find lua.exe for parsing documentation files."""
     config = get_config()
@@ -263,6 +339,7 @@ def _get_lua_exe() -> Optional[Path]:
 
     # Check PATH
     import shutil
+
     lua_in_path = shutil.which("lua") or shutil.which("lua5.1")
     if lua_in_path:
         return Path(lua_in_path)
@@ -304,7 +381,9 @@ def _determine_category(namespace: str, impact: str) -> str:
     return "general"
 
 
-def _parse_blizzard_file(lua_exe: Optional[Path], dumper_script: Optional[Path], file_path: Path) -> Optional[Dict]:
+def _parse_blizzard_file(
+    lua_exe: Optional[Path], dumper_script: Optional[Path], file_path: Path
+) -> Optional[Dict]:
     """
     Parse a single Blizzard documentation file.
     Uses lua_dumper.lua if available, otherwise falls back to pure-Python parser.
@@ -317,7 +396,7 @@ def _parse_blizzard_file(lua_exe: Optional[Path], dumper_script: Optional[Path],
                 capture_output=True,
                 text=True,
                 check=True,
-                timeout=30
+                timeout=30,
             )
             if result.stdout.strip():
                 return json.loads(result.stdout.strip())
@@ -337,10 +416,12 @@ def _generate_lua_params(params: List[Dict], examples: List[Dict] = None) -> str
             default_val = "player"
 
         default_str = json.dumps(default_val) if default_val is not None else "nil"
-        param_lua = f'{{ name = "{p["name"]}", type = "{p["type"]}", default = {default_str} }}'
+        param_lua = (
+            f'{{ name = "{p["name"]}", type = "{p["type"]}", default = {default_str} }}'
+        )
         lua_params.append(param_lua)
 
-    return '{ ' + ', '.join(lua_params) + ' }'
+    return "{ " + ", ".join(lua_params) + " }"
 
 
 def _generate_lua_returns(returns: List[Dict], secret_flags: Dict) -> str:
@@ -348,15 +429,20 @@ def _generate_lua_returns(returns: List[Dict], secret_flags: Dict) -> str:
     lua_rets = []
     for r in returns:
         can_be_secret = "true" if secret_flags.get("SecretReturns") else "false"
-        lua_rets.append(f'{{ name = "{r["name"]}", type = "{r["type"]}", canBeSecret = {can_be_secret} }}')
-    return '{ ' + ', '.join(lua_rets) + ' }'
+        lua_rets.append(
+            f'{{ name = "{r["name"]}", type = "{r["type"]}", canBeSecret = {can_be_secret} }}'
+        )
+    return "{ " + ", ".join(lua_rets) + " }"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # COMMAND IMPLEMENTATIONS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-async def _api_populate(input: APIPopulateInput, context: Any = None) -> CommandResult[APIPopulateOutput]:
+
+async def _api_populate(
+    input: APIPopulateInput, context: Any = None
+) -> CommandResult[APIPopulateOutput]:
     """
     Parse Blizzard API documentation and generate api_database.json.
 
@@ -373,11 +459,13 @@ async def _api_populate(input: APIPopulateInput, context: Any = None) -> Command
         return error(
             code="SOURCE_NOT_FOUND",
             message=f"Source path not found: {source_path}",
-            suggestion="Clone wow-ui-source: git clone https://github.com/Gethe/wow-ui-source"
+            suggestion="Clone wow-ui-source: git clone https://github.com/Gethe/wow-ui-source",
         )
 
     # Find documentation directory
-    doc_dir = source_path / "Interface" / "AddOns" / "Blizzard_APIDocumentationGenerated"
+    doc_dir = (
+        source_path / "Interface" / "AddOns" / "Blizzard_APIDocumentationGenerated"
+    )
     if not doc_dir.exists():
         # Try alternate path
         doc_dir = source_path / "Blizzard_APIDocumentationGenerated"
@@ -385,11 +473,13 @@ async def _api_populate(input: APIPopulateInput, context: Any = None) -> Command
             return error(
                 code="DOCS_NOT_FOUND",
                 message="Blizzard_APIDocumentationGenerated folder not found",
-                suggestion="Ensure source_path points to wow-ui-source root"
+                suggestion="Ensure source_path points to wow-ui-source root",
             )
 
     # Output path
-    output_file = Path(input.output_path) if input.output_path else _get_default_database_path()
+    output_file = (
+        Path(input.output_path) if input.output_path else _get_default_database_path()
+    )
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
     # Initialize database
@@ -397,14 +487,21 @@ async def _api_populate(input: APIPopulateInput, context: Any = None) -> Command
         "meta": {
             "generated": datetime.now().isoformat(),
             "sources": ["blizzard_doc"],
-            "wow_version": "12.0.1"
+            "wow_version": "12.0.1",
         },
         "categories": CATEGORIES,
-        "apis": {}
+        "apis": {},
     }
 
     # Skip internal namespaces
-    skip_keywords = ["Internal", "Secure", "Debug", "LiveEvent", "MacOptions", "ConfigurationWarnings"]
+    skip_keywords = [
+        "Internal",
+        "Secure",
+        "Debug",
+        "LiveEvent",
+        "MacOptions",
+        "ConfigurationWarnings",
+    ]
 
     # Parse all documentation files
     files = [f for f in doc_dir.iterdir() if f.name.endswith("Documentation.lua")]
@@ -443,21 +540,25 @@ async def _api_populate(input: APIPopulateInput, context: Any = None) -> Command
             # Map parameters
             params = []
             for arg in func.get("Arguments", []):
-                params.append({
-                    "name": arg.get("Name"),
-                    "type": arg.get("Type"),
-                    "nilable": arg.get("Nilable", False),
-                    "default": arg.get("Default")
-                })
+                params.append(
+                    {
+                        "name": arg.get("Name"),
+                        "type": arg.get("Type"),
+                        "nilable": arg.get("Nilable", False),
+                        "default": arg.get("Default"),
+                    }
+                )
 
             # Map returns
             returns = []
             for ret in func.get("Returns", []):
-                returns.append({
-                    "name": ret.get("Name"),
-                    "type": ret.get("Type"),
-                    "nilable": ret.get("Nilable", False)
-                })
+                returns.append(
+                    {
+                        "name": ret.get("Name"),
+                        "type": ret.get("Type"),
+                        "nilable": ret.get("Nilable", False),
+                    }
+                )
 
             database["apis"][full_name] = {
                 "namespace": namespace,
@@ -468,11 +569,11 @@ async def _api_populate(input: APIPopulateInput, context: Any = None) -> Command
                 "secretFlags": secret_flags,
                 "midnightImpact": impact,
                 "documentation": func.get("Documentation", []),
-                "examples": []
+                "examples": [],
             }
 
     # Write database
-    with open(output_file, 'w', encoding='utf-8') as f:
+    with open(output_file, "w", encoding="utf-8") as f:
         json.dump(database, f, indent=2)
 
     # Count by category
@@ -485,39 +586,51 @@ async def _api_populate(input: APIPopulateInput, context: Any = None) -> Command
             api_count=len(database["apis"]),
             category_counts=dict(category_counts),
             output_file=str(output_file),
-            wow_version=database["meta"]["wow_version"]
+            wow_version=database["meta"]["wow_version"],
         ),
         reasoning=f"Parsed {len(files)} documentation files, generated {len(database['apis'])} API entries",
-        sources=[create_source(type="file", id="blizzard_docs", title="Blizzard API Documentation")]
+        sources=[
+            create_source(
+                type="file", id="blizzard_docs", title="Blizzard API Documentation"
+            )
+        ],
     )
 
 
-async def _api_generate(input: APIGenerateInput, context: Any = None) -> CommandResult[APIGenerateOutput]:
+async def _api_generate(
+    input: APIGenerateInput, context: Any = None
+) -> CommandResult[APIGenerateOutput]:
     """
     Generate APIDefs Lua files from api_database.json.
 
     Creates individual namespace files and XML manifest for Mechanic.
     """
     # Find database
-    db_path = Path(input.database_path) if input.database_path else _get_default_database_path()
+    db_path = (
+        Path(input.database_path)
+        if input.database_path
+        else _get_default_database_path()
+    )
     if not db_path.exists():
         return error(
             code="DATABASE_NOT_FOUND",
             message=f"api_database.json not found at {db_path}",
-            suggestion="Run api.populate first to generate the database"
+            suggestion="Run api.populate first to generate the database",
         )
 
     # Find output path
-    output_dir = Path(input.output_path) if input.output_path else _get_default_apidefs_path()
+    output_dir = (
+        Path(input.output_path) if input.output_path else _get_default_apidefs_path()
+    )
     if not output_dir:
         return error(
             code="OUTPUT_NOT_FOUND",
             message="Could not determine APIDefs output path",
-            suggestion="Specify output_path or ensure Mechanic repo exists"
+            suggestion="Specify output_path or ensure Mechanic repo exists",
         )
 
     # Load database
-    with open(db_path, 'r', encoding='utf-8') as f:
+    with open(db_path, "r", encoding="utf-8") as f:
         db = json.load(f)
 
     apis = db.get("apis", {})
@@ -575,16 +688,18 @@ async def _api_generate(input: APIGenerateInput, context: Any = None) -> Command
             lua_entry += f'    name = "{data["name"]}",\n'
             lua_entry += f'    category = "{data["category"]}",\n'
             lua_entry += f'    subcategory = "{subcat}",\n'
-            lua_entry += f'    func = {func_ref},\n'
+            lua_entry += f"    func = {func_ref},\n"
             lua_entry += f'    funcPath = "{key}",\n'
-            lua_entry += f'    params = {_generate_lua_params(data["params"])},\n'
-            lua_entry += f'    returns = {_generate_lua_returns(data["returns"], flags)},\n'
+            lua_entry += f"    params = {_generate_lua_params(data['params'])},\n"
+            lua_entry += (
+                f"    returns = {_generate_lua_returns(data['returns'], flags)},\n"
+            )
             lua_entry += f'    midnightImpact = "{data["midnightImpact"]}",\n'
             if data["midnightImpact"] == "RESTRICTED":
-                lua_entry += f'    protected = true,\n'
+                lua_entry += f"    protected = true,\n"
             if note:
-                lua_entry += f'    midnightNote = {json.dumps(note)},\n'
-            lua_entry += '}\n'
+                lua_entry += f"    midnightNote = {json.dumps(note)},\n"
+            lua_entry += "}\n"
             output.append(lua_entry)
 
         filepath.write_text("\n".join(output), encoding="utf-8")
@@ -597,7 +712,7 @@ async def _api_generate(input: APIGenerateInput, context: Any = None) -> Command
     ]
     for ns in sorted(ns_buckets.keys()):
         xml_output.append(f'    <Script file="{ns}.lua"/>')
-    xml_output.append('</Ui>')
+    xml_output.append("</Ui>")
 
     xml_path.write_text("\n".join(xml_output), encoding="utf-8")
     generated_files.append("APIDefs.xml")
@@ -607,11 +722,13 @@ async def _api_generate(input: APIGenerateInput, context: Any = None) -> Command
     reg_output = [
         "-- Generated API Registry Index",
         "local _, ns = ...",
-        "ns.APIRegistry = {"
+        "ns.APIRegistry = {",
     ]
     for key, data in sorted(apis.items()):
         ns = data["namespace"] or "Global"
-        reg_output.append(f'    ["{key}"] = {{ ns = "{ns}", cat = "{data["category"]}", impact = "{data["midnightImpact"]}", name = "{data["name"]}" }},')
+        reg_output.append(
+            f'    ["{key}"] = {{ ns = "{ns}", cat = "{data["category"]}", impact = "{data["midnightImpact"]}", name = "{data["name"]}" }},'
+        )
     reg_output.append("}")
 
     registry_path.write_text("\n".join(reg_output), encoding="utf-8")
@@ -621,14 +738,16 @@ async def _api_generate(input: APIGenerateInput, context: Any = None) -> Command
             api_count=len(apis),
             namespace_count=len(ns_buckets),
             output_dir=str(output_dir),
-            files=generated_files
+            files=generated_files,
         ),
         reasoning=f"Generated {len(ns_buckets)} namespace files with {len(apis)} APIs",
-        sources=[create_source(type="file", id="api_database", title="API Database")]
+        sources=[create_source(type="file", id="api_database", title="API Database")],
     )
 
 
-async def _api_refresh(input: APIRefreshInput, context: Any = None) -> CommandResult[APIRefreshOutput]:
+async def _api_refresh(
+    input: APIRefreshInput, context: Any = None
+) -> CommandResult[APIRefreshOutput]:
     """
     Full refresh: parse Blizzard docs and regenerate all APIDefs.
 
@@ -636,17 +755,13 @@ async def _api_refresh(input: APIRefreshInput, context: Any = None) -> CommandRe
     """
     # Run populate
     populate_result = await _api_populate(
-        APIPopulateInput(source_path=input.source_path),
-        context
+        APIPopulateInput(source_path=input.source_path), context
     )
     if not populate_result.success:
         return populate_result
 
     # Run generate
-    generate_result = await _api_generate(
-        APIGenerateInput(),
-        context
-    )
+    generate_result = await _api_generate(APIGenerateInput(), context)
     if not generate_result.success:
         return generate_result
 
@@ -655,13 +770,15 @@ async def _api_refresh(input: APIRefreshInput, context: Any = None) -> CommandRe
             api_count=populate_result.data.api_count,
             namespace_count=generate_result.data.namespace_count,
             database_file=populate_result.data.output_file,
-            apidefs_dir=generate_result.data.output_dir
+            apidefs_dir=generate_result.data.output_dir,
         ),
-        reasoning=f"Full refresh complete: {populate_result.data.api_count} APIs in {generate_result.data.namespace_count} namespaces"
+        reasoning=f"Full refresh complete: {populate_result.data.api_count} APIs in {generate_result.data.namespace_count} namespaces",
     )
 
 
-async def _api_download(input: APIDownloadInput, context: Any = None) -> CommandResult[APIDownloadOutput]:
+async def _api_download(
+    input: APIDownloadInput, context: Any = None
+) -> CommandResult[APIDownloadOutput]:
     """
     Download FrameXML from Townlong Yak and optionally refresh API definitions.
 
@@ -680,7 +797,7 @@ async def _api_download(input: APIDownloadInput, context: Any = None) -> Command
         return error(
             code="BUILD_ID_REQUIRED",
             message="build_id is required (auto-detection not yet implemented)",
-            suggestion="Check https://www.townlong-yak.com/framexml/builds for available builds"
+            suggestion="Check https://www.townlong-yak.com/framexml/builds for available builds",
         )
 
     # Construct download URL
@@ -696,7 +813,10 @@ async def _api_download(input: APIDownloadInput, context: Any = None) -> Command
         if "filename=" in content_disp:
             # Extract filename like "12.0.1.64889.zip"
             import re as re_module
-            filename_match = re_module.search(r'filename[*]?=(?:UTF-8\'\')?([^;]+)', content_disp)
+
+            filename_match = re_module.search(
+                r"filename[*]?=(?:UTF-8\'\')?([^;]+)", content_disp
+            )
             if filename_match:
                 filename = filename_match.group(1).strip('"').strip()
                 version = filename.replace(".zip", "")
@@ -708,7 +828,7 @@ async def _api_download(input: APIDownloadInput, context: Any = None) -> Command
         return error(
             code="DOWNLOAD_FAILED",
             message=f"Failed to download from Townlong Yak: {str(e)}",
-            suggestion="Check build ID and network connection"
+            suggestion="Check build ID and network connection",
         )
 
     # Determine output path
@@ -725,14 +845,14 @@ async def _api_download(input: APIDownloadInput, context: Any = None) -> Command
     # Extract ZIP
     try:
         zip_data = io.BytesIO(response.content)
-        with zipfile.ZipFile(zip_data, 'r') as zf:
+        with zipfile.ZipFile(zip_data, "r") as zf:
             zf.extractall(output_path)
             file_count = len(zf.namelist())
     except Exception as e:
         return error(
             code="EXTRACT_FAILED",
             message=f"Failed to extract ZIP: {str(e)}",
-            suggestion="The download may be corrupted, try again"
+            suggestion="The download may be corrupted, try again",
         )
 
     api_count = None
@@ -740,8 +860,7 @@ async def _api_download(input: APIDownloadInput, context: Any = None) -> Command
     # Optionally run refresh
     if input.refresh:
         refresh_result = await _api_refresh(
-            APIRefreshInput(source_path=str(output_path)),
-            context
+            APIRefreshInput(source_path=str(output_path)), context
         )
         if refresh_result.success:
             api_count = refresh_result.data.api_count
@@ -752,17 +871,20 @@ async def _api_download(input: APIDownloadInput, context: Any = None) -> Command
             version=version,
             output_path=str(output_path),
             file_count=file_count,
-            api_count=api_count
+            api_count=api_count,
         ),
-        reasoning=f"Downloaded {version} from Townlong Yak ({file_count} files)" +
-                  (f", refreshed {api_count} APIs" if api_count else ""),
-        sources=[create_source(type="url", id=download_url, title="Townlong Yak FrameXML")]
+        reasoning=f"Downloaded {version} from Townlong Yak ({file_count} files)"
+        + (f", refreshed {api_count} APIs" if api_count else ""),
+        sources=[
+            create_source(type="url", id=download_url, title="Townlong Yak FrameXML")
+        ],
     )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # REGISTRATION
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def register_commands(server):
     """Register API definition commands with the AFD server."""
