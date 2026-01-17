@@ -249,28 +249,17 @@ function VirtualListMixin:GetRow()
 		row.bg:SetAllPoints()
 		row.bg:Hide()
 
-		-- Hover highlight (use BACKGROUND layer, manually controlled)
-		row.hover = row:CreateTexture(nil, "BACKGROUND", nil, 1) -- sublevel 1 = above bg
+		-- Hover highlight
+		row.hover = row:CreateTexture(nil, "HIGHLIGHT")
 		row.hover:SetAllPoints()
 		local hR, hG, hB = FenUI:GetColorRGB("surfaceRowHover")
 		row.hover:SetColorTexture(hR, hG, hB, 1)
-		row.hover:Hide()
 
 		-- Text
 		row.text = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 		row.text:SetPoint("LEFT", 4, 0)
 		row.text:SetPoint("RIGHT", -4, 0)
 		row.text:SetJustifyH("LEFT")
-
-		-- Hover handlers
-		row:SetScript("OnEnter", function(r)
-			if not r.bg:IsShown() then -- Don't show hover if selected
-				r.hover:Show()
-			end
-		end)
-		row:SetScript("OnLeave", function(r)
-			r.hover:Hide()
-		end)
 
 		-- Click handler
 		row:SetScript("OnClick", function(r)

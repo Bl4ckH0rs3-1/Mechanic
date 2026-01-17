@@ -15,7 +15,7 @@ local ScrollBarMixin = {}
 function ScrollBarMixin:Init(config)
 	self.config = config or {}
 
-	local scrollBarWidth = config.width or FenUI:GetLayout("scrollBarWidth") or 10
+	local scrollBarWidth = config.width or FenUI:GetLayout("scrollBarWidth")
 
 	-- Setup Slider properties
 	self:SetOrientation("VERTICAL")
@@ -25,16 +25,12 @@ function ScrollBarMixin:Init(config)
 	self.track = self:CreateTexture(nil, "BACKGROUND")
 	self.track:SetAllPoints()
 	local r, g, b, a = FenUI:GetColor(config.trackToken or "surfaceScrollTrack")
-	-- Fallback if token doesn't exist
-	if not r then r, g, b, a = 0.15, 0.15, 0.15, 0.5 end
 	self.track:SetColorTexture(r, g, b, a)
 
 	-- 2. Thumb - narrower than track for visual padding
 	local thumbWidth = scrollBarWidth - (THUMB_PADDING * 2)
 	local thumb = self:CreateTexture(nil, "ARTWORK")
 	local tr, tg, tb, ta = FenUI:GetColor(config.thumbToken or "interactiveScrollThumb")
-	-- Fallback if token doesn't exist
-	if not tr then tr, tg, tb, ta = 0.5, 0.5, 0.5, 0.8 end
 	thumb:SetColorTexture(tr, tg, tb, ta)
 	thumb:SetSize(thumbWidth, 32) -- Initial height, will be updated
 	self:SetThumbTexture(thumb)
@@ -44,13 +40,11 @@ function ScrollBarMixin:Init(config)
 	-- 3. Scripts for hover state
 	self:SetScript("OnEnter", function()
 		local hr, hg, hb, ha = FenUI:GetColor(config.thumbHoverToken or "interactiveScrollThumbHover")
-		if not hr then hr, hg, hb, ha = 0.7, 0.7, 0.7, 0.9 end
 		self.thumb:SetColorTexture(hr, hg, hb, ha)
 	end)
 
 	self:SetScript("OnLeave", function()
 		local nr, ng, nb, na = FenUI:GetColor(config.thumbToken or "interactiveScrollThumb")
-		if not nr then nr, ng, nb, na = 0.5, 0.5, 0.5, 0.8 end
 		self.thumb:SetColorTexture(nr, ng, nb, na)
 	end)
 end
