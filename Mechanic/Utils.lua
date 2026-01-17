@@ -77,12 +77,18 @@ end
 
 --- Generic widget factory to ensure single instance per parent.
 function Utils:GetOrCreateWidget(parent, key, creator)
-	return F and F:GetOrCreateWidget(parent, key, creator) or creator(parent)
+	if F and F.GetOrCreateWidget then
+		return F:GetOrCreateWidget(parent, key, creator)
+	end
+	return creator(parent)
 end
 
 --- Returns the current mouse focus frame across all WoW versions.
 function Utils:GetMouseFocus()
-	return F and F:GetMouseFocus() or _G.GetMouseFocus()
+	if F and F.GetMouseFocus then
+		return F:GetMouseFocus()
+	end
+	return _G.GetMouseFocus and _G.GetMouseFocus() or nil
 end
 
 --- Wrapper for Blizzard EasyMenu.
@@ -546,22 +552,58 @@ end
 --------------------------------------------------------------------------------
 
 function Utils:FormatMemory(kb)
-	return F and F:FormatMemory(kb) or tostring(kb)
+	if F and F.FormatMemory then
+		return F:FormatMemory(kb)
+	end
+	-- Fallback: format as KB or MB
+	if kb >= 1024 then
+		return string.format("%.1f MB", kb / 1024)
+	end
+	return string.format("%.0f KB", kb)
 end
 function Utils:FormatDuration(seconds)
-	return F and F:FormatDuration(seconds) or tostring(seconds)
+	if F and F.FormatDuration then
+		return F:FormatDuration(seconds)
+	end
+	-- Fallback: simple duration format
+	if seconds >= 3600 then
+		return string.format("%.1f h", seconds / 3600)
+	elseif seconds >= 60 then
+		return string.format("%.1f m", seconds / 60)
+	end
+	return string.format("%.1f s", seconds)
 end
 function Utils:FormatValue(value, options)
-	return F and F:FormatValue(value, options) or tostring(value)
+	if F and F.FormatValue then
+		return F:FormatValue(value, options)
+	end
+	return tostring(value)
 end
 function Utils:CountSecrets(results)
-	return F and F:CountSecrets(results) or 0
+	if F and F.CountSecrets then
+		return F:CountSecrets(results)
+	end
+	return 0
 end
 function Utils:DeepCopy(orig)
-	return F and F:DeepCopy(orig) or orig
+	if F and F.DeepCopy then
+		return F:DeepCopy(orig)
+	end
+	-- Fallback: shallow copy for tables, identity for other types
+	if type(orig) ~= "table" then
+		return orig
+	end
+	local copy = {}
+	for k, v in pairs(orig) do
+		copy[k] = v
+	end
+	return copy
 end
 function Utils:SafeCall(func, ...)
-	return F and F:SafeCall(func, ...) or pcall(func, ...)
+	if F and F.SafeCall then
+		return F:SafeCall(func, ...)
+	end
+	return pcall(func, ...)
 end
 
 --- Returns standard performance metrics (FPS, Latency, Lua Memory).
