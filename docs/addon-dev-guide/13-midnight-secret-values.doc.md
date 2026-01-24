@@ -158,6 +158,7 @@ Blizzard provides helper APIs that return readable values even when primary APIs
 | Cast/Channel | `UnitCastingDuration(unit)` | **Duration Object** |
 | Combo Points | `GetComboPoints(unit)` | **Non-Secret** (Retail 11.2.8+) |
 | Charged Points | `GetUnitChargedPowerPoints(unit)` | **Non-Secret** (Retail 11.2.8+) |
+| **Action Charges/Count** | `C_ActionBar.GetActionDisplayCount(id, max)` | **Display-ready text** (handles secrets internally) |
 
 **Note**: The `true` parameter in unit health functions specifies that you want a **displayable** (non-secret) version of the value.
 
@@ -253,7 +254,54 @@ else
 end
 ```
 
-### Pattern E: Complete Feature Disable
+### Pattern E: Action Bar Charge/Count Display (Field-Tested)
+
+For displaying charges or stack counts on action buttons, **do not** use `GetSpellCharges()` or `GetActionCharges()` directly - their return values are secret in combat and will error on comparison.
+
+**Use `C_ActionBar.GetActionDisplayCount()` instead** - this API returns display-ready text with secret values already handled internally:
+
+```lua
+function UpdateCount(btn)
+    local actionID = btn.actionID
+    
+    -- Primary: Use C_ActionBar.GetActionDisplayCount (Midnight-safe)
+    if C_ActionBar and C_ActionBar.GetActionDisplayCount then
+        -- Returns display-ready text (handles secrets internally)
+        -- Second param is maxDisplayCount (9999 = show all)
+        local displayText = C_ActionBar.GetActionDisplayCount(actionID, 9999)
+        btn.count:SetText(displayText)
+        return
+    end
+    
+    -- Fallback for pre-Midnight (uses readable comparisons)
+    local chargeInfo = C_Spell.GetSpellCharges(btn.spellID)
+    if chargeInfo and chargeInfo.maxCharges > 1 then
+        btn.count:SetText(chargeInfo.currentCharges)
+    else
+        btn.count:SetText("")
+    end
+end
+```
+
+**Why this works:**
+- `GetActionDisplayCount` is specifically designed for UI display
+- It filters out 0/1 values automatically (shows empty string)
+- Returns formatted text, not a secret numeric value
+- Used by LibActionButton-1.0 (Bartender4) for this exact purpose
+
+**Common mistake:**
+```lua
+-- DON'T: GetActionCharges returns secrets in combat
+local chargeInfo = C_ActionBar.GetActionCharges(actionID)
+if chargeInfo.currentCharges > 0 then  -- ERROR: comparing secret!
+    btn.count:SetText(chargeInfo.currentCharges)
+end
+
+-- DO: GetActionDisplayCount handles everything
+btn.count:SetText(C_ActionBar.GetActionDisplayCount(actionID, 9999))
+```
+
+### Pattern F: Complete Feature Disable
 
 For features that can't work at all:
 
