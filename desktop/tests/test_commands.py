@@ -128,6 +128,67 @@ async def test_addon_lint_missing_addon():
 
 
 @pytest.mark.asyncio
+async def test_addon_lint_uses_luacheckrc_when_present(monkeypatch, tmp_path):
+    """Test addon.lint forwards --config when addon has .luacheckrc."""
+    from mechanic.commands import development as dev_commands
+    from mechanic import setup as mechanic_setup
+    import subprocess
+
+    addon_dir = tmp_path / "MyAddon"
+    addon_dir.mkdir(parents=True, exist_ok=True)
+    config_path = addon_dir / ".luacheckrc"
+    config_path.write_text("std='lua51'\n", encoding="utf-8")
+
+    captured = {}
+
+    def fake_run(cmd, capture_output, text, timeout):
+        captured["cmd"] = cmd
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(dev_commands, "find_addon_path", lambda addon, path: addon_dir)
+    monkeypatch.setattr(
+        mechanic_setup, "find_tool", lambda name: Path("C:/fake/luacheck.exe")
+    )
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    server = get_server()
+    result = await server.execute("addon.lint", {"addon": "MyAddon"})
+    assert result.success
+
+    assert "--config" in captured["cmd"]
+    assert str(config_path) in captured["cmd"]
+
+
+@pytest.mark.asyncio
+async def test_addon_lint_omits_luacheckrc_when_missing(monkeypatch, tmp_path):
+    """Test addon.lint does not pass --config when addon has no .luacheckrc."""
+    from mechanic.commands import development as dev_commands
+    from mechanic import setup as mechanic_setup
+    import subprocess
+
+    addon_dir = tmp_path / "MyAddonNoConfig"
+    addon_dir.mkdir(parents=True, exist_ok=True)
+
+    captured = {}
+
+    def fake_run(cmd, capture_output, text, timeout):
+        captured["cmd"] = cmd
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(dev_commands, "find_addon_path", lambda addon, path: addon_dir)
+    monkeypatch.setattr(
+        mechanic_setup, "find_tool", lambda name: Path("C:/fake/luacheck.exe")
+    )
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    server = get_server()
+    result = await server.execute("addon.lint", {"addon": "MyAddonNoConfig"})
+    assert result.success
+
+    assert "--config" not in captured["cmd"]
+
+
+@pytest.mark.asyncio
 async def test_addon_format_missing_addon():
     """Test addon.format handles missing addon gracefully."""
     server = get_server()
@@ -725,8 +786,76 @@ async def test_atlas_search_no_index():
     assert result is not None
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# Workflow / Patch / Proposal Commands
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@pytest.mark.asyncio
+async def test_workflow_run_and_status():
+    """Test workflow.run and workflow.status lifecycle."""
+    server = get_server()
+    run = await server.execute(
+        "workflow.run",
+        {
+            "task": {
+                "task_id": "pytest-workflow-1",
+                "intent": "validate autonomous flow",
+                "context_refs": ["projects/WowDev/PixelCooldown"],
+                "constraints": {"no_auto_merge": True},
+                "budget_class": "standard",
+                "task_class": "code_implementation"
+            }
+        },
+    )
+    data = assert_success(run)
+    assert data.task_id == "pytest-workflow-1"
+    assert len(data.jobs) >= 3
+
+    status = await server.execute("workflow.status", {"task_id": "pytest-workflow-1"})
+    sdata = assert_success(status)
+    assert sdata.task_id == "pytest-workflow-1"
+    assert sdata.status in ("queued", "planned", "blocked_human_gate")
+
+
+@pytest.mark.asyncio
+async def test_proposal_create_and_list():
+    """Test proposal.create stores a proposal and proposal.list returns it."""
+    server = get_server()
+    created = await server.execute(
+        "proposal.create",
+        {
+            "title": "Pytest proposal",
+            "proposal_type": "rule",
+            "suggested_change": "Use guarded API access in cooldown module",
+            "confidence": 0.82,
+            "risk_level": "medium",
+            "evidence_refs": ["pytest://evidence/1"]
+        },
+    )
+    cdata = assert_success(created)
+    assert cdata.proposal_id.startswith("proposal-")
+
+    listed = await server.execute("proposal.list", {"limit": 5})
+    ldata = assert_success(listed)
+    assert ldata.total >= 1
+
+
+@pytest.mark.asyncio
+async def test_patch_observe_command_exists_and_runs():
+    """Test patch.observe command executes with structured response."""
+    server = get_server()
+    result = await server.execute("patch.observe", {"reason": "pytest"})
+
+    if result.success:
+        data = assert_success(result)
+        assert hasattr(data, "changed")
+        assert hasattr(data, "commit_to")
+    else:
+        assert result.error is not None
+
+
 def test_all_commands_registered():
-    """Test all 50 expected commands are registered."""
+    """Test all expected commands are registered."""
     server = get_server()
     commands = server.list_commands()
     command_names = [c.name for c in commands]
@@ -766,6 +895,12 @@ def test_all_commands_registered():
         "assets.sync", "assets.list",
         # perf.*
         "perf.baseline", "perf.compare", "perf.list", "perf.report",
+        # workflow.*
+        "workflow.run", "workflow.status", "workflow.resume", "workflow.abort",
+        # patch.*
+        "patch.observe", "patch.impact",
+        # proposal.*
+        "proposal.create", "proposal.list",
     ]
 
     for cmd in expected_commands:
