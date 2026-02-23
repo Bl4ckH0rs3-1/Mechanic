@@ -954,6 +954,41 @@
         // { "MyAddon": "C:/Path/To/MyAddon" }
         let knownAddons = JSON.parse(localStorage.getItem('mechanic.addons') || '{}');
 
+        // Sync local addon cache with real addon folders discovered by backend.
+        async function syncKnownAddonsFromDiscovery() {
+            try {
+                const result = await executeCommand('addon.discover', { include_nested: true });
+                if (!result.success || !result.data || !Array.isArray(result.data.addons)) return;
+
+                const discovered = {};
+                for (const item of result.data.addons) {
+                    if (!item || !item.name || !item.path) continue;
+                    discovered[item.name] = item.path;
+                }
+
+                const discoveredNames = Object.keys(discovered);
+                if (discoveredNames.length === 0) return;
+
+                const previousSelected = selectedAddon;
+                knownAddons = discovered;
+
+                if (previousSelected && knownAddons[previousSelected]) {
+                    selectedAddon = previousSelected;
+                } else if (knownAddons.PixelCooldown) {
+                    selectedAddon = 'PixelCooldown';
+                } else if (knownAddons.PixelCombat) {
+                    selectedAddon = 'PixelCombat';
+                } else {
+                    selectedAddon = discoveredNames.sort()[0] || '';
+                }
+
+                localStorage.setItem('mechanic.addons', JSON.stringify(knownAddons));
+                localStorage.setItem('mechanic.selectedAddon', selectedAddon || '');
+            } catch (e) {
+                console.log('Addon discovery sync failed:', e);
+            }
+        }
+
         // Update addon dropdown from known addons (discovered + user-added)
         function updateAddonList() {
             const allAddons = Object.keys(knownAddons).sort();
@@ -2198,6 +2233,7 @@
             if (lastAddon) {
                 selectedAddon = lastAddon;
             }
+            await syncKnownAddonsFromDiscovery();
             updateAddonList();
 
             if (lastView === 'command' && lastCommand) {
