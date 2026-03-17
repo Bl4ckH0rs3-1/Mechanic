@@ -569,9 +569,14 @@ end
             ]
 
             def load_order_key(path):
-                # init.lua first, then alphabetically
-                is_init = 0 if path.name == "init.lua" else 1
-                return (is_init, str(path))
+                # Constants first, then init, then alphabetically.
+                # Case-insensitive comparison for cross-platform compat.
+                lower = path.name.lower()
+                if lower == "constants.lua":
+                    return (0, str(path))
+                if lower == "init.lua":
+                    return (1, str(path))
+                return (2, str(path))
 
             source_files = sorted(all_lua, key=load_order_key)
 
@@ -622,11 +627,44 @@ end
         if framework_path.exists():
             lua_parts.append(f'dofile("{framework_path.as_posix()}")')
 
-        # Load Core source files (non-spec files)
-        for lua_file in source_files:
-            lua_parts.append(f'dofile("{lua_file.as_posix()}")')
+        # WoW addon namespace simulation preamble
+        # In WoW, every addon file receives (addonName, namespaceTable) as
+        # implicit varargs.  Standard addon files start with:
+        #     local ADDON_NAME, ns = ...
+        # dofile() does not pass varargs, so ns would be nil.  We replace
+        # dofile() for source files with loadfile() + chunk(name, ns).
+        addon_name = input.addon
+        namespace_preamble = f'''
+-- WoW addon namespace simulation (sandbox.test)
+local _SANDBOX_ADDON_NAME = "{addon_name}"
+local _SANDBOX_NS = {{}}
+local _SANDBOX_LOAD_ERRORS = {{}}
+function _SANDBOX_LOAD_ADDON_FILE(path)
+  local chunk, err = loadfile(path)
+  if not chunk then
+    table.insert(_SANDBOX_LOAD_ERRORS, path .. ": " .. tostring(err))
+    return
+  end
+  local ok, runtime_err = pcall(chunk, _SANDBOX_ADDON_NAME, _SANDBOX_NS)
+  if not ok then
+    table.insert(_SANDBOX_LOAD_ERRORS, path .. ": " .. tostring(runtime_err))
+  end
+end
+'''
+        lua_parts.append(namespace_preamble)
 
-        # Load spec files
+        # Auto-detect addon mock helpers (provides LibStub, AceAddon, etc.)
+        mock_wow_api = addon_path / "tests" / "mock_wow_api.lua"
+        if not mock_wow_api.exists():
+            mock_wow_api = addon_path / "Tests" / "mock_wow_api.lua"
+        if mock_wow_api.exists():
+            lua_parts.append(f'dofile("{mock_wow_api.as_posix()}")')
+
+        # Load Core source files with namespace simulation
+        for lua_file in source_files:
+            lua_parts.append(f'_SANDBOX_LOAD_ADDON_FILE("{lua_file.as_posix()}")')
+
+        # Load spec files (they manage their own namespace)
         for spec_file in spec_files:
             lua_parts.append(f'dofile("{spec_file.as_posix()}")')
 
