@@ -585,10 +585,10 @@ end
             has_core = core_path.exists()
             has_tests = tests_path.exists()
             if not has_core and not has_tests:
-                return error(
-                    code="NO_TEST_FOLDERS",
-                    message=f"No Core/ or Tests/ folder found in {input.addon}",
-                    suggestion="Create Tests/Core/*_spec.lua for sandbox tests",
+                # Not an execution failure: addon simply has no sandbox test layout yet.
+                return success(
+                    data=TestResult(addon=input.addon, passed=True, total=0),
+                    reasoning=f"No Core/ or Tests/ folder found in {input.addon} (sandbox tests not configured)",
                 )
             return success(
                 data=TestResult(addon=input.addon, passed=True, total=0),

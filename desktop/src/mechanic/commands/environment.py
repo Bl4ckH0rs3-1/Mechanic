@@ -902,6 +902,99 @@ def register_commands(server):
         )
 
     # ═══════════════════════════════════════════════════════════════════════════
+    # addon.discover - Discover addons from configured search paths
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    class AddonDiscoverInput(BaseModel):
+        include_nested: bool = Field(
+            True, description="Also scan one nested directory level under each root"
+        )
+
+    class DiscoveredAddon(BaseModel):
+        name: str
+        path: str
+        source: str
+
+    class AddonDiscoverResult(BaseModel):
+        count: int = 0
+        addons: List[DiscoveredAddon] = []
+        search_paths: List[str] = []
+
+    @server.command(
+        name="addon.discover",
+        description="Discover addons by scanning configured addon search paths",
+        input_schema=AddonDiscoverInput,
+        output_schema=AddonDiscoverResult,
+    )
+    async def discover_addons(
+        input: AddonDiscoverInput, context: Any = None
+    ) -> CommandResult[AddonDiscoverResult]:
+        config = get_config()
+        search_paths = [p for p in config.get_addon_search_paths() if p.exists()]
+
+        discovered: List[DiscoveredAddon] = []
+        seen_names = set()
+
+        def collect_from_dir(scan_dir: Path, source_label: str):
+            if not scan_dir.exists() or not scan_dir.is_dir():
+                return
+            toc_files = list(scan_dir.glob("*.toc"))
+            if not toc_files:
+                return
+
+            # Prefer <DirName>.toc if present, otherwise first .toc file.
+            preferred = None
+            for toc in toc_files:
+                if toc.stem == scan_dir.name:
+                    preferred = toc
+                    break
+            if preferred is None:
+                preferred = toc_files[0]
+
+            addon_name = preferred.stem
+            norm = addon_name.lower()
+            if norm in seen_names:
+                return
+            seen_names.add(norm)
+            discovered.append(
+                DiscoveredAddon(
+                    name=addon_name, path=str(scan_dir), source=source_label
+                )
+            )
+
+        for root in search_paths:
+            root_label = str(root)
+            try:
+                for child in root.iterdir():
+                    if not child.is_dir():
+                        continue
+                    collect_from_dir(child, root_label)
+                    if input.include_nested:
+                        for nested in child.iterdir():
+                            if nested.is_dir():
+                                collect_from_dir(nested, root_label)
+            except (PermissionError, OSError):
+                continue
+
+        src = create_source(
+            type="folder",
+            id="addon-discover",
+            title="Addon Discovery",
+            location=", ".join(str(p) for p in search_paths),
+        )
+
+        return success(
+            data=AddonDiscoverResult(
+                count=len(discovered),
+                addons=sorted(discovered, key=lambda x: x.name.lower()),
+                search_paths=[str(p) for p in search_paths],
+            ),
+            reasoning=f"Discovered {len(discovered)} addon(s) across {len(search_paths)} search path(s)",
+            sources=[src],
+            confidence=1.0,
+        )
+
+    # ═══════════════════════════════════════════════════════════════════════════
     # env.status - Environment status for dashboard
     # ═══════════════════════════════════════════════════════════════════════════
 

@@ -311,17 +311,23 @@ def register_commands(server):
                 suggestion="Run 'mech setup' to install required tools",
             )
 
+        # Respect per-addon luacheck config when present.
+        lint_cmd = [
+            str(luacheck_path),
+            str(addon_path),
+            "--formatter",
+            "plain",
+            "--codes",
+            "--no-color",
+        ]
+        luacheck_config = addon_path / ".luacheckrc"
+        if luacheck_config.exists():
+            lint_cmd.extend(["--config", str(luacheck_config)])
+
         # Run luacheck
         try:
             result = subprocess.run(
-                [
-                    str(luacheck_path),
-                    str(addon_path),
-                    "--formatter",
-                    "plain",
-                    "--codes",
-                    "--no-color",
-                ],
+                lint_cmd,
                 capture_output=True,
                 text=True,
                 timeout=60,
