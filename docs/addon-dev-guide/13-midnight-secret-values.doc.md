@@ -2,7 +2,7 @@
 
 > Part of the [Addon Development Guide](../AGENTS.md#addon-development-guide)
 
-Last updated: 2026-01-16 (12.0.1 Beta refinements: C_Secrets namespace, testing CVars, table de-escalation)
+Last updated: 2026-03-17 (12.0.1 Launch: healer spell whitelist, per-aura checks, new APIs added)
 
 ---
 
@@ -1097,6 +1097,106 @@ fontString:SetText(formatter:Format(duration))  -- Returns "1:24" or similar
 ```
 
 This allows displaying timer text without the addon ever "knowing" the actual number.
+
+---
+
+## Launch Whitelist — Temporarily Non-Secret Spells (12.0.1)
+
+> **TEMPORARY**: Blizzard stated these exemptions will likely be removed once their own raid frame
+> filtering solution with addon hooks is complete. Build using per-aura `C_Secrets` checks, not
+> hardcoded spell ID lists. Source: Blizzard WoWUI Development Discord (Feb-Mar 2026).
+
+### Background
+
+Healer community feedback during beta revealed that secret aura restrictions made healing
+raid frames nearly unusable — healers could not see which HoTs were active on raid members.
+Blizzard responded by "unsecreting" short-cooldown rotational healer spells and long-duration
+buffs for Midnight launch.
+
+### Whitelisted Healer Spells (full aura data: duration, source, stacks)
+
+| Class | Spells |
+|-------|--------|
+| Preservation Evoker | Dream Breath, Dream Flight, Echo, Reversion, Echo Reversion, Lifebind |
+| Augmentation Evoker | Blistering Scales, Ebon Might, Prescience, Inferno's Blessing, Shifting Sands |
+| Restoration Druid | Rejuvenation, Regrowth, Lifebloom, Wild Growth, Germination |
+| Discipline Priest | Power Word: Shield, Atonement, Void Shield |
+| Holy Priest | Renew, Prayer of Mending, Echo of Light |
+| Mistweaver Monk | Soothing Mist, Renewing Mist, Enveloping Mist, Aspect of Harmony |
+| Restoration Shaman | Earth Shield, Riptide |
+| Holy Paladin | Beacon of Light, Eternal Flame, Beacon of Faith, Beacon of the Savior |
+
+### Whitelisted Raid Buffs
+Arcane Intellect, Battle Shout, Power Word: Fortitude, Source of Magic, Skyfury,
+Symbiotic Relationship, Blessing of the Bronze (all 13 class variants)
+
+### Whitelisted Cooldowns
+- All combat resurrection spells: non-secret cooldowns AND charge counts
+- Skyriding spells (Second Wind, Surge Forward, Skyward Ascent, etc.)
+- GCD dummy spell (61304), Hearthstone, Shaman Reincarnation, M+ Teleports
+
+### Whitelisted Resource Auras
+- Maelstrom Weapon (344179), Mage Icicles, Hunter Tip of the Spear
+- Void Metamorphosis + resource aura, Collapsing Star (Devourer DH)
+- Rogue Poisons (all 7), Shaman Imbuements (all 5)
+
+### Other Whitelisted Data
+- Self buffs: Rite of Sanctification, Rite of Adjuration
+- Enemy empowered cast: stage numbers and percentages now non-secret
+- Cast bar sequence ID: never secret (new field with UNIT_SPELLCAST events)
+
+### Per-Aura Secret Check API
+
+Instead of blanket `C_Secrets.ShouldAurasBeSecret()`, use per-aura granularity:
+
+```lua
+-- Per-aura: check if THIS specific aura instance is secret
+local function IsAuraNonSecret(unit, auraInstanceID)
+    if C_Secrets and C_Secrets.ShouldUnitAuraInstanceBeSecret then
+        return not C_Secrets.ShouldUnitAuraInstanceBeSecret(unit, auraInstanceID)
+    end
+    return true  -- fallback: treat as non-secret
+end
+
+-- Per-spell: check if a spell's aura data is secret
+local function IsSpellAuraNonSecret(spellID)
+    if C_Secrets and C_Secrets.ShouldSpellAuraBeSecret then
+        return not C_Secrets.ShouldSpellAuraBeSecret(spellID)
+    end
+    return true
+end
+```
+
+**Pattern for raid frames (Cell addon approach):**
+```lua
+-- Replace blanket guard with per-aura check
+for i = 1, numAuras do
+    local auraData = C_UnitAuras.GetAuraDataByIndex(unit, i, filter)
+    if auraData then
+        if IsAuraNonSecret(unit, auraData.auraInstanceID) then
+            -- Full data available: show timer, source, stacks
+            ShowAuraWithTimer(auraData)
+        else
+            -- Secret aura: graceful degradation (no timer, no source)
+            ShowAuraMinimal(auraData)
+        end
+    end
+end
+```
+
+### New APIs for Secret Value Support (12.0)
+
+| API | Purpose |
+|-----|---------|
+| `CreateUnitHealPredictionCalculator()` | Calculate heal prediction + absorb for passthrough |
+| `UnitGetDetailedHealPrediction(calculator)` | Get prediction using calculator object |
+| `C_Secrets.ShouldUnitAuraInstanceBeSecret(unit, instanceID)` | Per-aura secret check |
+| `C_Secrets.ShouldSpellAuraBeSecret(spellID)` | Per-spell aura secret check |
+| `issecretvalue(value)` | Global: test if a value is secret |
+| `UnitHealthPercent(unit)` | Health percentage (secret, new convenience) |
+| `UnitHealthMissing(unit)` | Missing health (secret, new convenience) |
+| `UnitPowerPercent(unit)` | Power percentage (secret, new convenience) |
+| `UnitPowerMissing(unit)` | Missing power (secret, new convenience) |
 
 ---
 
