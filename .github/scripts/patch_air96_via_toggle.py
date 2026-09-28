@@ -7,6 +7,7 @@ via_dir = qmk / "keyboards/nuphy/air96_v2/ansi/keymaps/via"
 src_c = (cm / "concurrent_macros/concurrent_macros.c").read_text(encoding="utf-8")
 src_h = (cm / "concurrent_macros/concurrent_macros.h").read_text(encoding="utf-8")
 
+# NuPhy's QMK toolchain is C (not C++), so normalize the fixed-underlying-type enums.
 src_c = src_c.replace(
     "typedef enum : uint8_t { CM_FREE, CM_IDLE, CM_DO_NEXT, CM_ERROR } concurrent_macros_state_t;",
     "typedef enum { CM_FREE, CM_IDLE, CM_DO_NEXT, CM_ERROR } concurrent_macros_state_t;",
@@ -27,6 +28,7 @@ if "concurrent_macros.c" not in rules:
     rules += "SRC += concurrent_macros.c\n"
 rules_path.write_text(rules, encoding="utf-8")
 
+# Replace VIA's stock blocking macro launcher with the concurrent macro engine.
 via_c = qmk / "quantum/via.c"
 v = via_c.read_text(encoding="utf-8")
 old = '''bool process_record_via(uint16_t keycode, keyrecord_t *record) {
@@ -50,6 +52,11 @@ if old not in v:
     raise SystemExit("NuPhy via.c macro handler pattern not found")
 via_c.write_text(v.replace(old, new, 1), encoding="utf-8")
 
+# IMPORTANT: Air96 V2 overrides housekeeping_task_kb() and does not call
+# housekeeping_task_user(). Therefore the previous build scheduled macros but
+# never serviced the deferred executor. matrix_scan_user() is safe here because
+# Air96 V2 does not override matrix_scan_kb(), so QMK's default matrix scan path
+# calls the user hook continuously.
 keymap_c = via_dir / "keymap.c"
 k = keymap_c.read_text(encoding="utf-8")
 marker = "#include QMK_KEYBOARD_H\n"
@@ -57,13 +64,13 @@ hook = '''#include "concurrent_macros.h"
 
 void housekeeping_task_concurrent_macros(void);
 
-void housekeeping_task_user(void) {
+void matrix_scan_user(void) {
     housekeeping_task_concurrent_macros();
 }
 
 '''
 if marker not in k:
     raise SystemExit("Air96 V2 VIA keymap include marker not found")
-if "housekeeping_task_user(" in k:
-    raise SystemExit("Air96 V2 VIA keymap already defines housekeeping_task_user")
+if "matrix_scan_user(" in k:
+    raise SystemExit("Air96 V2 VIA keymap already defines matrix_scan_user")
 keymap_c.write_text(k.replace(marker, marker + hook, 1), encoding="utf-8")
