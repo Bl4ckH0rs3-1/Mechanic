@@ -1,0 +1,53 @@
+name: Build Air96 V2 GSE Toggle v2
+
+permissions:
+  contents: read
+  actions: write
+
+on:
+  push:
+    branches:
+      - air96v2-gse-build
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: ghcr.io/qmk/qmk_cli
+
+    steps:
+      - name: Disable safe.directory check
+        run: git config --global --add safe.directory '*'
+
+      - name: Checkout NuPhy QMK
+        uses: actions/checkout@v4
+        with:
+          repository: nuphy-src/qmk_firmware
+          ref: nuphy-keyboards
+          path: qmk
+
+      - name: Deploy QMK submodules
+        working-directory: qmk
+        run: qmk git-submodule -f
+
+      - name: Patch Air96 V2 ANSI
+        run: echo 'ZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCnJvb3QgPSBQYXRoKCJxbWsiKQpoZHIgPSByb290IC8gImtleWJvYXJkcy9udXBoeS9haXI5Nl92Mi9hbnNpL2Fuc2kuaCIKa20gID0gcm9vdCAvICJrZXlib2FyZHMvbnVwaHkvYWlyOTZfdjIvYW5zaS9rZXltYXBzL3ZpYS9rZXltYXAuYyIKaCA9IGhkci5yZWFkX3RleHQoZW5jb2Rpbmc9InV0Zi04IikKb2xkID0gIiAgICBSR0JfVEVTVCxcbiAgICBCQVRfTlVNXG59OyIKbmV3ID0gIiAgICBSR0JfVEVTVCxcbiAgICBCQVRfTlVNLFxuICAgIEdTRV9TVCxcbiAgICBHU0VfQU9FXG59OyIKaWYgb2xkIG5vdCBpbiBoOgogICAgcmFpc2UgU3lzdGVtRXhpdCgiYW5zaS5oIGV4cGVjdGVkIGN1c3RvbS1rZXljb2RlIHRhaWwgbm90IGZvdW5kIikKaGRyLndyaXRlX3RleHQoaC5yZXBsYWNlKG9sZCwgbmV3LCAxKSwgZW5jb2Rpbmc9InV0Zi04IikKY29kZSA9ICcjZGVmaW5lIEdTRV9QRVJJT0RfTVMgMTcwXG4jZGVmaW5lIEdTRV9IT0xEX01TIDIwXG5zdGF0aWMgYm9vbCBnc2VfcnVubmluZyA9IGZhbHNlO1xuc3RhdGljIGJvb2wgZ3NlX2tleV9kb3duID0gZmFsc2U7XG5zdGF0aWMgdWludDE2X3QgZ3NlX291dHB1dF9rZXljb2RlID0gS0NfTk87XG5zdGF0aWMgdWludDMyX3QgZ3NlX2N5Y2xlX3RpbWVyID0gMDtcbnN0YXRpYyB2b2lkIGdzZV9yZWxlYXNlX291dHB1dCh2b2lkKSB7XG4gICAgaWYgKGdzZV9rZXlfZG93biAmJiBnc2Vfb3V0cHV0X2tleWNvZGUgIT0gS0NfTk8pIHVucmVnaXN0ZXJfY29kZTE2KGdzZV9vdXRwdXRfa2V5Y29kZSk7XG4gICAgZ3NlX2tleV9kb3duID0gZmFsc2U7XG59XG5zdGF0aWMgdm9pZCBnc2Vfc3RvcCh2b2lkKSB7XG4gICAgZ3NlX3JlbGVhc2Vfb3V0cHV0KCk7XG4gICAgZ3NlX3J1bm5pbmcgPSBmYWxzZTtcbiAgICBnc2Vfb3V0cHV0X2tleWNvZGUgPSBLQ19OTztcbn1cbnN0YXRpYyB2b2lkIGdzZV9zdGFydCh1aW50MTZfdCBvdXRwdXRfa2V5Y29kZSkge1xuICAgIGdzZV9zdG9wKCk7XG4gICAgZ3NlX291dHB1dF9rZXljb2RlID0gb3V0cHV0X2tleWNvZGU7XG4gICAgZ3NlX3J1bm5pbmcgPSB0cnVlO1xuICAgIGdzZV9jeWNsZV90aW1lciA9IHRpbWVyX3JlYWQzMigpO1xuICAgIHJlZ2lzdGVyX2NvZGUxNihnc2Vfb3V0cHV0X2tleWNvZGUpO1xuICAgIGdzZV9rZXlfZG93biA9IHRydWU7XG59XG5zdGF0aWMgdm9pZCBnc2VfdG9nZ2xlKHVpbnQxNl90IG91dHB1dF9rZXljb2RlKSB7XG4gICAgaWYgKGdzZV9ydW5uaW5nICYmIGdzZV9vdXRwdXRfa2V5Y29kZSA9PSBvdXRwdXRfa2V5Y29kZSkgZ3NlX3N0b3AoKTtcbiAgICBlbHNlIGdzZV9zdGFydChvdXRwdXRfa2V5Y29kZSk7XG59XG5ib29sIHByb2Nlc3NfcmVjb3JkX3VzZXIodWludDE2X3Qga2V5Y29kZSwga2V5cmVjb3JkX3QgKnJlY29yZCkge1xuICAgIHN3aXRjaCAoa2V5Y29kZSkge1xuICAgICAgICBjYXNlIEdTRV9TVDpcbiAgICAgICAgICAgIGlmIChyZWNvcmQtPmV2ZW50LnByZXNzZWQpIGdzZV90b2dnbGUoS0NfNyk7XG4gICAgICAgICAgICByZXR1cm4gZmFsc2U7XG4gICAgICAgIGNhc2UgR1NFX0FPRTpcbiAgICAgICAgICAgIGlmIChyZWNvcmQtPmV2ZW50LnByZXNzZWQpIGdzZV90b2dnbGUoS0NfOCk7XG4gICAgICAgICAgICByZXR1cm4gZmFsc2U7XG4gICAgICAgIGRlZmF1bHQ6XG4gICAgICAgICAgICByZXR1cm4gdHJ1ZTtcbiAgICB9XG59XG52b2lkIG1hdHJpeF9zY2FuX3VzZXIodm9pZCkge1xuICAgIGlmICghZ3NlX3J1bm5pbmcpIHJldHVybjtcbiAgICB1aW50MzJfdCBlbGFwc2VkID0gdGltZXJfZWxhcHNlZDMyKGdzZV9jeWNsZV90aW1lcik7XG4gICAgaWYgKGdzZV9rZXlfZG93biAmJiBlbGFwc2VkID49IEdTRV9IT0xEX01TKSBnc2VfcmVsZWFzZV9vdXRwdXQoKTtcbiAgICBpZiAoZWxhcHNlZCA+PSBHU0VfUEVSSU9EX01TKSB7XG4gICAgICAgIGdzZV9yZWxlYXNlX291dHB1dCgpO1xuICAgICAgICByZWdpc3Rlcl9jb2RlMTYoZ3NlX291dHB1dF9rZXljb2RlKTtcbiAgICAgICAgZ3NlX2tleV9kb3duID0gdHJ1ZTtcbiAgICAgICAgZ3NlX2N5Y2xlX3RpbWVyID0gdGltZXJfcmVhZDMyKCk7XG4gICAgfVxufVxuJwprID0ga20ucmVhZF90ZXh0KGVuY29kaW5nPSJ1dGYtOCIpCm1hcmtlciA9ICIjaW5jbHVkZSBRTUtfS0VZQk9BUkRfSFxuIgppZiBtYXJrZXIgbm90IGluIGs6CiAgICByYWlzZSBTeXN0ZW1FeGl0KCJrZXltYXAuYyBpbmNsdWRlIG1hcmtlciBub3QgZm91bmQiKQppZiAicHJvY2Vzc19yZWNvcmRfdXNlcigiIGluIGsgb3IgIm1hdHJpeF9zY2FuX3VzZXIoIiBpbiBrOgogICAgcmFpc2UgU3lzdGVtRXhpdCgia2V5bWFwLmMgYWxyZWFkeSBkZWZpbmVzIHVzZXIgaG9va3MiKQprbS53cml0ZV90ZXh0KGsucmVwbGFjZShtYXJrZXIsIG1hcmtlciArICJcbiIgKyBjb2RlICsgIlxuIiwgMSksIGVuY29kaW5nPSJ1dGYtOCIp' | base64 -d | python3
+
+      - name: Compile firmware
+        working-directory: qmk
+        run: qmk compile -kb nuphy/air96_v2/ansi -km via
+
+      - name: Collect firmware
+        run: |
+          set -eux
+          FW=$(find qmk -maxdepth 1 -type f -name '*air96*v2*via*.bin' | head -n 1)
+          test -n "$FW"
+          cp "$FW" Air96V2_GSE_Toggle_170ms.bin
+          sha256sum Air96V2_GSE_Toggle_170ms.bin > Air96V2_GSE_Toggle_170ms.sha256
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Air96V2-GSE-Toggle-170ms
+          path: |
+            Air96V2_GSE_Toggle_170ms.bin
+            Air96V2_GSE_Toggle_170ms.sha256
