@@ -1,4 +1,4 @@
-name: Build Air96 V2 GSE Toggle v2
+name: Build Air96 V2 VIA Toggle Macros
 
 permissions:
   contents: read
@@ -25,12 +25,86 @@ jobs:
           ref: nuphy-keyboards
           path: qmk
 
+      - name: Checkout concurrent macro engine
+        uses: actions/checkout@v4
+        with:
+          repository: yeroca/qmk_concurrent_macros
+          ref: effb84dee36dfc8935546de822eaa3b1da90bf79
+          path: cm
+
+      - name: Install NuPhy QMK Python requirements
+        run: /opt/uv/tools/qmk/bin/python3 -m pip install --disable-pip-version-check -r qmk/requirements.txt
+
       - name: Deploy QMK submodules
         working-directory: qmk
         run: qmk git-submodule -f
 
-      - name: Patch Air96 V2 ANSI
-        run: echo 'ZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCnJvb3QgPSBQYXRoKCJxbWsiKQpoZHIgPSByb290IC8gImtleWJvYXJkcy9udXBoeS9haXI5Nl92Mi9hbnNpL2Fuc2kuaCIKa20gID0gcm9vdCAvICJrZXlib2FyZHMvbnVwaHkvYWlyOTZfdjIvYW5zaS9rZXltYXBzL3ZpYS9rZXltYXAuYyIKaCA9IGhkci5yZWFkX3RleHQoZW5jb2Rpbmc9InV0Zi04IikKb2xkID0gIiAgICBSR0JfVEVTVCxcbiAgICBCQVRfTlVNXG59OyIKbmV3ID0gIiAgICBSR0JfVEVTVCxcbiAgICBCQVRfTlVNLFxuICAgIEdTRV9TVCxcbiAgICBHU0VfQU9FXG59OyIKaWYgb2xkIG5vdCBpbiBoOgogICAgcmFpc2UgU3lzdGVtRXhpdCgiYW5zaS5oIGV4cGVjdGVkIGN1c3RvbS1rZXljb2RlIHRhaWwgbm90IGZvdW5kIikKaGRyLndyaXRlX3RleHQoaC5yZXBsYWNlKG9sZCwgbmV3LCAxKSwgZW5jb2Rpbmc9InV0Zi04IikKY29kZSA9ICcjZGVmaW5lIEdTRV9QRVJJT0RfTVMgMTcwXG4jZGVmaW5lIEdTRV9IT0xEX01TIDIwXG5zdGF0aWMgYm9vbCBnc2VfcnVubmluZyA9IGZhbHNlO1xuc3RhdGljIGJvb2wgZ3NlX2tleV9kb3duID0gZmFsc2U7XG5zdGF0aWMgdWludDE2X3QgZ3NlX291dHB1dF9rZXljb2RlID0gS0NfTk87XG5zdGF0aWMgdWludDMyX3QgZ3NlX2N5Y2xlX3RpbWVyID0gMDtcbnN0YXRpYyB2b2lkIGdzZV9yZWxlYXNlX291dHB1dCh2b2lkKSB7XG4gICAgaWYgKGdzZV9rZXlfZG93biAmJiBnc2Vfb3V0cHV0X2tleWNvZGUgIT0gS0NfTk8pIHVucmVnaXN0ZXJfY29kZTE2KGdzZV9vdXRwdXRfa2V5Y29kZSk7XG4gICAgZ3NlX2tleV9kb3duID0gZmFsc2U7XG59XG5zdGF0aWMgdm9pZCBnc2Vfc3RvcCh2b2lkKSB7XG4gICAgZ3NlX3JlbGVhc2Vfb3V0cHV0KCk7XG4gICAgZ3NlX3J1bm5pbmcgPSBmYWxzZTtcbiAgICBnc2Vfb3V0cHV0X2tleWNvZGUgPSBLQ19OTztcbn1cbnN0YXRpYyB2b2lkIGdzZV9zdGFydCh1aW50MTZfdCBvdXRwdXRfa2V5Y29kZSkge1xuICAgIGdzZV9zdG9wKCk7XG4gICAgZ3NlX291dHB1dF9rZXljb2RlID0gb3V0cHV0X2tleWNvZGU7XG4gICAgZ3NlX3J1bm5pbmcgPSB0cnVlO1xuICAgIGdzZV9jeWNsZV90aW1lciA9IHRpbWVyX3JlYWQzMigpO1xuICAgIHJlZ2lzdGVyX2NvZGUxNihnc2Vfb3V0cHV0X2tleWNvZGUpO1xuICAgIGdzZV9rZXlfZG93biA9IHRydWU7XG59XG5zdGF0aWMgdm9pZCBnc2VfdG9nZ2xlKHVpbnQxNl90IG91dHB1dF9rZXljb2RlKSB7XG4gICAgaWYgKGdzZV9ydW5uaW5nICYmIGdzZV9vdXRwdXRfa2V5Y29kZSA9PSBvdXRwdXRfa2V5Y29kZSkgZ3NlX3N0b3AoKTtcbiAgICBlbHNlIGdzZV9zdGFydChvdXRwdXRfa2V5Y29kZSk7XG59XG5ib29sIHByb2Nlc3NfcmVjb3JkX3VzZXIodWludDE2X3Qga2V5Y29kZSwga2V5cmVjb3JkX3QgKnJlY29yZCkge1xuICAgIHN3aXRjaCAoa2V5Y29kZSkge1xuICAgICAgICBjYXNlIEdTRV9TVDpcbiAgICAgICAgICAgIGlmIChyZWNvcmQtPmV2ZW50LnByZXNzZWQpIGdzZV90b2dnbGUoS0NfNyk7XG4gICAgICAgICAgICByZXR1cm4gZmFsc2U7XG4gICAgICAgIGNhc2UgR1NFX0FPRTpcbiAgICAgICAgICAgIGlmIChyZWNvcmQtPmV2ZW50LnByZXNzZWQpIGdzZV90b2dnbGUoS0NfOCk7XG4gICAgICAgICAgICByZXR1cm4gZmFsc2U7XG4gICAgICAgIGRlZmF1bHQ6XG4gICAgICAgICAgICByZXR1cm4gdHJ1ZTtcbiAgICB9XG59XG52b2lkIG1hdHJpeF9zY2FuX3VzZXIodm9pZCkge1xuICAgIGlmICghZ3NlX3J1bm5pbmcpIHJldHVybjtcbiAgICB1aW50MzJfdCBlbGFwc2VkID0gdGltZXJfZWxhcHNlZDMyKGdzZV9jeWNsZV90aW1lcik7XG4gICAgaWYgKGdzZV9rZXlfZG93biAmJiBlbGFwc2VkID49IEdTRV9IT0xEX01TKSBnc2VfcmVsZWFzZV9vdXRwdXQoKTtcbiAgICBpZiAoZWxhcHNlZCA+PSBHU0VfUEVSSU9EX01TKSB7XG4gICAgICAgIGdzZV9yZWxlYXNlX291dHB1dCgpO1xuICAgICAgICByZWdpc3Rlcl9jb2RlMTYoZ3NlX291dHB1dF9rZXljb2RlKTtcbiAgICAgICAgZ3NlX2tleV9kb3duID0gdHJ1ZTtcbiAgICAgICAgZ3NlX2N5Y2xlX3RpbWVyID0gdGltZXJfcmVhZDMyKCk7XG4gICAgfVxufVxuJwprID0ga20ucmVhZF90ZXh0KGVuY29kaW5nPSJ1dGYtOCIpCm1hcmtlciA9ICIjaW5jbHVkZSBRTUtfS0VZQk9BUkRfSFxuIgppZiBtYXJrZXIgbm90IGluIGs6CiAgICByYWlzZSBTeXN0ZW1FeGl0KCJrZXltYXAuYyBpbmNsdWRlIG1hcmtlciBub3QgZm91bmQiKQppZiAicHJvY2Vzc19yZWNvcmRfdXNlcigiIGluIGsgb3IgIm1hdHJpeF9zY2FuX3VzZXIoIiBpbiBrOgogICAgcmFpc2UgU3lzdGVtRXhpdCgia2V5bWFwLmMgYWxyZWFkeSBkZWZpbmVzIHVzZXIgaG9va3MiKQprbS53cml0ZV90ZXh0KGsucmVwbGFjZShtYXJrZXIsIG1hcmtlciArICJcbiIgKyBjb2RlICsgIlxuIiwgMSksIGVuY29kaW5nPSJ1dGYtOCIp' | base64 -d | python3
+      - name: Integrate VIA toggle macro engine into Air96 V2
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          qmk = Path('qmk')
+          via_dir = qmk / 'keyboards/nuphy/air96_v2/ansi/keymaps/via'
+          src_c = Path('cm/concurrent_macros/concurrent_macros.c').read_text(encoding='utf-8')
+          src_h = Path('cm/concurrent_macros/concurrent_macros.h').read_text(encoding='utf-8')
+
+          # NuPhy's branch predates the C fixed-underlying-enum syntax used by the module.
+          src_c = src_c.replace(
+              'typedef enum : uint8_t { CM_FREE, CM_IDLE, CM_DO_NEXT, CM_ERROR } concurrent_macros_state_t;',
+              'typedef enum { CM_FREE, CM_IDLE, CM_DO_NEXT, CM_ERROR } concurrent_macros_state_t;'
+          )
+          src_h = src_h.replace(
+              'typedef enum : uint8_t { MACRO_LED_STATE_IDLE, MACRO_LED_STATE_RUNNING, MACRO_LED_STATE_STOPPING, MACRO_LED_STATE_ERROR } concurrent_macros_led_state_t;',
+              'typedef enum { MACRO_LED_STATE_IDLE, MACRO_LED_STATE_RUNNING, MACRO_LED_STATE_STOPPING, MACRO_LED_STATE_ERROR } concurrent_macros_led_state_t;'
+          )
+
+          (via_dir / 'concurrent_macros.c').write_text(src_c, encoding='utf-8')
+          (via_dir / 'concurrent_macros.h').write_text(src_h, encoding='utf-8')
+
+          rules = (via_dir / 'rules.mk').read_text(encoding='utf-8')
+          if 'DEFERRED_EXEC_ENABLE' not in rules:
+              rules += '\nDEFERRED_EXEC_ENABLE = yes\n'
+          if 'concurrent_macros.c' not in rules:
+              rules += 'SRC += concurrent_macros.c\n'
+          (via_dir / 'rules.mk').write_text(rules, encoding='utf-8')
+
+          # The old NuPhy VIA core consumes QK_MACRO before process_record_user().
+          # Route VIA macro keycodes into the concurrent engine instead.
+          via_c = qmk / 'quantum/via.c'
+          v = via_c.read_text(encoding='utf-8')
+          old = '''bool process_record_via(uint16_t keycode, keyrecord_t *record) {
+    // Handle macros
+    if (record->event.pressed) {
+        if (keycode >= QK_MACRO && keycode <= QK_MACRO_MAX) {
+            uint8_t id = keycode - QK_MACRO;
+            dynamic_keymap_macro_send(id);
+            return false;
+        }
+    }
+
+    return true;
+}'''
+          new = '''extern bool process_record_concurrent_macros(uint16_t keycode, keyrecord_t *record);
+
+bool process_record_via(uint16_t keycode, keyrecord_t *record) {
+    return process_record_concurrent_macros(keycode, record);
+}'''
+          if old not in v:
+              raise SystemExit('NuPhy via.c macro handler pattern not found')
+          via_c.write_text(v.replace(old, new, 1), encoding='utf-8')
+
+          # Drive the module's private deferred-exec table from QMK housekeeping.
+          keymap_c = via_dir / 'keymap.c'
+          k = keymap_c.read_text(encoding='utf-8')
+          marker = '#include QMK_KEYBOARD_H\n'
+          hook = '''#include "concurrent_macros.h"\n\nvoid housekeeping_task_concurrent_macros(void);\n\nvoid housekeeping_task_user(void) {\n    housekeeping_task_concurrent_macros();\n}\n\n'''
+          if marker not in k:
+              raise SystemExit('Air96 V2 VIA keymap include marker not found')
+          if 'housekeeping_task_user(' in k:
+              raise SystemExit('Air96 V2 VIA keymap already defines housekeeping_task_user')
+          keymap_c.write_text(k.replace(marker, marker + hook, 1), encoding='utf-8')
+          PY
 
       - name: Compile firmware
         working-directory: qmk
@@ -39,15 +113,16 @@ jobs:
       - name: Collect firmware
         run: |
           set -eux
+          find qmk -maxdepth 1 -type f \( -name '*.bin' -o -name '*.hex' -o -name '*.uf2' \) -print
           FW=$(find qmk -maxdepth 1 -type f -name '*air96*v2*via*.bin' | head -n 1)
           test -n "$FW"
-          cp "$FW" Air96V2_GSE_Toggle_170ms.bin
-          sha256sum Air96V2_GSE_Toggle_170ms.bin > Air96V2_GSE_Toggle_170ms.sha256
+          cp "$FW" Air96V2_VIA_ToggleMacros.bin
+          sha256sum Air96V2_VIA_ToggleMacros.bin > Air96V2_VIA_ToggleMacros.sha256
 
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Air96V2-GSE-Toggle-170ms
+          name: Air96V2-VIA-ToggleMacros
           path: |
-            Air96V2_GSE_Toggle_170ms.bin
-            Air96V2_GSE_Toggle_170ms.sha256
+            Air96V2_VIA_ToggleMacros.bin
+            Air96V2_VIA_ToggleMacros.sha256
