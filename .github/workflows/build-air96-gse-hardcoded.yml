@@ -1,0 +1,55 @@
+name: Build Air96 V2 Hardcoded GSE Toggle
+
+on:
+  push:
+    branches:
+      - air96v2-gse-build
+    paths:
+      - '.github/workflows/build-air96-gse-hardcoded.yml'
+      - '.github/scripts/patch_air96_gse_hardcoded.py'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: ghcr.io/qmk/qmk_cli
+
+    steps:
+      - name: Clone NuPhy QMK
+        run: git clone --depth 1 --single-branch --branch nuphy-keyboards https://github.com/nuphy-src/qmk_firmware.git qmk
+
+      - name: Checkout patch script
+        uses: actions/checkout@v4
+        with:
+          ref: air96v2-gse-build
+          path: buildrepo
+
+      - name: Install NuPhy QMK Python requirements
+        run: /opt/uv/tools/qmk/bin/python3 -m pip install --disable-pip-version-check -r qmk/requirements.txt
+
+      - name: Deploy QMK submodules
+        working-directory: qmk
+        run: qmk git-submodule -f
+
+      - name: Patch hardcoded PGUP/PGDN GSE toggles
+        run: python3 buildrepo/.github/scripts/patch_air96_gse_hardcoded.py
+
+      - name: Compile firmware
+        working-directory: qmk
+        run: qmk compile -kb nuphy/air96_v2/ansi -km default
+
+      - name: Collect firmware
+        run: |
+          set -eux
+          FW=$(find qmk -maxdepth 1 -type f -name '*air96*v2*default*.bin' | head -n 1)
+          test -n "$FW"
+          cp "$FW" Air96V2_GSE_Hardcoded_PGUP7_PGDN8_170ms.bin
+          sha256sum Air96V2_GSE_Hardcoded_PGUP7_PGDN8_170ms.bin > Air96V2_GSE_Hardcoded_PGUP7_PGDN8_170ms.sha256
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Air96V2-GSE-Hardcoded-170ms
+          path: |
+            Air96V2_GSE_Hardcoded_PGUP7_PGDN8_170ms.bin
+            Air96V2_GSE_Hardcoded_PGUP7_PGDN8_170ms.sha256
