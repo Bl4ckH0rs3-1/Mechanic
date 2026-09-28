@@ -1,0 +1,127 @@
+name: Build Air96 V2 GSE Toggle
+
+permissions:
+  contents: read
+  actions: write
+
+on:
+  push:
+    branches:
+      - air96v2-gse-build
+    paths:
+      - '.github/workflows/build-air96-gse.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: ghcr.io/qmk/qmk_cli
+
+    steps:
+      - name: Disable safe.directory check
+        run: git config --global --add safe.directory '*'
+
+      - name: Checkout NuPhy QMK
+        uses: actions/checkout@v4
+        with:
+          repository: nuphy-src/qmk_firmware
+          ref: nuphy-keyboards
+          path: qmk
+
+      - name: Deploy QMK submodules
+        working-directory: qmk
+        run: qmk git-submodule -f
+
+      - name: Patch Air96 V2 ANSI
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('qmk')
+          hdr = root / 'keyboards/nuphy/air96_v2/ansi/ansi.h'
+          km  = root / 'keyboards/nuphy/air96_v2/ansi/keymaps/via/keymap.c'
+
+          h = hdr.read_text(encoding='utf-8')
+          old = '    RGB_TEST,\n    BAT_NUM\n};'
+          new = '    RGB_TEST,\n    BAT_NUM,\n    GSE_ST,\n    GSE_AOE\n};'
+          if old not in h:
+              raise SystemExit('ansi.h expected custom-keycode tail not found')
+          hdr.write_text(h.replace(old, new, 1), encoding='utf-8')
+
+          code = r'''#define GSE_PERIOD_MS 170
+#define GSE_HOLD_MS 20
+static bool gse_running = false;
+static bool gse_key_down = false;
+static uint16_t gse_output_keycode = KC_NO;
+static uint32_t gse_cycle_timer = 0;
+static void gse_release_output(void) {
+    if (gse_key_down && gse_output_keycode != KC_NO) unregister_code16(gse_output_keycode);
+    gse_key_down = false;
+}
+static void gse_stop(void) {
+    gse_release_output();
+    gse_running = false;
+    gse_output_keycode = KC_NO;
+}
+static void gse_start(uint16_t output_keycode) {
+    gse_stop();
+    gse_output_keycode = output_keycode;
+    gse_running = true;
+    gse_cycle_timer = timer_read32();
+    register_code16(gse_output_keycode);
+    gse_key_down = true;
+}
+static void gse_toggle(uint16_t output_keycode) {
+    if (gse_running && gse_output_keycode == output_keycode) gse_stop();
+    else gse_start(output_keycode);
+}
+bool process_record_user(uint16_t keycode, keyrecord_t *record) {
+    switch (keycode) {
+        case GSE_ST:
+            if (record->event.pressed) gse_toggle(KC_7);
+            return false;
+        case GSE_AOE:
+            if (record->event.pressed) gse_toggle(KC_8);
+            return false;
+        default:
+            return true;
+    }
+}
+void matrix_scan_user(void) {
+    if (!gse_running) return;
+    uint32_t elapsed = timer_elapsed32(gse_cycle_timer);
+    if (gse_key_down && elapsed >= GSE_HOLD_MS) gse_release_output();
+    if (elapsed >= GSE_PERIOD_MS) {
+        gse_release_output();
+        register_code16(gse_output_keycode);
+        gse_key_down = true;
+        gse_cycle_timer = timer_read32();
+    }
+}
+'''
+          k = km.read_text(encoding='utf-8')
+          marker = '#include QMK_KEYBOARD_H\n'
+          if marker not in k:
+              raise SystemExit('keymap.c include marker not found')
+          if 'process_record_user(' in k or 'matrix_scan_user(' in k:
+              raise SystemExit('keymap.c already defines user hooks')
+          km.write_text(k.replace(marker, marker + '\n' + code + '\n', 1), encoding='utf-8')
+          PY
+
+      - name: Compile firmware
+        working-directory: qmk
+        run: qmk compile -kb nuphy/air96_v2/ansi -km via
+
+      - name: Collect firmware
+        run: |
+          set -eux
+          FW=$(find qmk -maxdepth 1 -type f -name '*air96*v2*via*.bin' | head -n 1)
+          test -n "$FW"
+          cp "$FW" Air96V2_GSE_Toggle_170ms.bin
+          sha256sum Air96V2_GSE_Toggle_170ms.bin > Air96V2_GSE_Toggle_170ms.sha256
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Air96V2-GSE-Toggle-170ms
+          path: |
+            Air96V2_GSE_Toggle_170ms.bin
+            Air96V2_GSE_Toggle_170ms.sha256
